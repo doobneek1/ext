@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
   "name": "doobneek feat YourPeer",
-  "version": "5.9.4",
+  "version": "5.9.9.1",
   "description": "Injects text formatting buttons and redirect logic.",
-  "permissions": ["storage", "tabs", "webNavigation"],
+"permissions": ["storage", "tabs", "webNavigation"],
  "host_permissions": [
   "https://gogetta.nyc/*",
   "https://yourpeer.nyc/*",
-  "https://mail.google.com/*"
+  "https://mail.google.com/*","https://voice.google.com/*"
 ],
   "background": {
     "service_worker": "background.js"
@@ -22,16 +22,17 @@
     "default_title": "doobneek inline formatter"
   },
   "content_scripts": [
-    {
-      "matches": [
-        "https://gogetta.nyc/*",
-        "https://mail.google.com/*", "https://yourpeer.nyc/locations*"
-      ],
-      "js": ["injector.js","power.js", "themeOverride.js","autoClicker.js","gghost.js", "yphost.js"],
-      "css": ["style.css"],
-      "run_at": "document_idle"
-    }
-  ],
+  {
+    "matches": ["https://gogetta.nyc/*", "https://mail.google.com/*", "https://yourpeer.nyc/locations*"],
+    "js": ["injector.js", "power.js", "themeOverride.js", "autoClicker.js", "gghost.js", "yphost.js","buttoncall.js"],
+    "css": ["style.css"],
+    "run_at": "document_idle"
+  },  
+  {
+    "matches": ["<all_urls>"],
+    "js": ["tel.js"],
+    "run_at": "document_idle"
+  }],
   "web_accessible_resources": [
     {
       "resources": [
