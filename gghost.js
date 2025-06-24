@@ -28,6 +28,14 @@ function onUrlChange(callback) {
 }
 
 async function injectGoGettaButtons() {
+  // Clean up existing buttons injected by this script
+  document.querySelectorAll('[data-gghost-button]').forEach(btn => btn.remove());
+  // Also clean up the specific "Go to YP" button if it exists
+  const existingGoToYpBtn = document.querySelector('[data-go-to-yp]');
+  if (existingGoToYpBtn) {
+    existingGoToYpBtn.remove();
+  }
+
   const host = location.hostname;
   const path = location.pathname;
   if (host !== 'gogetta.nyc') return;
@@ -104,6 +112,7 @@ sessionStorage.setItem('ypScrollTarget', name);
     btn.style.borderRadius = '4px';
     btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
     btn.style.cursor = 'pointer';
+    btn.setAttribute('data-gghost-button', 'true'); // Add attribute for cleanup
     document.body.appendChild(btn);
     btn.addEventListener('click', onClick);
     return btn;
@@ -211,27 +220,28 @@ if (
   host === 'gogetta.nyc' &&
   (path === '/' || path === '/find' || path === '/team')
 ) {
-  const existing = document.querySelector('[data-go-to-yp]');
-  if (!existing) {
-    const btn = document.createElement('button');
-    btn.textContent = 'Go to YP';
-    btn.setAttribute('data-go-to-yp', 'true');
-    btn.style.position = 'fixed';
-    btn.style.bottom = '20px';
-    btn.style.left = '20px';
-    btn.style.zIndex = '9999';
-    btn.style.padding = '10px 16px';
-    btn.style.fontSize = '13px';
-    btn.style.background = '#fff';
-    btn.style.border = '2px solid black';
-    btn.style.borderRadius = '4px';
-    btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
-    btn.style.cursor = 'pointer';
-    btn.addEventListener('click', () => {
-      window.location.href = 'https://yourpeer.nyc/locations?sortBy=nearby';
-    });
-    document.body.appendChild(btn);
-  }
+  // The check for `existing` is removed because the cleanup logic at the
+  // beginning of `injectGoGettaButtons` (which removes all buttons with
+  // `data-gghost-button` or `data-go-to-yp`) now handles preventing duplicates.
+  const btn = document.createElement('button');
+  btn.textContent = 'Go to YP';
+  btn.setAttribute('data-go-to-yp', 'true'); // Keep specific attribute
+  btn.setAttribute('data-gghost-button', 'true'); // Add common attribute for cleanup
+  btn.style.position = 'fixed';
+  btn.style.bottom = '20px';
+  btn.style.left = '20px';
+  btn.style.zIndex = '9999';
+  btn.style.padding = '10px 16px';
+  btn.style.fontSize = '13px';
+  btn.style.background = '#fff';
+  btn.style.border = '2px solid black';
+  btn.style.borderRadius = '4px';
+  btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+  btn.style.cursor = 'pointer';
+  btn.addEventListener('click', () => {
+    window.location.href = 'https://yourpeer.nyc/locations?sortBy=nearby';
+  });
+  document.body.appendChild(btn);
 }
 
 
@@ -239,6 +249,8 @@ if (
 (async function () {
   await injectGoGettaButtons();
   onUrlChange(() => {
+    // The cleanup is now at the beginning of injectGoGettaButtons,
+    // so it's called implicitly here, ensuring buttons are refreshed.
     injectGoGettaButtons();
   });
 })();
