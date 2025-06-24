@@ -10,46 +10,70 @@
         current.nodeName === 'A' ||
         current.nodeName === 'TEXTAREA' ||
         current.isContentEditable
-      ) {
-        return true;
-      }
+      ) return true;
       current = current.parentNode;
     }
     return false;
   }
 
+  function createLink(href, text, type = 'url') {
+    const a = document.createElement('a');
+    a.href = href;
+    a.textContent = text;
+    if (type === 'url') {
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    }
+    return a;
+  }
+
   function hyperlinkTextNodes(root) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
-    const textNodes = [];
+    const nodesToReplace = [];
 
     while (walker.nextNode()) {
       const node = walker.currentNode;
+      if (!node.nodeValue.trim()) continue;
       if (isInsideLinkOrEditable(node)) continue;
-      textNodes.push(node);
+
+      const text = node.nodeValue;
+      const matches = [...text.matchAll(new RegExp(`${urlRegex.source}|${emailRegex.source}|${phoneRegex.source}`, 'gi'))];
+
+      if (matches.length === 0) continue;
+
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
+
+      for (const match of matches) {
+        const index = match.index;
+        if (index > lastIndex) {
+          fragment.appendChild(document.createTextNode(text.slice(lastIndex, index)));
+        }
+
+        const matchedText = match[0];
+        if (urlRegex.test(matchedText)) {
+          const href = matchedText.startsWith('http') ? matchedText : `https://${matchedText}`;
+          fragment.appendChild(createLink(href, matchedText, 'url'));
+        } else if (emailRegex.test(matchedText)) {
+          fragment.appendChild(createLink(`mailto:${matchedText}`, matchedText, 'email'));
+        } else if (phoneRegex.test(matchedText)) {
+          const digits = matchedText.replace(/\D+/g, '');
+          fragment.appendChild(createLink(`tel:${digits}`, matchedText, 'tel'));
+        }
+
+        lastIndex = index + matchedText.length;
+      }
+
+      if (lastIndex < text.length) {
+        fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+      }
+
+      nodesToReplace.push({ oldNode: node, newNode: fragment });
     }
 
-    textNodes.forEach(node => {
-      const originalText = node.textContent;
-      let replaced = originalText;
-
-      replaced = replaced.replace(urlRegex, match => {
-        const href = match.startsWith('http') ? match : `https://${match}`;
-        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${match}</a>`;
-      });
-
-      replaced = replaced.replace(emailRegex, match =>
-        `<a href="mailto:${match}">${match}</a>`
-      );
-
-      replaced = replaced.replace(phoneRegex, match =>
-        `<a href="tel:${match.replace(/\D+/g, '')}">${match}</a>`
-      );
-
-      if (replaced !== originalText) {
-        const template = document.createElement('template');
-        template.innerHTML = replaced;
-        node.replaceWith(template.content.cloneNode(true));
-      }
+    // Replace nodes outside of the loop
+    nodesToReplace.forEach(({ oldNode, newNode }) => {
+      oldNode.parentNode.replaceChild(newNode, oldNode);
     });
   }
 
