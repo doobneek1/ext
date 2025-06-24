@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "doobneek feat YourPeer",
+  "version": "5.9.3",
+  "description": "Injects text formatting buttons and redirect logic.",
+  "permissions": ["storage", "tabs", "webNavigation"],
+ "host_permissions": [
+  "https://gogetta.nyc/*",
+  "https://yourpeer.nyc/*",
+  "https://mail.google.com/*"
+],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    },
+    "default_title": "doobneek inline formatter"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://gogetta.nyc/*",
+        "https://mail.google.com/*", "https://yourpeer.nyc/locations*"
+      ],
+      "js": ["injector.js","power.js", "themeOverride.js","autoClicker.js","gghost.js", "yphost.js"],
+      "css": ["style.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "org_names.txt", "people_names.txt",
+        "doobneekflyer.jpg", "yourpeerflyer.png", "doobneekflyerspan.jpg"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

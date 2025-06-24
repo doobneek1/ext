@@ -1,0 +1,96 @@
+/* .formatter-preview {
+  max-width: 500px;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.formatter-preview a {
+  color: #007bff;
+  text-decoration: underline;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.formatter-preview a span {
+  display: inline;
+} */
+/* Preview area styling */
+.formatter-preview {
+  max-width: 500px;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Hyperlink styling */
+.formatter-preview a {
+  color: #007bff;
+  text-decoration: underline;
+}
+
+/* Code block styling inside instructions */
+.formatter-button-row code {
+  color: #4CAF50;
+  border: 1px solid #4CAF50;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background-color: #f0fff4;
+}
+
+/* Button base style */
+.formatter-button-row button {
+  border-radius: 999px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* Rainbow animation */
+.formatter-button-row button::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 300%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    45deg,
+    red, orange, yellow, green, blue, indigo, violet,
+    red 20%
+  );
+  transition: left 0.6s ease;
+  z-index: 0;
+  opacity: 0;
+}
+
+.formatter-button-row button:active::before {
+  left: -100%;
+  opacity: 1;
+  animation: rainbow-slide 1s linear forwards;
+}
+
+@keyframes rainbow-slide {
+  0% { left: -100%; opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+.formatter-button-row button:active {
+  color: white !important;
+}
+
+/* Specific: Convert filled green */
+.formatter-button-row button.convert-button {
+  background-color: #4CAF50;
+  color: white;
+  border: 2px solid #4CAF50;
+}
+
+/* Specific: Others outlined green */
+.formatter-button-row button:not(.convert-button) {
+  background-color: white;
+  color: #4CAF50;
+  border: 2px solid #4CAF50;
+}
