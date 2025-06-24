@@ -182,6 +182,29 @@ function onUrlChange(callback) {
     window.dispatchEvent(new Event('locationchange'));
   });
 }
+function formatTimeAgo(dateStr) {
+  const now = new Date();
+  const then = new Date(dateStr);
+  const diffMs = now - then;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffMonths = diffDays / 30.44;
+
+  if (diffDays < 1) return 'just now';
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${diffDays >= 14 ? 's' : ''} ago`;
+  if (diffMonths <= 6) return `${Math.round(diffMonths)} month${diffMonths > 1 ? 's' : ''} ago`;
+  if (diffMonths <= 12) return `${Math.round(diffMonths)} months ago`;
+  return `over a year ago`;
+}
+
+function getValidationColor(dateStr) {
+  const now = new Date();
+  const then = new Date(dateStr);
+  const diffMonths = (now - then) / (1000 * 60 * 60 * 24 * 30.44);
+  if (diffMonths <= 6) return 'green';
+  if (diffMonths <= 12) return 'orange';
+  return 'red';
+}
 
 (async function () {
   function normalize(str) {
@@ -195,6 +218,112 @@ function onUrlChange(callback) {
         serviceMap[normalize(svc.name)] = svc.id;
       }
     }
+document.querySelectorAll('div[id]').forEach(section => {
+  const rawId = section.id;
+  const normalized = normalize(rawId);
+  const service = services.find(s => s.name && normalize(s.name) === normalized);
+  if (!service) return;
+
+  const firstValid = service.HolidaySchedules?.[0]?.createdAt || null;
+  const locationId = service.ServiceAtLocation?.location_id;
+  const serviceId = service.id;
+  if (!firstValid || !locationId || !serviceId) return;
+
+  const statusText = formatTimeAgo(firstValid);
+  const color = getValidationColor(firstValid);
+
+  const pTag = section.querySelector('p.text-dark.text-sm span');
+ const alreadyInjected = section.querySelector('a[data-holiday-link]');
+if (pTag && !alreadyInjected) {
+  const dash = document.createTextNode(' – ');
+  const link = document.createElement('a');
+  link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/opening-hours`;
+  link.textContent = statusText;
+  link.setAttribute('data-holiday-link', 'true'); // flag it
+
+  Object.assign(link.style, {
+    color: color,
+    fontWeight: 'bold',
+    marginLeft: '2px',
+    textDecoration: 'underline',
+  });
+
+  pTag.after(dash, link);
+}
+
+});
+
+document.querySelectorAll('div[id]').forEach(section => {
+  const rawId = section.id;
+  const normalized = normalize(rawId);
+  const service = services.find(s => s.name && normalize(s.name) === normalized);
+  if (!service || !service.EventRelatedInfos?.length) return;
+
+  const infoBlock = section.querySelector('p.text-dark.text-sm.have-links.service-info');
+  if (!infoBlock) return;
+
+  const firstValid = service.EventRelatedInfos[0]?.createdAt;
+  const locationId = service.ServiceAtLocation?.location_id;
+  const serviceId = service.id;
+  if (!firstValid || !locationId || !serviceId) return;
+
+  const statusText = formatTimeAgo(firstValid);
+  const color = getValidationColor(firstValid);
+
+ const alreadyInjected = section.querySelector('a[data-otherinfo-link]');
+if (infoBlock && !alreadyInjected) {
+  const dashText = document.createTextNode(' – ');
+  const link = document.createElement('a');
+  link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/other-info`;
+  link.textContent = statusText;
+  link.setAttribute('data-otherinfo-link', 'true'); // flag it
+
+  Object.assign(link.style, {
+    color: color,
+    fontWeight: 'bold',
+    marginLeft: '2px',
+    textDecoration: 'underline',
+  });
+
+  infoBlock.after(dashText, link);
+}
+
+});
+
+// document.querySelectorAll('div[id]').forEach(section => {
+//   const rawId = section.id;
+//   const normalized = normalize(rawId);
+//   const service = services.find(s => s.name && normalize(s.name) === normalized);
+//   if (!service || !service.updatedAt) return;
+
+//   const pTag = section.querySelector('p.text-sm.text-dark.mb-4.have-links');
+//   if (!pTag) return;
+
+//   const statusText = formatTimeAgo(service.updatedAt);
+//   const color = getValidationColor(service.updatedAt);
+
+//   const locationId = service.ServiceAtLocation?.location_id;
+//   const serviceId = service.id;
+//   if (!locationId || !serviceId) return;
+
+//   const dash = document.createTextNode(' – ');
+
+//   const link = document.createElement('a');
+//   link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/description`;
+//  link.textContent = statusText;
+//      // Optional: open in new tab
+
+//     // 🔧 Override default link styling
+//     Object.assign(link.style, {
+//       color: color,
+//       fontWeight: 'bold',
+//       marginLeft: '2px',
+//       textDecoration: 'underline', // optional: remove if you prefer plain
+//     });
+
+//   pTag.after(dash, link);
+// });
+
 
     document.querySelectorAll('div[id]').forEach(section => {
       const rawId = section.id;

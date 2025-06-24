@@ -26,6 +26,37 @@ function onUrlChange(callback) {
     window.dispatchEvent(new Event('locationchange'));
   });
 }
+function findServiceName(obj, serviceId) {
+  let foundName = null;
+
+  function recurse(item) {
+    if (!item || typeof item !== 'object') return;
+
+    if (Array.isArray(item)) {
+      for (const subItem of item) {
+        if (foundName) return;
+        recurse(subItem);
+      }
+    } else {
+      if (
+        item.id === serviceId &&
+        typeof item.name === 'string' &&
+        item.name.trim() !== ''
+      ) {
+        foundName = item.name.trim();
+        return;
+      }
+
+      for (const key in item) {
+        if (foundName) return;
+        recurse(item[key]);
+      }
+    }
+  }
+
+  recurse(obj);
+  return foundName;
+}
 
 async function injectGoGettaButtons() {
   // Clean up existing buttons injected by this script
@@ -72,40 +103,40 @@ if (fullServiceMatch) {
   try {
     const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`);
     const data = await res.json();
-const matchingService = data.services?.find(s => s.id === serviceId)
-  || data.services?.find(s => s.ServiceAtLocation?.service_id === serviceId)
-  || data.services?.find(s => s.id?.includes(serviceId));
+
+ const serviceName = findServiceName(data, serviceId);
+
     const slug = data.slug;
 
-    if (!slug || !matchingService?.name) {
-      console.warn("[YPButton] ❌ Missing slug or service name for service page.");
-    } else {
-      const forbiddenChars = /[(){}\[\]"'“”‘’—–]/;
-      const name = matchingService.name;
-      if (forbiddenChars.test(name)) {
-        console.warn("[YPButton] 🚫 Forbidden characters in service name. Redirecting to slug without hash.");
-        window.location.href = `https://yourpeer.nyc/locations/${slug}`;
-        redirected = true;
-      } else {
-        sessionStorage.setItem('ypScrollTarget', name); 
-const safeServiceName = matchingService.name
-  .trim()
-  .replace(/\s+/g, '-')              // spaces to dashes
-  .replace(/[^\w\-+]/g, '')          // remove everything except word chars, -, +
-  .replace(/-+/g, '-')               // collapse multiple dashes
-  .replace(/^-|-$/g, '');            // trim leading/trailing dash
+ if (!slug || !serviceName) {
+  console.warn("[YPButton] ❌ Missing slug or service name for service page. Will not redirect.");
+} else {
+  const forbiddenChars = /[(){}\[\]"'“”‘’—–]/;
+  if (forbiddenChars.test(serviceName)) {
+    console.warn("[YPButton] 🚫 Forbidden characters in service name. Will not redirect.");
+  } else {
+    sessionStorage.setItem('ypScrollTarget', serviceName);
 
-const serviceHash = `#${safeServiceName}`;
-        const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
-        console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
-        window.location.href = finalUrl;
-        redirected = true;
-      }
-    }
-  } catch (err) {
-    console.error("[YPButton] 🛑 Error fetching location/service data for service page:", err);
+    const safeServiceName = serviceName
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^\w\-+]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    const serviceHash = `#${safeServiceName}`;
+    const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
+    console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
+    window.location.href = finalUrl;
+    redirected = true;
   }
 }
+
+  } catch (err) {
+    console.error("[YPButton] 🛑 Error fetching location/service data for service page:", err);return;
+  }
+}
+
 
 if (redirected) return;
 
@@ -152,7 +183,7 @@ if (redirected) return;
           console.warn('[YPButton] ❌ Slug not found for (Show on YP), not redirecting.');
         }
       } catch (err) {
-        console.error('[YPButton] 🛑 Error fetching slug for (Show on YP):', err);
+        console.error('[YPButton] 🛑 Error fetching slug for (Show on YP):', err);return;
       }
     }, 
     60 // Offset for the second button (e.g. 20px default bottom + 40px additional)
