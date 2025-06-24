@@ -23,20 +23,22 @@
     // Optional: retry every few seconds in case Gmail resets DOM (defensive)
     const periodicRetry = setInterval(ensureInjected, 5000);
   }
-  function findActiveGmailBodyField() {
-    // Try normal compose window
-    const dialogCompose = [...document.querySelectorAll('[role="dialog"]')]
-      .find(d => d.offsetParent !== null)
-      ?.querySelector('[aria-label="Message Body"][contenteditable="true"]');
+function findActiveGmailBodyField() {
+  // 1. Try normal dialog-based compose window
+  const dialogCompose = [...document.querySelectorAll('[role="dialog"]')]
+    .find(d => d.offsetParent !== null)
+    ?.querySelector('[aria-label="Message Body"][contenteditable="true"]');
+  if (dialogCompose) return dialogCompose;
 
-    if (dialogCompose) return dialogCompose;
+  // 2. Fallback: generic visible editable field with correct aria-label
+  const fallbackCompose = [...document.querySelectorAll('div[contenteditable="true"][aria-label="Message Body"]')]
+    .find(el => el.offsetParent !== null);
+  if (fallbackCompose) return fallbackCompose;
 
-    // Fallback: detect inline reply box
-    const replyBox = [...document.querySelectorAll('[aria-label="Message Body"][contenteditable="true"]')]
-      .find(el => el.offsetParent !== null);
+  // 3. Last resort: hardcoded pattern like `id=":sb"` with class `editable`
+  return document.querySelector('div[contenteditable="true"][aria-label="Message Body"].editable');
+}
 
-    return replyBox || null;
-  }
 
   function injectGmailComposerUI() {
     const existingForm = document.getElementById('gmailEmailComposerForm');
@@ -248,12 +250,18 @@
     });
 
     let activeBodyField = null;
-    document.body.addEventListener('mousedown', (e) => {
-      const clickedBody = e.target.closest('[aria-label="Message Body"][contenteditable="true"]');
-      if (clickedBody) {
-        activeBodyField = clickedBody;
-      }
-    });
+document.body.addEventListener('mousedown', (e) => {
+  let clickedBody = e.target.closest?.('[aria-label="Message Body"][contenteditable="true"]');
+  if (!clickedBody && e.target.isContentEditable) {
+    clickedBody = e.target;
+  }
+
+  // Only set if still valid
+  if (clickedBody?.getAttribute('aria-label') === 'Message Body') {
+    activeBodyField = clickedBody;
+  }
+});
+
 
     function capitalize(str) { // Moved capitalize here, it's used below
         if (!str) return '';
@@ -266,11 +274,22 @@
         alert("Please click inside the email body you want to generate content for before clicking the Generate button.");
         return;
       }
-      const currentSubjectField = targetBody.closest('[role="dialog"]')?.querySelector('input[name="subjectbox"]'); // Renamed
-      if (!currentSubjectField || !targetBody) {
-        alert("Could not find an active compose window.");
-        return;
-      }
+ // Try finding subject input near the active body
+let currentSubjectField = targetBody.closest('[role="dialog"]')?.querySelector('input[name="subjectbox"]');
+
+// Fallback: fullscreen or non-dialog subject box
+if (!currentSubjectField) {
+  currentSubjectField = document.querySelector('input[name="subjectbox"]') ||
+                        document.querySelector('input#\\:oh'); // Escape Gmail colon ID
+}
+
+// If no subject field is found but it's a reply box, that's OK
+const isFollowUpChecked = document.getElementById('gmailFollowUp').checked;
+if (!currentSubjectField && !isFollowUpChecked) {
+  alert("No subject field found. If you're starting a new email, please ensure the subject is visible.");
+  return;
+}
+
       const editableBody = targetBody;
       const name = nameInput.value.trim();
       const phone = phoneInput.value.trim();
@@ -337,7 +356,6 @@
         return `<a href="${link}" target="_blank" rel="noopener noreferrer">${display}</a>`;
       }).join(', ');
       
-      const isFollowUpChecked = document.getElementById('gmailFollowUp').checked; // Renamed
 
       if (isGavilan && isFollowUpChecked && isNotOnYP) {
         bodyValue = `${greeting}<br>Just following up on my earlier message — I’m ${name} from <a href="https://streetlives.nyc">Streetlives</a>, where we publish <a href="https://yourpeer.nyc">YourPeer</a>, a peer-powered, walk-in-friendly resource map for NYC social services.<br>We’d love to include <strong>${org}</strong> to help more folks find your services. We highlight programs that welcome walk-ins or accept direct enrollment without referrals.<br>Let me know if you’d be open to a call or a quick visit. My number is <a href="tel:${phoneDigits}">${formattedPhone}</a>. I’ve also attached a flyer you’re welcome to print or share.`;
@@ -357,7 +375,9 @@
         bodyValue = `${greeting}<br>I'm ${name}, a Community Information Specialist at <a href="https://streetlives.nyc">Streetlives</a>, a technology nonprofit publishing <a href="https://yourpeer.nyc">YourPeer</a>, a peer-validated resource guide and interactive map of social services for NYC.<br>Our international team of lived experts and community researchers—representing diverse genders, races, and sexual orientations—builds and maintains YourPeer to ensure it’s both relatable and reliable.<br>I’d like to confirm that the information we’re sharing about <strong>${org}</strong> is accurate and up to date. Please take a moment to review this page: ${linksFormatted}<br>We highlight services that allow direct access—such as walk-ins, in-person inquiry, or enrollment without a referral. Your location is included based on these criteria.<br>We currently feature over 2,700 services at more than 1,500 locations across the NYC Metro Area. Listings are peer-reviewed, and translated by native speakers where possible.<br>I’ve attached a printable flyer for your team to share with participants if desired.<br>Would you be open to a quick call? You can reach me at <a href="tel:${phoneDigits}">${formattedPhone}</a>. I’m also happy to visit in person if helpful.`;
       }
 
-      currentSubjectField.value = subjectValue;
+if (currentSubjectField) {
+  currentSubjectField.value = subjectValue;
+}
       editableBody.focus();
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = bodyValue;
