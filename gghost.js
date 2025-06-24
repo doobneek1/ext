@@ -182,9 +182,22 @@ async function injectGoGettaButtons() {
   }
 }
 
-(async function () {
-  await injectGoGettaButtons();
+async function initializeGoGettaEnhancements() {
+  await injectGoGettaButtons(); // Call once and wait for it to complete
   onUrlChange(() => {
-    injectGoGettaButtons();
+    injectGoGettaButtons(); // Then setup for URL changes (no await needed here as it's event driven)
+  });
+}
+(async function () {
+  console.log('[GGoGetta] 🚀 gghost.js loaded on', location.href);
+
+  await initializeGoGettaEnhancements();
+
+  // Also re-run buttons when tab becomes visible again (just in case)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      injectGoGettaButtons();
+    }
   });
 })();
+
