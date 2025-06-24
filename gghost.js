@@ -86,14 +86,15 @@ if (fullServiceMatch) {
         redirected = true;
       } else {
         sessionStorage.setItem('ypScrollTarget', name); 
-        const serviceHash = '#' + name
-          .trim()
-          .replace(/\s+/g, '-')
-          .replace(/[^a-zA-Z0-9+_\-]/g, '')
-          .replace(/-+/g, '-')
-          .replace(/^-|-$/g, '');
+const safeServiceName = matchingService.name
+  .trim()
+  .replace(/\s+/g, '-')              // spaces to dashes
+  .replace(/[^\w\-+]/g, '')          // remove everything except word chars, -, +
+  .replace(/-+/g, '-')               // collapse multiple dashes
+  .replace(/^-|-$/g, '');            // trim leading/trailing dash
 
-        const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
+const serviceHash = `#${safeServiceName}`;
+        const finalUrl = `https://yourpeer.nyc/locations/${slug}${safeServiceName}`;
         console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
         window.location.href = finalUrl;
         redirected = true;
