@@ -72,7 +72,9 @@ if (fullServiceMatch) {
   try {
     const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`);
     const data = await res.json();
-    const matchingService = data.services?.find(s => s.id === serviceId);
+const matchingService = data.services?.find(s => s.id === serviceId)
+  || data.services?.find(s => s.ServiceAtLocation?.service_id === serviceId)
+  || data.services?.find(s => s.id?.includes(serviceId));
     const slug = data.slug;
 
     if (!slug || !matchingService?.name) {
@@ -94,7 +96,7 @@ const safeServiceName = matchingService.name
   .replace(/^-|-$/g, '');            // trim leading/trailing dash
 
 const serviceHash = `#${safeServiceName}`;
-        const finalUrl = `https://yourpeer.nyc/locations/${slug}${safeServiceName}`;
+        const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
         console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
         window.location.href = finalUrl;
         redirected = true;
