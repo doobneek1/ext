@@ -8,16 +8,22 @@ document.addEventListener('click', (e) => {
   // Wait for a little moment after clicking OK to allow save to trigger
   setTimeout(() => {
     const arrowButton = document.querySelector('button.Button-compact svg.fa-chevron-down')?.closest('button');
+if (arrowButton && !arrowButton.disabled) {
+  console.log('[YP] ✅ Chevron enabled — clicking it');
+  arrowButton.click();
+} else {
+  const currentUrl = window.location.href;
+  if (/\/other-info$/.test(currentUrl)) {
+    const newUrl = currentUrl.replace(/\/other-info$/, '/documents');
+    console.warn('[YP] ❌ Chevron disabled on other-info — switching to documents:', newUrl);
+    window.location.href = newUrl;
+  } else {
+    const newUrl = currentUrl.replace(/\/[^/]+\/?$/, '');  // Removes last slug
+    console.warn('[YP] ❌ Chevron disabled — redirecting to:', newUrl);
+    window.location.href = newUrl;
+  }
+}
 
-    if (arrowButton && !arrowButton.disabled) {
-      console.log('[YP] ✅ Chevron enabled — clicking it');
-      arrowButton.click();
-    } else {
-      const currentUrl = window.location.href;
-      const newUrl = currentUrl.replace(/\/[^/]+\/?$/, '');  // Removes last slug
-      console.warn('[YP] ❌ Chevron disabled — redirecting to:', newUrl);
-      window.location.href = newUrl;
-    }
   }, 500); // Adjust delay as needed based on actual save time (500ms usually works)
 });
 function tryClickYesButton() {

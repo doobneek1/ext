@@ -23,21 +23,27 @@
   },
   "content_scripts": [
   {
-    "matches": ["https://gogetta.nyc/*", "https://mail.google.com/*", "https://yourpeer.nyc/locations*"],
+    "matches": ["https://gogetta.nyc/*", "https://yourpeer.nyc/locations*"],
     "js": ["injector.js", "power.js", "themeOverride.js", "autoClicker.js", "gghost.js", "yphost.js","buttoncall.js"],
     "css": ["style.css"],
     "run_at": "document_idle"
-  },  
+  },
+  {
+    "matches": ["https://mail.google.com/*"],
+    "js": ["gmail_injector.js", "power.js", "themeOverride.js", "autoClicker.js", "yphost.js","buttoncall.js"],
+    "css": ["style.css"],
+    "run_at": "document_idle"
+  },
   {
     "matches": ["<all_urls>"],
-    "js": ["tel.js"],
+    "js": ["tel.js", "tesser.js"],
     "run_at": "document_idle"
   }],
   "web_accessible_resources": [
     {
       "resources": [
         "org_names.txt", "people_names.txt",
-        "doobneekflyer.jpg", "yourpeerflyer.png", "doobneekflyerspan.jpg"
+        "doobneekflyer.jpg", "yourpeerflyer.png", "doobneekflyerspan.jpg","lib/tesseract.min.js"
       ],
       "matches": ["<all_urls>"]
     }
