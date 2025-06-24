@@ -43,7 +43,7 @@
     {
       "resources": [
         "org_names.txt", "people_names.txt",
-        "doobneekflyer.jpg", "yourpeerflyer.png", "doobneekflyerspan.jpg","lib/tesseract.min.js"
+        "doobneekflyer.jpg", "yourpeerflyer.png", "doobneekflyerspan.jpg","tesseract.min.js"
       ],
       "matches": ["<all_urls>"]
     }
