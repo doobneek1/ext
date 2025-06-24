@@ -40,69 +40,12 @@ async function injectGoGettaButtons() {
   const path = location.pathname;
   if (host !== 'gogetta.nyc') return;
 
-  const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)/);
-  const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)/);
-  const uuid = (teamMatch || findMatch)?.[1];
-  if (!uuid) return;
-const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
-
-if (fullServiceMatch) {
-  const locationId = fullServiceMatch[1];
-  const serviceId = fullServiceMatch[2];
-
-  try {
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`);
-    const data = await res.json();
-    const matchingService = data.services?.find(s => s.id === serviceId);
-    const slug = data.slug;
-
-    if (!slug || !matchingService?.name) {
-      console.warn("[YPButton] ❌ Missing slug or service name.");
-      // window.location.href = 'https://yourpeer.nyc/locations?sortBy=nearby';
-      return;
-    }
-
-    const forbiddenChars = /[(){}\[\]"'“”‘’—–]/;
-    const name = matchingService.name;
-
-if (forbiddenChars.test(name)) {
-  console.warn("[YPButton] 🚫 Forbidden characters found. Skipping hash.");
-  window.location.href = `https://yourpeer.nyc/locations/${slug}`;
-  return;
-}
-
-sessionStorage.setItem('ypScrollTarget', name);
-
-    const serviceHash = '#' + name
-      .trim()
-      .replace(/\s+/g, '-')              // Replace spaces with hyphens
-      .replace(/[^a-zA-Z0-9+_\-]/g, '')  // Strip all except alphanumerics, +, _, -
-      .replace(/-+/g, '-')               // Collapse dashes
-      .replace(/^-|-$/g, '');            // Trim dashes
-
-    const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash ? `#${serviceHash}` : ''}`;
-    console.log(`[YPButton] ✅ Redirecting to YP service: ${finalUrl}`);
-    window.location.href = finalUrl;
-    return;
-
-  } catch (err) {
-    console.error("[YPButton] 🛑 Error fetching location/service:", err);
-    // window.location.href = 'https://yourpeer.nyc/locations?sortBy=nearby';
-    return;
-  }
-}
-
-
-  const currentMode = teamMatch ? 'edit' : 'view';
-  const targetUrl = currentMode === 'edit'
-    ? `https://gogetta.nyc/find/location/${uuid}`
-    : `https://gogetta.nyc/team/location/${uuid}`;
-
+  // Helper function to create buttons (defined once, early)
   const createButton = (text, onClick, offset = 0) => {
     const btn = document.createElement('button');
     btn.textContent = text;
     btn.style.position = 'fixed';
-    btn.style.bottom = `${20 + offset}px`;
+    btn.style.bottom = `${20 + offset}px`; // Base offset + specific offset
     btn.style.left = '20px';
     btn.style.zIndex = '9999';
     btn.style.padding = '10px 16px';
@@ -112,146 +55,136 @@ sessionStorage.setItem('ypScrollTarget', name);
     btn.style.borderRadius = '4px';
     btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
     btn.style.cursor = 'pointer';
-    btn.setAttribute('data-gghost-button', 'true'); // Add attribute for cleanup
+    btn.setAttribute('data-gghost-button', 'true'); // Common attribute for cleanup
     document.body.appendChild(btn);
     btn.addEventListener('click', onClick);
     return btn;
   };
 
-  // 🌐 Edit/View toggle
-  createButton(
-    currentMode === 'edit' ? 'Switch to Frontend Mode' : 'Switch to Edit Mode',
-    () => {
-      if (currentMode === 'edit') {
-        sessionStorage.setItem('arrivedViaFrontendRedirect', 'true');
-      } else if (sessionStorage.getItem('arrivedViaFrontendRedirect') === 'true') {
-        sessionStorage.removeItem('arrivedViaFrontendRedirect');
-        history.back();
+  // 1. Check for service page first (most specific)
+  // Example: /team/location/UUID/services/SERVICE_ID
+  const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
+  if (fullServiceMatch) {
+    const locationId = fullServiceMatch[1];
+    const serviceId = fullServiceMatch[2];
+    try {
+      const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`);
+      const data = await res.json();
+      const matchingService = data.services?.find(s => s.id === serviceId);
+      const slug = data.slug;
+
+      if (!slug || !matchingService?.name) {
+        console.warn("[YPButton] ❌ Missing slug or service name for service page.");
+        return; 
+      }
+
+      const forbiddenChars = /[(){}\[\]"'“”‘’—–]/;
+      const name = matchingService.name;
+      if (forbiddenChars.test(name)) {
+        console.warn("[YPButton] 🚫 Forbidden characters found in service name. Redirecting to slug without hash.");
+        window.location.href = `https://yourpeer.nyc/locations/${slug}`;
         return;
       }
-      window.location.href = targetUrl;
-    }
-  );
 
-  // 🎯 Show on YP
-// 🎯 Show on YP
-const ypBtn = createButton('Show on YP', async () => {
-  const freshUuid = location.pathname.match(/^\/(?:find|team)\/location\/([a-f0-9-]+)/)?.[1];
-  if (!freshUuid) {
-    console.warn('[YPButton] ❌ Could not extract UUID');
-    alert('Could not determine location ID');
-    return;
+      // This sessionStorage item is for the #servicename feature.
+      // Its cross-origin viability will be addressed when fixing that feature.
+      sessionStorage.setItem('ypScrollTarget', name); 
+
+      const serviceHash = '#' + name
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-zA-Z0-9+_\-]/g, '')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      
+      const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
+      console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
+      window.location.href = finalUrl;
+      return; 
+
+    } catch (err) {
+      console.error("[YPButton] 🛑 Error fetching location/service data for service page:", err);
+      return; 
+    }
   }
 
-  console.log(`[YPButton] 🔎 Attempting to fetch slug for UUID: ${freshUuid}`);
-  try {
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${freshUuid}`);
-    const data = await res.json();
-    const slug = data.slug;
+  // 2. Then, check for UUID-specific pages (e.g., /team/location/UUID or /find/location/UUID)
+  // Regexes updated to handle optional trailing slash (\/?).
+  const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
+  const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
+  const uuid = (teamMatch || findMatch)?.[1];
 
-    if (slug) {
-      const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
-      console.log(`[YPButton] ✅ Redirecting to YourPeer: ${ypUrl}`);
-      window.location.href = ypUrl;
-    } else {
-      console.warn('[YPButton] ❌ Slug not found, falling back');
-      // window.location.href = 'https://yourpeer.nyc/locations?sortBy=nearby';
-    }
-  } catch (err) {
-    console.error('[YPButton] 🛑 Error fetching slug:', err);
-    // window.location.href = 'https://yourpeer.nyc/locations?sortBy=nearby';
-  }
-}, 40);
+  if (uuid) {
+    const currentMode = teamMatch ? 'edit' : 'view';
+    const targetUrl = currentMode === 'edit'
+      ? `https://gogetta.nyc/find/location/${uuid}`
+      : `https://gogetta.nyc/team/location/${uuid}`;
 
+    createButton(
+      currentMode === 'edit' ? 'Switch to Frontend Mode' : 'Switch to Edit Mode',
+      () => {
+        if (currentMode === 'edit') {
+          sessionStorage.setItem('arrivedViaFrontendRedirect', 'true');
+        } else if (sessionStorage.getItem('arrivedViaFrontendRedirect') === 'true') {
+          sessionStorage.removeItem('arrivedViaFrontendRedirect');
+          history.back();
+          return;
+        }
+        window.location.href = targetUrl;
+      }, 
+      0 // Base offset for first button
+    );
 
+    createButton('Show on YP', async () => {
+      console.log(`[YPButton] 🔎 Attempting to fetch slug for UUID (Show on YP): ${uuid}`);
+      try {
+        const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+        const data = await res.json();
+        const slug = data.slug;
 
-const pendingUuid = sessionStorage.getItem('ypPendingRedirect');
-if (pendingUuid && host === 'gogetta.nyc' && path.startsWith('/find/location/')) {
-  console.log('[YPButton] 🧭 Landed on /find from team with YP intent');
-
-  sessionStorage.removeItem('ypPendingRedirect');
-
-
-
-
-
-
-}
-
-
-
-if (location.hostname === 'yourpeer.nyc') {
-  const rawName = sessionStorage.getItem('ypScrollTarget');
-  if (rawName) {
-    sessionStorage.removeItem('ypScrollTarget'); // clean up
-
-    const hashId = rawName
-      .trim()
-      .replace(/\s+/g, '-')
-      .replace(/[^a-zA-Z0-9+_\-]/g, '')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-
-    const tryClickExpand = () => {
-      const el = document.getElementById(hashId);
-      if (!el) return false;
-
-      const btn = el.querySelector('button.collapseButton');
-      if (btn) {
-        console.log(`[YPButton] 🔽 Expanding fallback service: ${hashId}`);
-        btn.click();
-        return true;
+        if (slug) {
+          const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
+          console.log(`[YPButton] ✅ Redirecting to YourPeer (Show on YP): ${ypUrl}`);
+          window.location.href = ypUrl;
+        } else {
+          console.warn('[YPButton] ❌ Slug not found for (Show on YP), not redirecting.');
+        }
+      } catch (err) {
+        console.error('[YPButton] 🛑 Error fetching slug for (Show on YP):', err);
       }
-      return false;
-    };
+    }, 
+    60 // Offset for the second button (e.g. 20px default bottom + 40px additional)
+       // Assuming button height + margin is around 40-50px. Adjust if needed.
+       // If createButton's 'offset' is 'bottom position', then this should be e.g. 20 + 40 = 60
+       // If createButton's 'offset' is 'margin from previous', it's different.
+       // The current createButton uses `bottom = ${20 + offset}px`. So an offset of 40 means bottom: 60px.
+       // Let's try offset 40 for the second button, meaning it will be at bottom: 60px.
+       // The first button is at bottom: 20px.
+    );
 
-    if (!tryClickExpand()) {
-      const observer = new MutationObserver(() => {
-        if (tryClickExpand()) observer.disconnect();
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-      setTimeout(() => observer.disconnect(), 5000);
+
+    const pendingUuidSession = sessionStorage.getItem('ypPendingRedirect');
+    if (pendingUuidSession && path.startsWith('/find/location/')) { 
+      console.log('[YPButton] 🧭 Landed on /find from team with YP intent (clearing pending)');
+      sessionStorage.removeItem('ypPendingRedirect');
     }
+    
+    return; 
+  }
+
+  // 3. If not a service page AND not a UUID-specific page,
+  //    check for general pages like /, /find, /team for a generic "Go to YP" button.
+  if (path === '/' || path === '/find' || path === '/team') {
+    const genericYpBtn = createButton('Go to YP', () => {
+      window.location.href = 'https://yourpeer.nyc/locations?sortBy=nearby';
+    });
+    genericYpBtn.setAttribute('data-go-to-yp', 'true');
   }
 }
 
-
-if (
-  host === 'gogetta.nyc' &&
-  (path === '/' || path === '/find' || path === '/team')
-) {
-  // The check for `existing` is removed because the cleanup logic at the
-  // beginning of `injectGoGettaButtons` (which removes all buttons with
-  // `data-gghost-button` or `data-go-to-yp`) now handles preventing duplicates.
-  const btn = document.createElement('button');
-  btn.textContent = 'Go to YP';
-  btn.setAttribute('data-go-to-yp', 'true'); // Keep specific attribute
-  btn.setAttribute('data-gghost-button', 'true'); // Add common attribute for cleanup
-  btn.style.position = 'fixed';
-  btn.style.bottom = '20px';
-  btn.style.left = '20px';
-  btn.style.zIndex = '9999';
-  btn.style.padding = '10px 16px';
-  btn.style.fontSize = '13px';
-  btn.style.background = '#fff';
-  btn.style.border = '2px solid black';
-  btn.style.borderRadius = '4px';
-  btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
-  btn.style.cursor = 'pointer';
-  btn.addEventListener('click', () => {
-    window.location.href = 'https://yourpeer.nyc/locations?sortBy=nearby';
-  });
-  document.body.appendChild(btn);
-}
-
-
-};
 (async function () {
   await injectGoGettaButtons();
   onUrlChange(() => {
-    // The cleanup is now at the beginning of injectGoGettaButtons,
-    // so it's called implicitly here, ensuring buttons are refreshed.
     injectGoGettaButtons();
   });
 })();
-
