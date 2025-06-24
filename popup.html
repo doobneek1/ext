@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html>
 <head>
   <style>
@@ -27,6 +27,49 @@
       <input type="checkbox" id="gayModeToggle">
       Gay Mode
     </label>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html> -->
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: sans-serif; padding: 10px; width: 250px; } /* Increased width for username */
+    label { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .sub-options { margin-left: 12px; display: none; flex-direction: column; }
+    #userNameSection { margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; }
+    #userNameInput { width: calc(100% - 10px); padding: 5px; margin-top: 5px; }
+    #userNameStatus { font-size: 0.8em; color: green; margin-top: 5px; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <label>
+    <input type="checkbox" id="redirectToggle">
+    Enable Redirect
+  </label>
+
+  <label>
+    <input type="checkbox" id="recolorToggle">
+    Enable Recolor Mode
+  </label>
+
+  <div class="sub-options" id="recolorOptions">
+    <label>
+      <input type="checkbox" id="greenModeToggle">
+      Green Mode
+    </label>
+    <label>
+      <input type="checkbox" id="gayModeToggle">
+      Gay Mode
+    </label>
+  </div>
+
+  <div id="userNameSection">
+    <label for="userNameInput">Username:</label>
+    <input type="text" id="userNameInput" placeholder="Enter your name">
+    <div id="userNameStatus"></div>
   </div>
 
   <script src="popup.js"></script>

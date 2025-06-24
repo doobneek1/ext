@@ -39,14 +39,13 @@
   }
 
   function injectGmailComposerUI() {
-    const composeWindows = [...document.querySelectorAll('[role="dialog"]')];
-    const visibleCompose = composeWindows.find(win => win.offsetParent !== null);
-
-    const subjectField = visibleCompose?.querySelector('input[name="subjectbox"]');
-    const bodyField = visibleCompose?.querySelector('[aria-label="Message Body"][contenteditable="true"]');
     const existingForm = document.getElementById('gmailEmailComposerForm');
+    // If form already exists, do nothing further in this function call.
+    // This allows repeated calls by observers/timers without re-creating the form.
+    if (existingForm) return;
 
-    if (!subjectField || !bodyField || existingForm) return;
+    // The form itself is injected regardless of whether a compose window is open.
+    // Interaction with compose window elements happens later, e.g., when "Generate Email" is clicked.
 
     const savedPosition = JSON.parse(localStorage.getItem('gmailComposerPosition'));
 
