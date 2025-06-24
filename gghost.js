@@ -64,55 +64,54 @@ async function injectGoGettaButtons() {
   // 1. Check for service page first (most specific)
   // Example: /team/location/UUID/services/SERVICE_ID
   const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
-  if (fullServiceMatch) {
-    const locationId = fullServiceMatch[1];
-    const serviceId = fullServiceMatch[2];
-    try {
-      const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`);
-      const data = await res.json();
-      const matchingService = data.services?.find(s => s.id === serviceId);
-      const slug = data.slug;
+let redirected = false;
 
-      if (!slug || !matchingService?.name) {
-        console.warn("[YPButton] ❌ Missing slug or service name for service page.");
-        return; 
-      }
+if (fullServiceMatch) {
+  const locationId = fullServiceMatch[1];
+  const serviceId = fullServiceMatch[2];
+  try {
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`);
+    const data = await res.json();
+    const matchingService = data.services?.find(s => s.id === serviceId);
+    const slug = data.slug;
 
+    if (!slug || !matchingService?.name) {
+      console.warn("[YPButton] ❌ Missing slug or service name for service page.");
+    } else {
       const forbiddenChars = /[(){}\[\]"'“”‘’—–]/;
       const name = matchingService.name;
       if (forbiddenChars.test(name)) {
-        console.warn("[YPButton] 🚫 Forbidden characters found in service name. Redirecting to slug without hash.");
+        console.warn("[YPButton] 🚫 Forbidden characters in service name. Redirecting to slug without hash.");
         window.location.href = `https://yourpeer.nyc/locations/${slug}`;
-        return;
+        redirected = true;
+      } else {
+        sessionStorage.setItem('ypScrollTarget', name); 
+        const serviceHash = '#' + name
+          .trim()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-zA-Z0-9+_\-]/g, '')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '');
+
+        const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
+        console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
+        window.location.href = finalUrl;
+        redirected = true;
       }
-
-      // This sessionStorage item is for the #servicename feature.
-      // Its cross-origin viability will be addressed when fixing that feature.
-      sessionStorage.setItem('ypScrollTarget', name); 
-
-      const serviceHash = '#' + name
-        .trim()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-zA-Z0-9+_\-]/g, '')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
-      
-      const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
-      console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
-      window.location.href = finalUrl;
-      return; 
-
-    } catch (err) {
-      console.error("[YPButton] 🛑 Error fetching location/service data for service page:", err);
-      return; 
     }
+  } catch (err) {
+    console.error("[YPButton] 🛑 Error fetching location/service data for service page:", err);
   }
+}
+
+if (redirected) return;
+
 
   // 2. Then, check for UUID-specific pages (e.g., /team/location/UUID or /find/location/UUID)
   // Regexes updated to handle optional trailing slash (\/?).
   const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
   const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
-  const uuid = (teamMatch || findMatch)?.[1];
+  const uuid = (teamMatch || findMatch || fullServiceMatch)?.[1];
 
   if (uuid) {
     const currentMode = teamMatch ? 'edit' : 'view';
