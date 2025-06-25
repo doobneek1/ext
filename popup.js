@@ -127,6 +127,12 @@ gayMode.addEventListener("change", () => {
     if (newUserName) {
       localStorage.setItem("userName", newUserName);
       userNameStatus.textContent = "Username saved!";
+      // Send message to content script
+      chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+        if (tabs[0] && tabs[0].id) {
+          chrome.tabs.sendMessage(tabs[0].id, { type: "userNameUpdated", userName: newUserName });
+        }
+      });
       setTimeout(() => {
         userNameStatus.textContent = "";
       }, 2000);
@@ -134,6 +140,12 @@ gayMode.addEventListener("change", () => {
       // If user clears the name, remove it from storage
       localStorage.removeItem("userName");
       userNameStatus.textContent = "Username cleared.";
+      // Send message to content script
+      chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+        if (tabs[0] && tabs[0].id) {
+          chrome.tabs.sendMessage(tabs[0].id, { type: "userNameUpdated", userName: null });
+        }
+      });
        setTimeout(() => {
         userNameStatus.textContent = "";
       }, 2000);

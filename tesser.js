@@ -46,14 +46,20 @@
           : `<a href="mailto:${match}" target="_blank" rel="noopener noreferrer">${match}</a>`;
       });
 
-   if (!isGoogleVoice) {
+if (!isGoogleVoice) {
   replaced = replaced.replace(phoneRegex, match => {
     // Reject matches that contain letters
     if (/[a-z]/i.test(match)) return match;
-    const telHref = `tel:${match.replace(/\D+/g, '')}`;
-    return `<a href="${telHref}">${match}</a>`;
+
+    const digitsOnly = match.replace(/\D+/g, '');
+
+    // Require at least 10 digits to be a valid phone number
+    if (digitsOnly.length < 10) return match;
+
+    return `<a href="tel:${digitsOnly}">${match}</a>`;
   });
 }
+
 
 
       if (replaced !== originalText) {

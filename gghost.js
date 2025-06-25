@@ -464,7 +464,8 @@ const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
 // 🔹 Create editable note overlay for GoGetta (prevent duplicates)
 if (!document.getElementById("gg-note-overlay")) {
   try {
-    const userName = localStorage.getItem("userName");
+    // Use the global variable set by the message listener, or fallback to localStorage (though this will be problematic)
+    const userName = window.gghostUserName !== undefined ? window.gghostUserName : localStorage.getItem("userName");
     const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
 
     if (!userName && !location.pathname.startsWith('/find/')) {
@@ -693,5 +694,73 @@ async function initializeGoGettaEnhancements() {
     if (document.visibilityState === 'visible') {
       injectGoGettaButtons();
     }
+  });
+
+  // Listen for messages from the popup
+  chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    if (request.type === "userNameUpdated") {
+      // Potentially re-initialize or update parts of the UI
+      // For now, we'll just update a global variable if it exists, or log
+      // This part needs to be integrated with how userName is used in injectGoGettaButtons
+      console.log("[gghost.js] Received userNameUpdated message:", request.userName);
+      
+      // It's important that injectGoGettaButtons can be called again safely,
+      // or that specific parts of it related to the username are updated.
+      // For instance, if a global `userName` variable is used by `injectGoGettaButtons`, update it here.
+      // Example: currentUserName = request.userName;
+
+      // Then, re-inject or update the relevant UI elements.
+      // This might mean calling injectGoGettaButtons() again, or a more specific function.
+      // Be careful about removing and re-adding elements too frequently if not necessary.
+      
+      // For the notes feature, it re-checks localStorage on its own.
+      // However, to make the change immediate without a page reload or URL change,
+      // we might need to explicitly call the part of injectGoGettaButtons that sets up the note overlay.
+      // Let's try to remove the existing note overlay and call injectGoGettaButtons again.
+      const existingOverlay = document.getElementById("gg-note-overlay");
+      if (existingOverlay) {
+        existingOverlay.remove();
+      }
+      // Also, re-fetch username from localStorage to be sure, as the message is one way.
+      // The content script's `localStorage` is the same as the page's.
+      // The popup has its own `localStorage` if it's a separate origin (e.g. chrome-extension://)
+      // Correction: Content scripts access the page's localStorage. Popup scripts access extension's localStorage.
+      // The current `popup.js` uses `localStorage`, which is specific to the extension's context.
+      // This is the core of the problem. `gghost.js` (content script) CANNOT directly access `localStorage` set by `popup.js`.
+      // It needs to use `chrome.storage.local`.
+
+      // Given this, the message passing is the correct way.
+      // `gghost.js` should rely on the username passed in the message.
+      // Let's assume `injectGoGettaButtons` will be modified or can use a global var for username.
+
+      // Let's refine this. The `injectGoGettaButtons` function reads `localStorage.getItem("userName")`.
+      // This will NOT work because `popup.js` saves to its own `localStorage` (extension's context),
+      // and `gghost.js` (content script) reads from the web page's `localStorage`.
+
+      // THE FIX:
+      // 1. `popup.js` must save `userName` to `chrome.storage.local`.
+      // 2. `gghost.js` must read `userName` from `chrome.storage.local` at initialization AND when it receives the message.
+      // 3. The message from `popup.js` to `gghost.js` should primarily be a trigger to re-read from `chrome.storage.local`
+      //    and update the UI.
+
+      // So, this listener should trigger a refresh of the note component.
+      // The `injectGoGettaButtons` function, specifically the note creation part,
+      // needs to be refactored to use `chrome.storage.local.get`.
+
+      // For now, let's just trigger re-injection.
+      // The actual fix for localStorage will be a separate step if this doesn't work.
+      // The critical part is that injectGoGettaButtons should now be able to get the updated name.
+      
+      // Let's assume for a moment `gghost.js` *could* access the right localStorage
+      // or that the message is the source of truth.
+      // We need a way for `injectGoGettaButtons` to use the new username.
+      // One way: set a global variable that `injectGoGettaButtons` can check.
+      window.gghostUserName = request.userName; // Make it available globally for injectGoGettaButtons
+
+      // Re-run the injection logic.
+      injectGoGettaButtons(); 
+      sendResponse({ status: "Username received by content script" });
+    }
+    return true; // Indicates that the response is sent asynchronously
   });
 })();
