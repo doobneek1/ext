@@ -496,13 +496,36 @@ if (!document.getElementById("gg-note-overlay")) {
 const userName = window.gghostUserName || await getUserNameSafely();
 
     const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
+if (!userName && !location.pathname.startsWith('/find/')) {
+  console.warn("[📝 Notes] Username not set. Prompting user to click the extension icon.");
 
-    if (!userName && !location.pathname.startsWith('/find/')) {
-      // Only enforce username for editable notes, not for viewing in /find/
-      console.warn("[📝 Notes] Username not set. Please set it in the extension popup to add notes.");
-      // Optionally, create a read-only box or a message box here.
-      // For now, we'll just not create the editable note box if username is missing for edit mode.
-    }
+  // Create a floating banner
+  const banner = document.createElement("div");
+  banner.id = "gg-note-username-banner";
+  banner.textContent = "Click the extension icon and type your name to enable notes";
+  Object.assign(banner.style, {
+    position: "fixed",
+    top: "80px",
+    right: "20px",
+    background: "#ffe0e0",
+    color: "#800",
+    padding: "10px 14px",
+    border: "2px solid #f00",
+    borderRadius: "6px",
+    fontSize: "13px",
+    zIndex: 99999,
+    boxShadow: "0 2px 6px rgba(0,0,0,0.2)"
+  });
+
+  document.body.appendChild(banner);
+
+  // Auto-hide banner after 10 seconds (optional)
+  setTimeout(() => banner.remove(), 10000);
+
+  // Skip creating editable notes since username is still missing
+  return;
+}
+
 
     // Fetch existing notes
     const res = await fetch(`${NOTE_API}?uuid=${uuid}`);

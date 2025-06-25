@@ -1,15 +1,19 @@
 {
   "manifest_version": 3,
   "name": "doobneek feat YourPeer",
-  "version": "5.9.9.1",
+  "version": "5.9.11",
   "description": "Injects text formatting buttons and redirect logic.",
-"permissions": ["storage", "tabs", "webNavigation",  "activeTab", 
-  "scripting"],
- "host_permissions": [
-  "https://gogetta.nyc/*",
-  "https://yourpeer.nyc/*",
-  "https://mail.google.com/*","https://voice.google.com/*"
-],
+  "permissions": [
+    "storage",
+    "tabs",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "https://gogetta.nyc/*",
+    "https://yourpeer.nyc/*",
+    "https://mail.google.com/*",
+    "https://voice.google.com/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -23,34 +27,74 @@
     "default_title": "doobneek inline formatter"
   },
   "content_scripts": [
-  {
-    "matches": ["https://gogetta.nyc/*", "https://yourpeer.nyc/locations*"],
-    "js": ["injector.js","listener.js", "power.js", "themeOverride.js", "autoClicker.js", "gghost.js", "yphost.js"],
-    "css": ["style.css"],
-    "run_at": "document_idle"
-  },
-  {
-    "matches": ["https://mail.google.com/*"],
-    "js": ["gmail_injector.js", "power.js", "themeOverride.js", "autoClicker.js", "yphost.js"],
-    "css": ["style.css"],
-    "run_at": "document_idle"
-  },{
-  "matches": ["https://voice.google.com/*"],
-  "js": ["buttoncall.js"],
-  "run_at": "document_idle"
-},
-  {
-    "matches": ["<all_urls>"],
-    "js": ["tel.js", "tesser.js"],
-    "run_at": "document_idle"
-  }],
+    {
+      "matches": [
+        "https://gogetta.nyc/*",
+        "https://yourpeer.nyc/locations*"
+      ],
+      "js": [
+        "injector.js",
+        "listener.js",
+        "power.js",
+        "themeOverride.js",
+        "autoClicker.js",
+        "gghost.js",
+        "yphost.js"
+      ],
+      "css": [
+        "style.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://mail.google.com/*"
+      ],
+      "js": [
+        "gmail_injector.js",
+        "power.js",
+        "themeOverride.js",
+        "autoClicker.js",
+        "yphost.js"
+      ],
+      "css": [
+        "style.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://voice.google.com/*"
+      ],
+      "js": [
+        "buttoncall.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "tel.js",
+        "tesser.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
   "web_accessible_resources": [
     {
       "resources": [
-        "org_names.txt", "people_names.txt",
-        "doobneekflyer.jpg", "yourpeerflyer.png", "doobneekflyerspan.jpg","tesseract.min.js"
+        "org_names.txt",
+        "people_names.txt",
+        "doobneekflyer.jpg",
+        "yourpeerflyer.png",
+        "doobneekflyerspan.jpg",
+        "tesseract.min.js"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }
