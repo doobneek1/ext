@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "doobneek feat YourPeer",
-  "version": "5.9.11",
+  "version": "5.9.12",
   "description": "Injects text formatting buttons and redirect logic.",
   "permissions": [
     "storage",
@@ -39,7 +39,8 @@
         "themeOverride.js",
         "autoClicker.js",
         "gghost.js",
-        "yphost.js"
+        "yphost.js",
+        "lastpage.js"
       ],
       "css": [
         "style.css"

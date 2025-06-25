@@ -1,4 +1,60 @@
 document.addEventListener("DOMContentLoaded", async () => {
+  const FIREBASE_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes.json";
+  const allReminders = [];
+
+async function fetchAndRenderReminders() {
+  const res = await fetch(FIREBASE_URL);
+  const data = await res.json();
+
+  allReminders.length = 0; // Clear if rerunning
+  for (const uuid in data) {
+    const locationData = data[uuid];
+    if (locationData.reminder) {
+      for (const date in locationData.reminder) {
+        allReminders.push({
+          uuid,
+          date,
+          note: locationData.reminder[date]
+        });
+      }
+    }
+  }
+
+  allReminders.sort((a, b) => a.date.localeCompare(b.date));
+
+  renderReminderList(allReminders);
+  updateExtensionBadge(allReminders);
+
+  // ✅ NOW attach the clear button
+  const clearBtn = document.getElementById("clearReminderFilter");
+  clearBtn?.addEventListener("click", () => renderReminderList(allReminders));
+}
+
+
+function renderReminderList(reminders) {
+  const list = document.getElementById("reminderList");
+  list.innerHTML = "";
+
+  const today = new Date().toISOString().split("T")[0];
+
+  for (const r of reminders) {
+    const dateText = r.date === today ? "Today" : r.date;
+    const li = document.createElement("li");
+    li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${dateText}</a>: ${r.note}`;
+    list.appendChild(li);
+  }
+}
+document.getElementById("clearReminderFilter").addEventListener("click", () => {
+  renderReminderList(allReminders);
+});
+
+function updateExtensionBadge(reminders) {
+  const today = new Date().toISOString().split("T")[0];
+  const upcoming = reminders.filter(r => r.date >= today);
+  const count = upcoming.length;
+
+  chrome.runtime.sendMessage({ type: "setBadge", count });
+}
   const redirect = document.getElementById("redirectToggle");
   const recolorToggle = document.getElementById("recolorToggle");
   const greenMode = document.getElementById("greenModeToggle");
@@ -36,6 +92,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
   });
+const calendarInput = document.getElementById("reminderCalendar");
+if (calendarInput) {
+  calendarInput.addEventListener("change", (e) => {
+    const selected = e.target.value;
+    const filtered = allReminders.filter(r => r.date === selected);
+    renderReminderList(filtered);
+  });
+}
+
+
   greenMode.addEventListener("change", () => {
     if (greenMode.checked) {
       gayMode.checked = false;
@@ -59,26 +125,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const { userName } = await chrome.storage.local.get("userName");
     if (userName) userNameInput.value = userName;
     let saveTimeout = null;
-  function renderReminderList(reminders) {
-  const list = document.getElementById("reminderList");
-  list.innerHTML = "";
 
-  const today = new Date().toISOString().split("T")[0];
 
-  for (const r of reminders) {
-    const dateText = r.date === today ? "🟡 Today" : r.date;
-    const li = document.createElement("li");
-    li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${dateText}</a>: ${r.note}`;
-    list.appendChild(li);
-  }
-}
-function updateExtensionBadge(reminders) {
-  const today = new Date().toISOString().split("T")[0];
-  const upcoming = reminders.filter(r => r.date >= today);
-  const count = upcoming.length;
-
-  chrome.runtime.sendMessage({ type: "setBadge", count });
-}
   
 const saveUserName = () => {
   const newUserName = userNameInput.value.trim();
@@ -132,14 +180,10 @@ window.addEventListener("beforeunload", () => {
   });
 });
   });
+await fetchAndRenderReminders(); // ⬅️ Call the function!
+
+
 });
 
-window.addEventListener("beforeunload", () => {
-  const newUserName = userNameInput.value.trim();
-  chrome.storage.local.get("userName", ({ userName: storedName }) => {
-    if (storedName !== newUserName) {
-      chrome.storage.local.set({ userName: newUserName });
-    }
-  });
-});
+
 

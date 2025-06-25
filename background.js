@@ -16,6 +16,8 @@ function maybeRedirect(details) {
     }
   });
 }
+
+
 chrome.webNavigation.onBeforeNavigate.addListener(maybeRedirect, {
   url: [{ hostEquals: "gogetta.nyc", pathPrefix: "/team/location/" }]
 });
@@ -61,6 +63,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 });
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "setBadge") {
     const text = request.count > 0 ? String(request.count) : "";

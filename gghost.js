@@ -322,8 +322,12 @@ if (!userName && !location.pathname.startsWith('/find/')) {
   setTimeout(() => banner.remove(), 10000);
   return;
 }
-    const res = await fetch(`${NOTE_API}?uuid=${uuid}`);
-    const data = await res.json();
+//if feature is useful add read and write only to reminders make them objects and only fetch notes from notes key and add each temamembers'name and notes as a response.
+    const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes.json";
+const res = await fetch(firebaseURL);
+const allData = await res.json();
+const data = allData?.[uuid] || {};
+
             const notesArray = [];
     let allNotesContent = "";
     if (data && typeof data === 'object' && Object.keys(data).length > 0) {
@@ -587,7 +591,7 @@ document.body.appendChild(noteWrapper);
   }
   if (path === '/' || path === '/find' || path === '/team') {
     const genericYpBtn = createButton('Go to YP', () => {
-      window.location.href = 'https://yourpeer.nyc/locations?sortBy=nearby';
+      window.location.href = 'https://yourpeer.nyc/locations?sortBy=recentlyUpdated';
     });
     genericYpBtn.setAttribute('data-go-to-yp', 'true');
   }
