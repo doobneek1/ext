@@ -17,69 +17,78 @@ async function toggleConnectionMode() {
     if (isInConnectionMode) {
       console.log('Switching to connection mode.');
       // Switch to connection mode
-      await showConnectedLocations(); // Make sure this is async
-      connectionButton.innerText = "Exit Connection Mode";
+      await showConnectedLocations();  // Fetch and display connections
+      connectionButton.innerText = "Notes";  // Change button text to "Notes"
     } else {
       console.log('Exiting connection mode.');
       // Exit connection mode
-      hideConnectedLocations();
-      connectionButton.innerText = "Show Other Branches";
+      hideConnectedLocations();  // Hide connections
+      connectionButton.innerText = "Other Locations";  // Change button text back to "Other Locations"
     }
   } else {
     console.warn('Connection mode button not found!');
   }
 }
 
+
+
+
+
+function toggleGroupVisibility(groupName) {
+  const groupContainer = document.getElementById(`${groupName}-group-container`);
+  if (groupContainer.style.display === "none") {
+    groupContainer.style.display = "block";
+  } else {
+    groupContainer.style.display = "none";
+  }
+}
+
+
+
+
+
+
+// Add the connection mode button
 async function addConnectionModeButton() {
   const connectionButton = document.createElement("button");
   connectionButton.id = "connection-mode-button";
-  connectionButton.style.marginLeft = "10px";
-  connectionButton.style.padding = "10px";
-  connectionButton.style.background = "#fff";
-  connectionButton.style.border = "2px solid #000";
-  connectionButton.style.borderRadius = "4px";
-  connectionButton.style.cursor = "pointer";
-  connectionButton.innerHTML = "Show Other Branches"; // Button text
-
-  // Append it next to the note box
-  const reminderNote = document.getElementById("reminder-note");
-  reminderNote.parentElement.appendChild(connectionButton);
-
+  connectionButton.innerText = "Other Locations";  // Default text
+  connectionButton.style.position = "fixed";
+  connectionButton.style.bottom = "20px";
+  connectionButton.style.left = "20px";
+  connectionButton.style.padding = "10px 16px";
+  connectionButton.style.zIndex = 9999;
   connectionButton.addEventListener('click', toggleConnectionMode);
-  console.log('Connection button added and event listener attached.');
 
-  return connectionButton;
+  document.body.appendChild(connectionButton);
 }
 
-// Call this function when the page loads
 document.addEventListener("DOMContentLoaded", () => {
-  addConnectionModeButton();
+  addConnectionModeButton();  // Add connection mode button when the page loads
 });
 
 
 
+
 async function showConnectedLocations() {
-    const fullServiceMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
+  const fullServiceMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
   const teamMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
   const findMatch = location.pathname.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
-  
+
   const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1]; // Get the current location UUID
   if (!uuid) return;
+  const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/connections.json";
+  const res = await fetch(firebaseURL);  // Fetch the data from the Firebase URL
+  const allData = await res.json();  // Parse the response as JSON
 
-  const db = getDatabase();
-  const connectionsRef = db.ref(`/connections`);
+  // Handle the data (in your case, the connections)
+  const connections = allData || {};  // Fallback to an empty object if no data is found
 
-  console.log('Fetching connected locations...');
-  
-  // Fetch all the connection groups
-  const snapshot = await connectionsRef.once('value');
-  const connections = snapshot.val() || {};
-  
   const connectionsDiv = document.createElement("div");
   connectionsDiv.id = "connected-locations";
   connectionsDiv.style.marginTop = "10px";
   console.log('Displaying connected locations...');
-  
+
   // Iterate through the connection groups
   for (const [groupName, groupData] of Object.entries(connections)) {
     const groupHeader = document.createElement("div");
@@ -92,12 +101,74 @@ async function showConnectedLocations() {
     groupContainer.style.display = "none"; // Initially hidden
     groupContainer.id = `${groupName}-group-container`;
 
+    const stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
+    if (stored.uuid === uuid) { 
+      orgName = stored.org || "";
+      locationName = stored.location || "";
+      console.log(`[Notes Header] Used fallback localStorage data: Org='${orgName}', Location='${locationName}' for UUID='${uuid}'`);
+    } else {
+      let locationName = "";
+      try {
+        console.log(`[Notes Header] Attempting to fetch details for UUID: ${uuid}`);
+        const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+        if (!res.ok) {
+          throw new Error(`API request failed with status ${res.status}`);
+        }
+        const data = await res.json();
+        orgName = data.Organization?.name || "";
+        locationName = data.name || "";
+
+        if (orgName || locationName) {
+          // Retrieve existing data from localStorage or initialize as an empty array
+          let storedData = JSON.parse(localStorage.getItem("ypLastViewedService")) || [];
+
+          // Create the new entry
+          const newEntry = {
+            uuid: uuid,
+            orgName: orgName,
+            locationName: locationName,
+            slug: data.slug || "" // Assuming slug is available in the fetched data
+          };
+
+          // Check if the entry for the current UUID already exists
+          const existingEntryIndex = storedData.findIndex(entry => entry.uuid === uuid);
+          if (existingEntryIndex === -1) {
+            // If the entry doesn't exist, add the new entry
+            storedData.push(newEntry);
+          } else {
+            // Optionally, update the existing entry if needed
+            storedData[existingEntryIndex] = newEntry;
+          }
+
+          // Save the updated array back to localStorage
+          localStorage.setItem("ypLastViewedService", JSON.stringify(storedData));
+          console.log(`[Notes Header] Successfully fetched and stored: Org='${orgName}', Location='${locationName}' for UUID='${uuid}'`);
+        } else {
+          console.warn(`[Notes Header] API returned data but orgName or locationName is missing for UUID: ${uuid}. Data:`, data);
+        }
+      } catch (err) {
+        console.error(`[Notes Header] 🛑 Failed to fetch details from API for UUID ${uuid}:`, err);
+        // Retrieve stored data from localStorage as a fallback
+        let storedData = JSON.parse(localStorage.getItem("ypLastViewedService")) || [];
+
+        // Fallback logic when the data is missing or doesn't match the current UUID
+        const storedEntry = storedData.find(entry => entry.uuid === uuid);
+        if (storedEntry) {
+          orgName = storedEntry.orgName || "";
+          locationName = storedEntry.locationName || "";
+          console.log(`[Notes Header] Used fallback localStorage data: Org='${orgName}', Location='${locationName}' for UUID='${uuid}'`);
+        } else {
+          console.warn(`[Notes Header] No fallback data found for UUID: ${uuid}`);
+        }
+      }
+    }
+
     // Display UUIDs in the group
     for (const [connectionStatus, connectedUuid] of Object.entries(groupData)) {
       const locationLink = document.createElement("a");
       locationLink.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
       locationLink.target = "_blank";
-      locationLink.innerText = await getLocationName(connectedUuid);
+      locationLink.innerText = locationName || `Location ${connectedUuid}`;
       locationLink.style.display = "block";
 
       if (connectionStatus === "true") {
@@ -121,6 +192,7 @@ async function showConnectedLocations() {
   document.body.appendChild(connectionsDiv);
 }
 
+
 function hideConnectedLocations() {
   const connectionsDiv = document.getElementById("connected-locations");
   if (connectionsDiv) {
@@ -132,66 +204,134 @@ function hideConnectedLocations() {
 
 
 
-function toggleGroupVisibility(groupName) {
-  const groupContainer = document.getElementById(`${groupName}-group-container`);
-  if (groupContainer.style.display === "none") {
-    groupContainer.style.display = "block";
-  } else {
-    groupContainer.style.display = "none";
-  }
-}
 
-function hideConnectedLocations() {
-  const connectionsDiv = document.getElementById("connected-locations");
-  if (connectionsDiv) {
-    connectionsDiv.remove();
-  }
-}
 
-// Helper function to get location name for UUID
-async function getLocationName(uuid) {
-  const db = getDatabase();
-  const ref = db.ref(`/locations/${uuid}`);
-  const snapshot = await ref.once("value");
-  const data = snapshot.val();
-  return data ? data.name : "Unknown Location";
-}
+
 
 // Firebase function to update connection status
 async function disconnectLocation(currentUuid, groupName, targetUuid) {
-  const db = getDatabase();
-  const connectionsRef = db.ref(`/connections/${groupName}/${targetUuid}`);
+  try {
+    const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/connections.json";
+    
+    // Fetch the current connections data
+    const res = await fetch(firebaseURL);
+    const allData = await res.json(); // Parse the response as JSON
 
-  // Set the connection status to false
-  await connectionsRef.set(false);
-  console.log(`Disconnected ${currentUuid} from ${targetUuid} in group ${groupName}`);
+    // Get the group data or initialize as an empty object if the group doesn't exist
+    const groupData = allData?.[groupName] || {};
 
-  // Re-render the connected locations after disconnection
-  showConnectedLocations();
+    // If the targetUuid doesn't exist, log a warning and exit
+    if (!groupData[targetUuid]) {
+      console.warn(`No connection found for ${targetUuid} in group ${groupName}`);
+      return;
+    }
+
+    // Set the connection status to false for the target UUID
+    groupData[targetUuid] = false;
+
+    // Update Firebase with the modified group data using PATCH
+    const updateResponse = await fetch(firebaseURL, {
+      method: 'PATCH', // Use PATCH instead of PUT
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ...allData, // Retain existing data
+        [groupName]: groupData // Update the group with the modified connection status
+      })
+    });
+
+    // Check for a successful response
+    if (!updateResponse.ok) {
+      throw new Error(`Failed to update connection status for ${targetUuid}`);
+    }
+
+    console.log(`Disconnected ${currentUuid} from ${targetUuid} in group ${groupName}`);
+
+    // Re-render the connected locations after disconnection
+    showConnectedLocations();
+  } catch (err) {
+    console.error('[Disconnect Error] 🛑 Failed to disconnect location:', err);
+  }
 }
+
+
 
 // Firebase function to add a new group
 async function addNewGroup(groupName) {
-  const db = getDatabase();
-  const newGroupRef = db.ref(`/connections/${groupName}`);
+  try {
+    const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/connections.json";
 
-  // Initially set the group as empty
-  await newGroupRef.set({});
-  console.log(`New group ${groupName} added to connections.`);
+    // Fetch the existing data from Firebase
+    const res = await fetch(firebaseURL);
+    const allData = await res.json(); // Parse the response as JSON
+
+    // Add the new group as an empty object
+    const updatedData = {
+      ...allData, // Retain existing data
+      [groupName]: {} // Add the new group as an empty object
+    };
+
+    // Update Firebase with the new group using PATCH
+    const updateResponse = await fetch(firebaseURL, {
+      method: 'PATCH', // Use PATCH instead of PUT
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updatedData) // Send the updated data with the new group
+    });
+
+    if (!updateResponse.ok) {
+      throw new Error(`Failed to add new group: ${groupName}`);
+    }
+
+    console.log(`New group ${groupName} added to connections.`);
+  } catch (err) {
+    console.error('[Add New Group Error] 🛑 Failed to add new group:', err);
+  }
 }
 
-// Firebase function to add a new UUID to a group
+
+
 async function addUuidToGroup(groupName, uuid) {
-  const db = getDatabase();
-  const groupRef = db.ref(`/connections/${groupName}`);
+  try {
+    const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/connections.json";
 
-  const snapshot = await groupRef.once('value');
-  const groupData = snapshot.val() || {};
+    // Fetch the current connections data
+    const res = await fetch(firebaseURL);
+    const allData = await res.json(); // Parse the response as JSON
 
-  // Add the UUID to the group with a default status of `true`
-  groupData[uuid] = true;
-  await groupRef.set(groupData);
-  console.log(`Added UUID ${uuid} to group ${groupName}`);
+    // Get the current group data or initialize as an empty object
+    const groupData = allData?.[groupName] || {};
+
+    // Add the UUID to the group with a default status of `true` (if not already there)
+    if (groupData[uuid] !== undefined) {
+      console.log(`UUID ${uuid} is already in group ${groupName}, no update needed.`);
+      return; // No update needed if the UUID already exists
+    }
+
+    groupData[uuid] = true; // Add UUID with the status of true
+
+    // Update Firebase with the modified group data using PATCH
+    const updateResponse = await fetch(firebaseURL, {
+      method: 'PATCH', // Use PATCH instead of PUT
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ...allData, // Retain existing data
+        [groupName]: groupData // Only update the specific group with the new UUID added
+      })
+    });
+
+    if (!updateResponse.ok) {
+      throw new Error(`Failed to add UUID ${uuid} to group ${groupName}`);
+    }
+
+    console.log(`Added UUID ${uuid} to group ${groupName}`);
+  } catch (err) {
+    console.error('[Add UUID to Group Error] 🛑 Failed to add UUID:', err);
+  }
 }
 
 // Call this function when the page loads
@@ -669,27 +809,51 @@ const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
       return;
     }
   } else {
-    try {
-      const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
-      const data = await res.json();
-      const slug = data.slug;
-   localStorage.setItem("ypLastViewedService", JSON.stringify({
-        name:  data.Organization?.name,
-        location: data.name,
-        uuid: uuid,
-          slug: data.slug
+try {
+  const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+  const data = await res.json();
+  const slug = data.slug;
 
-      }));
-      if (slug) {
-        const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
-        console.log(`[YPButton] ✅ Redirecting to YourPeer (location level): ${ypUrl}`);
-        window.location.href = ypUrl;
-      } else {
-        console.warn('[YPButton] ❌ Slug not found for location-level redirect.');
-      }
-    } catch (err) {
-      console.error('[YPButton] 🛑 Error fetching slug for location-level redirect:', err);
-    }
+  // Retrieve the existing data from localStorage (or initialize an empty array if not present)
+  let storedData = JSON.parse(localStorage.getItem("ypLastViewedService")) || [];
+
+  // Create the new entry
+  const newEntry = {
+    name: data.Organization?.name,
+    location: data.name,
+    uuid: uuid,
+    slug: slug
+  };
+if (!Array.isArray(storedData)) {
+  console.warn("Stored data is not an array. Initializing as an empty array.");
+  storedData = [];
+}
+  // Check if the entry for the current UUID already exists
+  const existingEntryIndex = storedData.findIndex(entry => entry.uuid === uuid);
+  if (existingEntryIndex === -1) {
+    // If the entry doesn't exist, add the new entry
+    storedData.push(newEntry);
+  } else {
+    // If the entry exists, update it
+    storedData[existingEntryIndex] = newEntry;
+  }
+
+  // Save the updated array back to localStorage
+  localStorage.setItem("ypLastViewedService", JSON.stringify(storedData));
+  console.log(`[YPButton] ✅ Successfully stored: ${data.Organization?.name} - ${data.name} for UUID: ${uuid}`);
+
+  // If slug is available, redirect to the location's page on YourPeer
+  if (slug) {
+    const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
+    console.log(`[YPButton] ✅ Redirecting to YourPeer (location level): ${ypUrl}`);
+    window.location.href = ypUrl;
+  } else {
+    console.warn('[YPButton] ❌ Slug not found for location-level redirect.');
+  }
+} catch (err) {
+  console.error('[YPButton] 🛑 Error fetching slug for location-level redirect:', err);
+}
+
   }
 }, 60); 
 const ypMiniBtn = createButton('YP Mini', async () => {
@@ -880,6 +1044,7 @@ if (orgName || locationName) {
 
 // Create the "Show Other Branches" button
 const toggleButton = document.createElement("button");
+toggleButton.id = "connection-mode-button"; // Assign the correct ID
 toggleButton.innerText = "Show Other Branches";
 toggleButton.style.marginLeft = "10px";
 toggleButton.style.fontSize = "14px";
