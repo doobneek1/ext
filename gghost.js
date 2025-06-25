@@ -89,6 +89,39 @@ async function showConnectedLocations() {
   connectionsDiv.style.marginTop = "10px";
   console.log('Displaying connected locations...');
 
+  // UI for adding a new group
+  const addGroupDiv = document.createElement("div");
+  addGroupDiv.style.marginBottom = "15px";
+  addGroupDiv.style.padding = "10px";
+  addGroupDiv.style.border = "1px solid #ccc";
+  addGroupDiv.style.borderRadius = "4px";
+
+  const groupNameInput = document.createElement("input");
+  groupNameInput.type = "text";
+  groupNameInput.placeholder = "New group name";
+  groupNameInput.style.marginRight = "10px";
+  groupNameInput.style.padding = "5px";
+  groupNameInput.id = "new-group-name-input"; // Added ID for potential future use
+
+  const addGroupButton = document.createElement("button");
+  addGroupButton.innerText = "Add New Group";
+  addGroupButton.style.padding = "5px 10px";
+  addGroupButton.addEventListener('click', async () => {
+    const newGroupName = groupNameInput.value.trim();
+    if (newGroupName) {
+      await addNewGroup(newGroupName);
+      // Refresh the view to show the new group
+      hideConnectedLocations(); // Remove old view
+      await showConnectedLocations(); // Re-render view
+    } else {
+      alert("Please enter a group name.");
+    }
+  });
+
+  addGroupDiv.appendChild(groupNameInput);
+  addGroupDiv.appendChild(addGroupButton);
+  connectionsDiv.appendChild(addGroupDiv);
+
   // Iterate through the connection groups
   for (const [groupName, groupData] of Object.entries(connections)) {
     const groupHeader = document.createElement("div");
@@ -185,6 +218,43 @@ async function showConnectedLocations() {
       groupContainer.appendChild(locationLink);
     }
 
+    // UI for adding a UUID to this group
+    const addUuidDiv = document.createElement("div");
+    addUuidDiv.style.marginTop = "5px";
+    addUuidDiv.style.paddingTop = "5px";
+    addUuidDiv.style.borderTop = "1px dashed #eee";
+
+    const uuidInput = document.createElement("input");
+    uuidInput.type = "text";
+    uuidInput.placeholder = "Enter UUID to add";
+    uuidInput.style.marginRight = "5px";
+    uuidInput.style.padding = "4px";
+    uuidInput.id = `add-uuid-input-${groupName}`; // Unique ID
+
+    const addUuidButton = document.createElement("button");
+    addUuidButton.innerText = "Add UUID to Group";
+    addUuidButton.style.padding = "4px 8px";
+    addUuidButton.addEventListener('click', async () => {
+      const newUuid = uuidInput.value.trim();
+      if (newUuid) {
+        // Validate UUID format (simple check for non-empty, can be enhanced)
+        if (newUuid.match(/^[a-f0-9-]+$/i) && newUuid.length > 10) { // Basic UUID-like check
+          await addUuidToGroup(groupName, newUuid);
+          // Refresh the view
+          hideConnectedLocations();
+          await showConnectedLocations();
+        } else {
+          alert("Please enter a valid UUID format.");
+        }
+      } else {
+        alert("Please enter a UUID.");
+      }
+    });
+
+    addUuidDiv.appendChild(uuidInput);
+    addUuidDiv.appendChild(addUuidButton);
+    groupContainer.appendChild(addUuidDiv);
+
     connectionsDiv.appendChild(groupHeader);
     connectionsDiv.appendChild(groupContainer);
   }
@@ -249,7 +319,8 @@ async function disconnectLocation(currentUuid, groupName, targetUuid) {
     console.log(`Disconnected ${currentUuid} from ${targetUuid} in group ${groupName}`);
 
     // Re-render the connected locations after disconnection
-    showConnectedLocations();
+    hideConnectedLocations(); // Clear the old view first
+    await showConnectedLocations(); // Then show the updated view
   } catch (err) {
     console.error('[Disconnect Error] 🛑 Failed to disconnect location:', err);
   }
