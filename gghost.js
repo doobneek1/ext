@@ -1,313 +1,125 @@
-// function onUrlChange(callback) {
-//   let lastUrl = location.href;
-//   new MutationObserver(() => {
-//     const currentUrl = location.href;
-//     if (currentUrl !== lastUrl) {
-//       lastUrl = currentUrl;
-//       callback(currentUrl);
-//     }
-//   }).observe(document, { subtree: true, childList: true });
-//   const pushState = history.pushState;
-//   history.pushState = function () {
-//     pushState.apply(this, arguments);
-//     window.dispatchEvent(new Event('pushstate'));
-//     window.dispatchEvent(new Event('locationchange'));
-//   };
-//   const replaceState = history.replaceState;
-//   history.replaceState = function () {
-//     replaceState.apply(this, arguments);
-//     window.dispatchEvent(new Event('replacestate'));
-//     window.dispatchEvent(new Event('locationchange'));
-//   };
-//   window.addEventListener('popstate', () => {
-//     window.dispatchEvent(new Event('locationchange'));
-//   });
-// }
-// function findServiceName(obj, serviceId) {
-//   let foundName = null;
-//   function recurse(item) {
-//     if (!item || typeof item !== 'object') return;
-//     if (Array.isArray(item)) {
-//       for (const subItem of item) {
-//         if (foundName) return;
-//         recurse(subItem);
-//       }
-//     } else {
-//       if (
-//         item.id === serviceId &&
-//         typeof item.name === 'string' &&
-//         item.name.trim() !== ''
-//       ) {
-//         foundName = item.name.trim();
-//         return;
-//       }
-//       for (const key in item) {
-//         if (foundName) return;
-//         recurse(item[key]);
-//       }
-//     }
-//   }
-//   recurse(obj);
-//   return foundName;
-// }
-// async function injectGoGettaButtons() {
-//   document.querySelectorAll('[data-gghost-button]').forEach(btn => btn.remove());
-//   const existingGoToYpBtn = document.querySelector('[data-go-to-yp]');
-//   if (existingGoToYpBtn) {
-//     existingGoToYpBtn.remove();
-//   }
-//   const host = location.hostname;
-//   const path = location.pathname;
-//   if (host !== 'gogetta.nyc') return;
-//   const createButton = (text, onClick, offset = 0) => {
-//     const btn = document.createElement('button');
-//     btn.textContent = text;
-//     btn.style.position = 'fixed';
-//     btn.style.bottom = `${20 + offset}px`; 
-//     btn.style.left = '20px';
-//     btn.style.zIndex = '9999';
-//     btn.style.padding = '10px 16px';
-//     btn.style.fontSize = '13px';
-//     btn.style.background = '#fff';
-//     btn.style.border = '2px solid black';
-//     btn.style.borderRadius = '4px';
-//     btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
-//     btn.style.cursor = 'pointer';
-//     btn.setAttribute('data-gghost-button', 'true'); 
-//     document.body.appendChild(btn);
-//     btn.addEventListener('click', onClick);
-//     return btn;
-//   };
-// const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
-// const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
-// const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
-
-// const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
-
-//   if (uuid) {
-//     const currentMode = teamMatch ? 'edit' : 'view';
-//     const targetUrl = currentMode === 'edit'
-//       ? `https://gogetta.nyc/find/location/${uuid}`
-//       : `https://gogetta.nyc/team/location/${uuid}`;
-//     createButton(
-//       currentMode === 'edit' ? 'Switch to Frontend Mode' : 'Switch to Edit Mode',
-//       () => {
-//         if (currentMode === 'edit') {
-//           sessionStorage.setItem('arrivedViaFrontendRedirect', 'true');
-//         } else if (sessionStorage.getItem('arrivedViaFrontendRedirect') === 'true') {
-//           sessionStorage.removeItem('arrivedViaFrontendRedirect');
-//           history.back();
-//           return;
-//         }
-//         window.location.href = targetUrl;
-//       }, 
-//       0 
-//     );
-//   createButton('Show on YP', async () => {
-//   console.log(`[YPButton] 🔎 Attempting to fetch slug for UUID (Show on YP): ${uuid}`);
-//   const path = location.pathname;
-//   const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
-//   if (fullServiceMatch) {
-//     const locationId = fullServiceMatch[1];
-//     const serviceId = fullServiceMatch[2];
-//     try {
-//       const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`);
-//       const data = await res.json();
-//       const slug = data.slug;
-//       const serviceName = findServiceName(data, serviceId);
-//       if (!slug || !serviceName) {
-//         console.warn("[YPButton] ❌ Missing slug or service name for service page. Will not redirect.");
-//         return;
-//       }
-//       const forbiddenChars = /[(){}\[\]"'“”‘’—–]/;
-//       if (forbiddenChars.test(serviceName)) {
-//         console.warn("[YPButton] 🚫 Forbidden characters in service name. Will not redirect.");
-//         return;
-//       }
-//       sessionStorage.setItem('ypScrollTarget', serviceName);
-//       const safeServiceName = serviceName
-//         .trim()
-//         .replace(/\s+/g, '-')
-//         .replace(/[^\w\-+]/g, '')
-//         .replace(/-+/g, '-')
-//         .replace(/^-|-$/g, '');
-//       const serviceHash = `#${safeServiceName}`;
-//       const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
-//       console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
-//       window.location.href = finalUrl;
-//     } catch (err) {
-//       console.error("[YPButton] 🛑 Error fetching location/service data for service page:", err);
-//       return;
-//     }
-//   } else {
-//     try {
-//       const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
-//       const data = await res.json();
-//       const slug = data.slug;
-//       if (slug) {
-//         const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
-//         console.log(`[YPButton] ✅ Redirecting to YourPeer (location level): ${ypUrl}`);
-//         window.location.href = ypUrl;
-//       } else {
-//         console.warn('[YPButton] ❌ Slug not found for location-level redirect.');
-//       }
-//     } catch (err) {
-//       console.error('[YPButton] 🛑 Error fetching slug for location-level redirect:', err);
-//     }
-//   }
-// }, 60); 
-// // 🔹 Create editable note overlay for GoGetta (prevent duplicates)
-// if (!document.getElementById("gg-note-overlay")) {
-//   try {
-//     const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
-
-//     const res = await fetch(`${NOTE_API}?uuid=${uuid}`);
-//     const data = await res.json();
-//     const noteText = typeof data.note === "string" ? data.note.trim() : "";
-
-//     const noteBox = document.createElement("div");
-//     noteBox.id = "gg-note-overlay";
-//     const isFindMode = location.pathname.startsWith('/find/');
-// noteBox.contentEditable = isFindMode ? "false" : "true";
-
-//     noteBox.style.pointerEvents = 'auto';
-//     noteBox.addEventListener("click", () => {
-//   noteBox.focus();
-// });
-
-//     noteBox.style.position = 'fixed';
-// noteBox.style.zIndex = 999999; // boost to avoid being hidden behind anything
-// noteBox.style.pointerEvents = 'auto';
-// console.log('🧩 Note box added to DOM:', document.getElementById('gg-note-overlay'));
-
-//   Object.assign(noteBox.style, {
-//   position: "fixed",
-//   top: "100px",
-//   right: "20px",
-//   width: "300px",
-//   height: "150px",
-//   background: "#fff",
-//   border: "2px solid #000",
-//   borderRadius: "8px",
-//   padding: "10px",
-//   fontSize: "14px",
-//   overflowY: "auto",
-//   boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-//   zIndex: 9999,
-//   whiteSpace: "pre-wrap",
-//   cursor: isFindMode ? "default" : "text"  // ✅ Use text cursor for edit mode
-// });
-
-// if (isFindMode) {
-//   noteBox.style.background = "#f9f9f9"; // light gray for read-only
-//   noteBox.style.cursor = "default";
-//   noteBox.setAttribute("aria-label", "Read-only location note");
-//       noteBox.innerText = noteText || "(No notes available)";
-
-// } else {
-//   noteBox.style.background = "#e6ffe6"; // subtle green for editable
-//   noteBox.setAttribute("aria-label", "Editable location note");
-//   noteBox.innerText = noteText || "(Click here to add a note)";
-
-// }
-
-// // Add drag handle bar
-// const dragBar = document.createElement('div');
-// Object.assign(dragBar.style, {
-//   height: '20px',
-//   background: '#eee',
-//   cursor: 'grab',
-//   margin: '-10px -10px 10px -10px',
-//   borderBottom: '1px solid #ccc'
-// });
-// noteBox.insertBefore(dragBar, noteBox.firstChild);
-// noteBox.addEventListener('paste', (e) => {
-//   e.preventDefault();
-//   const text = e.clipboardData.getData('text/plain');
-//   document.execCommand('insertText', false, text); // older method
-// });
-
-// dragBar.addEventListener("mousedown", (e) => {
-//   isDragging = true;
-//   offsetX = e.clientX - noteBox.getBoundingClientRect().left;
-//   offsetY = e.clientY - noteBox.getBoundingClientRect().top;
-//   e.preventDefault();
-// });
-// noteBox.style.outline = 'none';
-// noteBox.setAttribute("tabindex", "0"); // to allow keyboard focus
-// noteBox.addEventListener("click", () => noteBox.focus());
-
-//     // ✅ Drag behavior (click anywhere inside)
-//     let offsetX = 0, offsetY = 0, isDragging = false;
-// noteBox.setAttribute("aria-label", "Editable location note");
-// noteBox.setAttribute("role", "textbox");
-
-//     document.addEventListener("mousemove", (e) => {
-//       if (!isDragging) return;
-//       noteBox.style.left = `${e.clientX - offsetX}px`;
-//       noteBox.style.top = `${e.clientY - offsetY}px`;
-//     });
-//     document.addEventListener("mouseup", () => {
-//       isDragging = false;
-//     });
-
-//     // ✅ Debounced save
-//     let saveTimeout = null;
-//     noteBox.addEventListener("input", () => {
-//       clearTimeout(saveTimeout);
-//       saveTimeout = setTimeout(() => {
-//         fetch(NOTE_API, {
-//           method: "POST",
-//           headers: { "Content-Type": "application/json" },
-//           body: JSON.stringify({ uuid, note: noteBox.innerText.trim() })
-//         }).then(() => {
-//           console.log("[📝 Note saved]");
-//         }).catch(err => {
-//           console.error("[❌ Failed to save note]", err);
-//         });
-//       }, 1000);
-//     });
-
-//     document.body.appendChild(noteBox);
-//   } catch (err) {
-//     console.error("🛑 Failed to load or show editable note:", err);
-//   }
-// }
-
-//     const pendingUuidSession = sessionStorage.getItem('ypPendingRedirect');
-//     if (pendingUuidSession && path.startsWith('/find/location/')) { 
-//       console.log('[YPButton] 🧭 Landed on /find from team with YP intent (clearing pending)');
-//       sessionStorage.removeItem('ypPendingRedirect');
-//     }
-//     return; 
-//   }
-//   if (path === '/' || path === '/find' || path === '/team') {
-//     const genericYpBtn = createButton('Go to YP', () => {
-//       window.location.href = 'https://yourpeer.nyc/locations?sortBy=nearby';
-//     });
-//     genericYpBtn.setAttribute('data-go-to-yp', 'true');
-//   }
-// }
-// async function initializeGoGettaEnhancements() {
-//   await injectGoGettaButtons(); 
-//   onUrlChange(() => {
-//     injectGoGettaButtons(); 
-//   });
-// }
-// (async function () {
-//   await initializeGoGettaEnhancements();
-  
-//   document.addEventListener('visibilitychange', () => {
-//     if (document.visibilityState === 'visible') {
-//       injectGoGettaButtons();
-//     }
-//   });
-// })();
 function escapeHtml(str) {
   return str.replace(/[&<>"']/g, match =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[match]
   );
 }
+function showReminderModal(uuid, NOTE_API) {
+  const overlay = document.createElement("div");
+  overlay.id = "reminder-modal";
+  Object.assign(overlay.style, {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100000
+  });
+
+  const modal = document.createElement("div");
+  Object.assign(modal.style, {
+    background: "#fff",
+    padding: "20px",
+    borderRadius: "8px",
+    width: "320px",
+    boxShadow: "0 2px 10px rgba(0,0,0,0.25)"
+  });
+
+  modal.innerHTML = `
+    <h3 style="margin-top:0;">📅 Set a Reminder</h3>
+    <label>Date: <input type="date" id="reminder-date" style="width:100%;margin:5px 0;"></label>
+    <label>Note:<textarea id="reminder-note" style="width:100%;height:100px;"></textarea></label>
+    <div style="text-align:right;margin-top:10px;">
+      <button id="reminder-cancel">Cancel</button>
+      <button id="reminder-google" style="margin-left:5px;">📅 Add to Google</button>
+      <button id="reminder-download" style="margin-left:5px;">📥 Download .ics</button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  document.getElementById("reminder-cancel").onclick = () => overlay.remove();
+
+  const handleSave = async (mode) => {
+    const date = document.getElementById("reminder-date").value;
+    const note = document.getElementById("reminder-note").value.trim();
+    if (!date || !note) {
+      alert("Please fill both date and note.");
+      return;
+    }
+
+    await fetch(NOTE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uuid, userName: "reminder", date, note })
+    });
+
+    const { org, location: locName } = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
+    const summaryText = `${org || 'GoGetta'}${locName ? ' - ' + locName : ''}: ${note.slice(0, 40).replace(/\n/g, ' ')}`.slice(0, 60);
+    const fullDescription = `${note.replace(/\n/g, '\\n')}${locName ? `\\nLocation: ${locName}` : ''}${org ? `\\nOrganization: ${org}` : ''}`;
+
+    if (mode === 'google') {
+      openGoogleCalendarEvent({
+        title: summaryText,
+        description: note + (locName ? `\nLocation: ${locName}` : '') + (org ? `\nOrganization: ${org}` : ''),
+        date,
+        locationUrl: `https://gogetta.nyc/team/location/${uuid}`
+      });
+    } else if (mode === 'ics') {
+      const icsContent = `
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//GoGetta//EN
+BEGIN:VEVENT
+UID:${uuid}-${date}@gogetta.nyc
+DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z
+DTSTART;VALUE=DATE:${date.replace(/-/g, '')}
+SUMMARY:${summaryText}
+DESCRIPTION:${fullDescription}
+URL:https://gogetta.nyc/team/location/${uuid}
+END:VEVENT
+END:VCALENDAR`.trim();
+
+      const blob = new Blob([icsContent], { type: 'text/calendar' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reminder-${date}.ics`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log(`[📅 Downloaded reminder .ics for ${date}]`);
+    }
+
+    overlay.remove();
+  };
+
+  document.getElementById("reminder-google").onclick = () => handleSave('google');
+  document.getElementById("reminder-download").onclick = () => handleSave('ics');
+}
+
+
+function openGoogleCalendarEvent({ title, description, date, locationUrl }) {
+  const start = date.replace(/-/g, '') + 'T120000Z'; // YYYYMMDDT120000Z
+  const end = date.replace(/-/g, '') + 'T130000Z';
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: `${start}/${end}`,
+    details: description,
+    location: locationUrl
+  });
+
+  const calendarUrl = `https://calendar.google.com/calendar/render?${params.toString()}`;
+  window.open(calendarUrl, '_blank');
+}
+
 async function getUserNameSafely() {
   return new Promise((resolve) => {
     try {
@@ -320,7 +132,6 @@ async function getUserNameSafely() {
     }
   });
 }
-
 function onUrlChange(callback) {
   let lastUrl = location.href;
   new MutationObserver(() => {
@@ -373,12 +184,10 @@ function findServiceName(obj, serviceId) {
   recurse(obj);
   return foundName;
 }
-
 async function injectGoGettaButtons() {
       let offsetX = 0, offsetY = 0, isDragging = false;
 if (document.body.dataset.gghostRendered === 'true') return;
 document.body.dataset.gghostRendered = 'true';
-
   document.querySelectorAll('[data-gghost-button]').forEach(btn => btn.remove());
   const existingGoToYpBtn = document.querySelector('[data-go-to-yp]');
   if (existingGoToYpBtn) {
@@ -409,9 +218,7 @@ document.body.dataset.gghostRendered = 'true';
 const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
 const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
 const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
-
 const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
-
   if (uuid) {
     const currentMode = teamMatch ? 'edit' : 'view';
     const targetUrl = currentMode === 'edit'
@@ -489,17 +296,12 @@ const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
     }
   }
 }, 60); 
-// 🔹 Create editable note overlay for GoGetta (prevent duplicates)
 if (!document.getElementById("gg-note-overlay")) {
   try {
-    // Use the global variable set by the message listener, or fallback to localStorage (though this will be problematic)
 const userName = window.gghostUserName || await getUserNameSafely();
-
     const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
 if (!userName && !location.pathname.startsWith('/find/')) {
   console.warn("[📝 Notes] Username not set. Prompting user to click the extension icon.");
-
-  // Create a floating banner
   const banner = document.createElement("div");
   banner.id = "gg-note-username-banner";
   banner.textContent = "Click the extension icon and type your name to enable notes";
@@ -516,25 +318,15 @@ if (!userName && !location.pathname.startsWith('/find/')) {
     zIndex: 99999,
     boxShadow: "0 2px 6px rgba(0,0,0,0.2)"
   });
-
   document.body.appendChild(banner);
-
-  // Auto-hide banner after 10 seconds (optional)
   setTimeout(() => banner.remove(), 10000);
-
-  // Skip creating editable notes since username is still missing
   return;
 }
-
-
-    // Fetch existing notes
     const res = await fetch(`${NOTE_API}?uuid=${uuid}`);
     const data = await res.json();
             const notesArray = [];
-
     let allNotesContent = "";
     if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-        // data is expected to be { user1: { "YYYY-MM-DD": "note" }, user2: { ... } }
         for (const user in data) {
             if (typeof data[user] === 'object') {
                 for (const date in data[user]) {
@@ -546,43 +338,34 @@ if (!userName && !location.pathname.startsWith('/find/')) {
                 }
             }
         }
-        // Sort notes by date chronologically
         notesArray.sort((a, b) => new Date(a.date) - new Date(b.date));
         allNotesContent = notesArray.map(n => `${n.user} (${n.date}): ${n.note}`).join("\n\n");
     }
-
-// 🧹 Remove any existing note box or wrapper before re-injecting
 document.getElementById("gg-note-overlay")?.remove();
 document.getElementById("gg-note-wrapper")?.remove();
-
     const noteBox = document.createElement("div");
     noteBox.id = "gg-note-overlay";
     const isFindMode = location.pathname.startsWith('/find/');
-    
-    // Note box is editable only if NOT in find mode AND username is set
     const isEditable = !isFindMode && !!userName;
 noteBox.contentEditable = isEditable ? "true" : "false";
 noteBox.dataset.userName = userName || "";
-
     noteBox.style.pointerEvents = 'auto';
     noteBox.addEventListener("click", () => {
         if (isEditable) {
             noteBox.focus();
         }
     });
-
     noteBox.style.position = 'fixed';
     noteBox.style.zIndex = 999999; 
     console.log('🧩 Note box added to DOM:', document.getElementById('gg-note-overlay'));
 noteBox.style.scrollPaddingBottom = '40px';
-
     Object.assign(noteBox.style, {
         position: "fixed",
         top: "100px",
         right: "20px",
         width: "300px",
-        minHeight: "150px", // Use minHeight to allow expansion
-        maxHeight: "400px", // Prevent it from becoming too large
+        minHeight: "150px", 
+        maxHeight: "400px", 
         background: "#fff",
         border: "2px solid #000",
         borderRadius: "8px",
@@ -594,8 +377,7 @@ noteBox.style.scrollPaddingBottom = '40px';
         whiteSpace: "pre-wrap",
         cursor: isEditable ? "text" : "default" 
     });
-
-    if (isFindMode || !userName) { // Read-only mode or if username not set for edit pages
+    if (isFindMode || !userName) { 
         noteBox.style.background = "#f9f9f9"; 
         noteBox.style.cursor = "default";
         noteBox.setAttribute("aria-label", "Location notes (Read-only)");
@@ -603,25 +385,14 @@ noteBox.style.scrollPaddingBottom = '40px';
         if (!isFindMode && !userName) {
              noteBox.innerText = "(Set a username in the extension popup to add notes)\n\n" + (allNotesContent || "(No notes available for this location)");
         }
-    } else { // Editable mode
+    } else { 
         noteBox.style.background = "#e6ffe6"; 
         noteBox.setAttribute("aria-label", "Editable location notes. Previous notes are read-only.");
-        // Display existing notes as read-only text, new notes are added in the editable area
-        // For simplicity in this iteration, we'll make the entire box editable
-        // but prime it with existing notes. The user will edit their note for the current day.
-        // A more complex UI would separate display of old notes and input of new.
-        
-        // Construct the text for the current user for today.
-        // The save logic will handle sending only the current user's note for today.
         let currentUserNoteForToday = "";
-        const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const today = new Date().toISOString().slice(0, 10); 
         if (data && data[userName] && data[userName][today]) {
             currentUserNoteForToday = data[userName][today];
         }
-
-        // Display all notes, then the current user's note for today in the editable area
-        // This is a simplification. A better UI would have a dedicated input field.
-// 🧩 Wrapper for both read-only and editable notes
 const noteWrapper = document.createElement("div");
 noteWrapper.id = "gg-note-wrapper";
 Object.assign(noteWrapper.style, {
@@ -640,13 +411,10 @@ Object.assign(noteWrapper.style, {
   display: "flex",
   flexDirection: "column"
 });
-
-// 🟦 Drag Bar
 const dragBar = document.createElement("div");
 let orgName = "";
 let locationName = "";
 const currentUuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
-
 if (currentUuid) {
   try {
     console.log(`[Notes Header] Attempting to fetch details for UUID: ${currentUuid}`);
@@ -657,7 +425,6 @@ if (currentUuid) {
     const data = await res.json();
     orgName = data.Organization?.name || "";
     locationName = data.name || "";
-
     if (orgName || locationName) {
       localStorage.setItem("ypLastViewedService", JSON.stringify({
         org: orgName,
@@ -670,9 +437,8 @@ if (currentUuid) {
     }
   } catch (err) {
     console.error(`[Notes Header] 🛑 Failed to fetch details from API for UUID ${currentUuid}:`, err);
-    // Fallback to localStorage if API fails
     const stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
-    if (stored.uuid === currentUuid) { // Ensure localStorage data is for the current UUID
+    if (stored.uuid === currentUuid) { 
       orgName = stored.org || "";
       locationName = stored.location || "";
       console.log(`[Notes Header] Used fallback localStorage data: Org='${orgName}', Location='${locationName}' for UUID='${currentUuid}'`);
@@ -682,14 +448,8 @@ if (currentUuid) {
   }
 } else {
   console.warn("[Notes Header] UUID is not available. Cannot fetch details.");
-  // Attempt to get from localStorage if it was somehow stored without a current UUID context (less likely for header)
   const stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
-  // Check if stored data might be relevant (e.g. if no UUID context means it's a generic page but note is still shown)
-  // This part is tricky as there's no UUID to match. We might just leave orgName/locationName blank.
-  // For now, let's assume if no currentUuid, we don't try to populate from localStorage unless it's a very generic case.
 }
-
-// Set header text based on fetched/fallback data
 if (orgName || locationName) {
   dragBar.textContent = `⋮ ${orgName}${locationName ? ' - ' + locationName : ''}`;
 } else{dragBar.textContent = `⋮ notes`;
@@ -702,15 +462,19 @@ Object.assign(dragBar.style, {
   borderBottom: "1px solid #ccc"
 });
 noteWrapper.appendChild(dragBar);
-
-// 📚 Read-only notes (excluding current user's today note)
 const readOnlyDiv = document.createElement("div");
 readOnlyDiv.id = "readonly-notes";
 readOnlyDiv.innerHTML =
   notesArray
     .filter(n => !(n.user === userName && n.date === today))
-    .map(n => `<div style="margin-bottom:10px;"><strong>${n.user} (${n.date})</strong>:<br>${n.note}</div>`)
+    .map(n => {
+      const safeUser = n.user === 'doobneek'
+        ? `<a href="https://doobneek.org" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
+        : `<strong>${escapeHtml(n.user)}</strong>`;
+      return `<div style="margin-bottom:10px;">${safeUser} (${n.date}):<br>${n.note}</div>`;
+    })
     .join("") || "<i>(No past notes available)</i>";
+
 Object.assign(readOnlyDiv.style, {
   background: "#f9f9f9",
   padding: "10px",
@@ -721,8 +485,26 @@ Object.assign(readOnlyDiv.style, {
   fontStyle: "italic"
 });
 noteWrapper.appendChild(readOnlyDiv);
+const reminderToggleWrapper = document.createElement("div");
+Object.assign(reminderToggleWrapper.style, {
+  padding: "10px",
+  background: "#f0f0f0",
+  borderTop: "1px solid #ccc"
+});
 
-// ✍️ Editable note area
+const reminderCheckbox = document.createElement("input");
+reminderCheckbox.type = "checkbox";
+reminderCheckbox.id = "reminder-toggle";
+
+const reminderLabel = document.createElement("label");
+reminderLabel.setAttribute("for", "reminder-toggle");
+reminderLabel.textContent = " Revisit this location";
+reminderLabel.style.marginLeft = "5px";
+
+reminderToggleWrapper.appendChild(reminderCheckbox);
+reminderToggleWrapper.appendChild(reminderLabel);
+noteWrapper.appendChild(reminderToggleWrapper);
+
 const editableDiv = document.createElement("div");
 editableDiv.id = "editable-note";
 editableDiv.contentEditable = isEditable ? "true" : "false";
@@ -738,7 +520,6 @@ Object.assign(editableDiv.style, {
 if (isEditable) {
   editableDiv.setAttribute("role", "textbox");
   editableDiv.setAttribute("tabindex", "0");
-
   editableDiv.addEventListener("paste", (e) => {
     e.preventDefault();
     const text = e.clipboardData.getData('text/plain');
@@ -753,7 +534,6 @@ if (isEditable) {
     selection.removeAllRanges();
     selection.addRange(range);
   });
-
   let saveTimeout = null;
   editableDiv.addEventListener("input", () => {
     clearTimeout(saveTimeout);
@@ -772,8 +552,13 @@ if (isEditable) {
   });
 }
 noteWrapper.appendChild(editableDiv);
+reminderCheckbox.addEventListener("change", () => {
+  if (reminderCheckbox.checked) {
+    showReminderModal(uuid, NOTE_API);
+    reminderCheckbox.checked = false;
+  }
+});
 
-// 🖱 Make wrapper draggable
 let isDragging = false, offsetX = 0, offsetY = 0;
 dragBar.addEventListener("mousedown", (e) => {
   isDragging = true;
@@ -787,18 +572,12 @@ document.addEventListener("mousemove", (e) => {
   noteWrapper.style.top = `${e.clientY - offsetY}px`;
 });
 document.addEventListener("mouseup", () => isDragging = false);
-
-// 📌 Mount wrapper
 document.body.appendChild(noteWrapper);
-
-
     }
-
   } catch (err) {
     console.error("🛑 Failed to load or show editable note:", err);
   }
 }
-
     const pendingUuidSession = sessionStorage.getItem('ypPendingRedirect');
     if (pendingUuidSession && path.startsWith('/find/location/')) { 
       console.log('[YPButton] 🧭 Landed on /find from team with YP intent (clearing pending)');
@@ -821,80 +600,26 @@ async function initializeGoGettaEnhancements() {
 }
 (async function () {
   await initializeGoGettaEnhancements();
-  
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      document.body.dataset.gghostRendered = 'false';
-
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    // Only re-inject if it's not already rendered
+    if (document.body.dataset.gghostRendered !== 'true') {
       injectGoGettaButtons();
     }
-  });
+  }
+});
 
-  // Listen for messages from the popup
   chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (request.type === "userNameUpdated") {
-      // Potentially re-initialize or update parts of the UI
-      // For now, we'll just update a global variable if it exists, or log
-      // This part needs to be integrated with how userName is used in injectGoGettaButtons
       console.log("[gghost.js] Received userNameUpdated message:", request.userName);
-      
-      // It's important that injectGoGettaButtons can be called again safely,
-      // or that specific parts of it related to the username are updated.
-      // For instance, if a global `userName` variable is used by `injectGoGettaButtons`, update it here.
-      // Example: currentUserName = request.userName;
-
-      // Then, re-inject or update the relevant UI elements.
-      // This might mean calling injectGoGettaButtons() again, or a more specific function.
-      // Be careful about removing and re-adding elements too frequently if not necessary.
-      
-      // For the notes feature, it re-checks localStorage on its own.
-      // However, to make the change immediate without a page reload or URL change,
-      // we might need to explicitly call the part of injectGoGettaButtons that sets up the note overlay.
-      // Let's try to remove the existing note overlay and call injectGoGettaButtons again.
       const existingOverlay = document.getElementById("gg-note-overlay");
       if (existingOverlay) {
         existingOverlay.remove();
       }
-      // Also, re-fetch username from localStorage to be sure, as the message is one way.
-      // The content script's `localStorage` is the same as the page's.
-      // The popup has its own `localStorage` if it's a separate origin (e.g. chrome-extension://)
-      // Correction: Content scripts access the page's localStorage. Popup scripts access extension's localStorage.
-      // The current `popup.js` uses `localStorage`, which is specific to the extension's context.
-      // This is the core of the problem. `gghost.js` (content script) CANNOT directly access `localStorage` set by `popup.js`.
-      // It needs to use `chrome.storage.local`.
-
-      // Given this, the message passing is the correct way.
-      // `gghost.js` should rely on the username passed in the message.
-      // Let's assume `injectGoGettaButtons` will be modified or can use a global var for username.
-
-      // Let's refine this. The `injectGoGettaButtons` function reads `localStorage.getItem("userName")`.
-      // This will NOT work because `popup.js` saves to its own `localStorage` (extension's context),
-      // and `gghost.js` (content script) reads from the web page's `localStorage`.
-
-      // THE FIX:
-      // 1. `popup.js` must save `userName` to `chrome.storage.local`.
-      // 2. `gghost.js` must read `userName` from `chrome.storage.local` at initialization AND when it receives the message.
-      // 3. The message from `popup.js` to `gghost.js` should primarily be a trigger to re-read from `chrome.storage.local`
-      //    and update the UI.
-
-      // So, this listener should trigger a refresh of the note component.
-      // The `injectGoGettaButtons` function, specifically the note creation part,
-      // needs to be refactored to use `chrome.storage.local.get`.
-
-      // For now, let's just trigger re-injection.
-      // The actual fix for localStorage will be a separate step if this doesn't work.
-      // The critical part is that injectGoGettaButtons should now be able to get the updated name.
-      
-      // Let's assume for a moment `gghost.js` *could* access the right localStorage
-      // or that the message is the source of truth.
-      // We need a way for `injectGoGettaButtons` to use the new username.
-      // One way: set a global variable that `injectGoGettaButtons` can check.
-      window.gghostUserName = request.userName; // Make it available globally for injectGoGettaButtons
-
-      // Re-run the injection logic.
+      window.gghostUserName = request.userName; 
       injectGoGettaButtons(); 
       sendResponse({ status: "Username received by content script" });
     }
-    return true; // Indicates that the response is sent asynchronously
+    return true; 
   });
 })();
