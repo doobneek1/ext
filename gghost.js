@@ -668,11 +668,8 @@ if (currentUuid) {
 
 // Set header text based on fetched/fallback data
 if (orgName || locationName) {
-  dragBar.textContent = `⋮ notes for ${orgName}${locationName ? ' - ' + locationName : ''}`;
-} else if (currentUuid) {
-  dragBar.textContent = `⋮ notes for [${currentUuid}]`;
-} else {
-  dragBar.textContent = `⋮ notes (context unavailable)`;
+  dragBar.textContent = `⋮ ${orgName}${locationName ? ' - ' + locationName : ''}`;
+} else{dragBar.textContent = `⋮ notes`;
 }
 Object.assign(dragBar.style, {
   background: "#eee",
