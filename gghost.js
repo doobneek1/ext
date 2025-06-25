@@ -620,31 +620,60 @@ Object.assign(noteWrapper.style, {
 
 // 🟦 Drag Bar
 const dragBar = document.createElement("div");
-let stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
-let org = stored.org || "";
-let location = stored.location || "";
-let uuid = stored.uuid || (fullServiceMatch || teamMatch || findMatch)?.[1];
+let orgName = "";
+let locationName = "";
+const currentUuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
 
-if (!org || !location) {
+if (currentUuid) {
   try {
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+    console.log(`[Notes Header] Attempting to fetch details for UUID: ${currentUuid}`);
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${currentUuid}`);
+    if (!res.ok) {
+      throw new Error(`API request failed with status ${res.status}`);
+    }
     const data = await res.json();
+    orgName = data.Organization?.name || "";
+    locationName = data.name || "";
 
-    org = data.Organization?.name || "";
-    location = data.name || "";
-
-    // Save updated values back
-    localStorage.setItem("ypLastViewedService", JSON.stringify({
-      org,
-      location,
-      uuid
-    }));
+    if (orgName || locationName) {
+      localStorage.setItem("ypLastViewedService", JSON.stringify({
+        org: orgName,
+        location: locationName,
+        uuid: currentUuid
+      }));
+      console.log(`[Notes Header] Successfully fetched and stored: Org='${orgName}', Location='${locationName}' for UUID='${currentUuid}'`);
+    } else {
+      console.warn(`[Notes Header] API returned data but orgName or locationName is missing for UUID: ${currentUuid}. Data:`, data);
+    }
   } catch (err) {
-    console.error("🛑 Failed to fetch and update ypLastViewedService:", err);
+    console.error(`[Notes Header] 🛑 Failed to fetch details from API for UUID ${currentUuid}:`, err);
+    // Fallback to localStorage if API fails
+    const stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
+    if (stored.uuid === currentUuid) { // Ensure localStorage data is for the current UUID
+      orgName = stored.org || "";
+      locationName = stored.location || "";
+      console.log(`[Notes Header] Used fallback localStorage data: Org='${orgName}', Location='${locationName}' for UUID='${currentUuid}'`);
+    } else {
+      console.warn(`[Notes Header] localStorage data is for a different UUID (stored: ${stored.uuid}, current: ${currentUuid}) or missing.`);
+    }
   }
+} else {
+  console.warn("[Notes Header] UUID is not available. Cannot fetch details.");
+  // Attempt to get from localStorage if it was somehow stored without a current UUID context (less likely for header)
+  const stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
+  // Check if stored data might be relevant (e.g. if no UUID context means it's a generic page but note is still shown)
+  // This part is tricky as there's no UUID to match. We might just leave orgName/locationName blank.
+  // For now, let's assume if no currentUuid, we don't try to populate from localStorage unless it's a very generic case.
 }
 
-dragBar.textContent = `⋮ notes for ${org}${location ? ' - ' + location : ''}`;
+// Set header text based on fetched/fallback data
+if (orgName || locationName) {
+  dragBar.textContent = `⋮ notes for ${orgName}${locationName ? ' - ' + locationName : ''}`;
+} else if (currentUuid) {
+  dragBar.textContent = `⋮ notes for [${currentUuid}]`;
+} else {
+  dragBar.textContent = `⋮ notes (context unavailable)`;
+}
 Object.assign(dragBar.style, {
   background: "#eee",
   padding: "6px 10px",
