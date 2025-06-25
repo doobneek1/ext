@@ -31,19 +31,24 @@ async function fetchAndRenderReminders() {
 }
 
 
-function renderReminderList(reminders) {
+function renderReminderList(remindersToShow, filtered = false) {
   const list = document.getElementById("reminderList");
-  list.innerHTML = "";
+  const clearBtn = document.getElementById("clearReminderFilter");
 
+  list.innerHTML = "";
   const today = new Date().toISOString().split("T")[0];
 
-  for (const r of reminders) {
+  for (const r of remindersToShow) {
     const dateText = r.date === today ? "Today" : r.date;
     const li = document.createElement("li");
     li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${dateText}</a>: ${r.note}`;
     list.appendChild(li);
   }
+
+  // Toggle "Show All" button
+  clearBtn.style.display = filtered ? "block" : "none";
 }
+
 document.getElementById("clearReminderFilter").addEventListener("click", () => {
   renderReminderList(allReminders);
 });

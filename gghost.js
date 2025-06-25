@@ -184,6 +184,106 @@ function findServiceName(obj, serviceId) {
   recurse(obj);
   return foundName;
 }
+function createYourPeerEmbedWindow(slug, onClose = () => {}) {
+  if (!slug) return;
+
+  const wrapperId = "yp-embed-wrapper";
+  document.getElementById(wrapperId)?.remove();
+
+  // ⬇ Try to load saved position or use default
+  const savedPos = JSON.parse(localStorage.getItem("ypMiniPosition") || "{}");
+  const defaultTop = 120;
+  const defaultLeft = 360;
+
+  const wrapper = document.createElement("div");
+  wrapper.id = wrapperId;
+  Object.assign(wrapper.style, {
+    position: "fixed",
+    top: `${savedPos.top || defaultTop}px`,
+    left: `${savedPos.left || defaultLeft}px`,
+    width: "400px",
+    height: "500px",
+    background: "#fff",
+    border: "2px solid #000",
+    borderRadius: "8px",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+    zIndex: 99999,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column"
+  });
+
+  const dragBar = document.createElement("div");
+  Object.assign(dragBar.style, {
+    background: "#eee",
+    padding: "6px 10px",
+    cursor: "grab",
+    fontWeight: "bold",
+    borderBottom: "1px solid #ccc",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center"
+  });
+
+  const title = document.createElement("span");
+  title.textContent = "⋮ YourPeer Details";
+
+  const closeBtn = document.createElement("span");
+  closeBtn.innerHTML = "&times;";
+  Object.assign(closeBtn.style, {
+    cursor: "pointer",
+    fontSize: "18px",
+    padding: "0 6px"
+  });
+  closeBtn.onclick = () => {
+    wrapper.remove();
+    onClose();
+  };
+
+  dragBar.appendChild(title);
+  dragBar.appendChild(closeBtn);
+  wrapper.appendChild(dragBar);
+
+  const iframe = document.createElement("iframe");
+  iframe.src = `https://yourpeer.nyc/locations/${slug}`;
+  Object.assign(iframe.style, {
+    border: "none",
+    width: "100%",
+    height: "100%"
+  });
+  wrapper.appendChild(iframe);
+  document.body.appendChild(wrapper);
+
+  // 🖱 Drag behavior with clamping + localStorage save
+  let isDragging = false, offsetX = 0, offsetY = 0;
+  dragBar.addEventListener("mousedown", (e) => {
+    isDragging = true;
+    offsetX = e.clientX - wrapper.getBoundingClientRect().left;
+    offsetY = e.clientY - wrapper.getBoundingClientRect().top;
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!isDragging) return;
+
+    const maxX = window.innerWidth - wrapper.offsetWidth;
+    const maxY = window.innerHeight - wrapper.offsetHeight;
+
+    const newX = Math.min(Math.max(0, e.clientX - offsetX), maxX);
+    const newY = Math.min(Math.max(0, e.clientY - offsetY), maxY);
+
+    wrapper.style.left = `${newX}px`;
+    wrapper.style.top = `${newY}px`;
+
+    localStorage.setItem("ypMiniPosition", JSON.stringify({ left: newX, top: newY }));
+  });
+
+  document.addEventListener("mouseup", () => {
+    isDragging = false;
+  });
+}
+
+
 async function injectGoGettaButtons() {
       let offsetX = 0, offsetY = 0, isDragging = false;
 if (document.body.dataset.gghostRendered === 'true') return;
@@ -296,6 +396,26 @@ const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
     }
   }
 }, 60); 
+const ypMiniBtn = createButton('YP Mini', async () => {
+  try {
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+    const data = await res.json();
+    const slug = data.slug;
+
+    if (slug) {
+      ypMiniBtn.style.display = "none"; // 👈 hide button
+      createYourPeerEmbedWindow(slug, () => {
+        ypMiniBtn.style.display = "block"; // 👈 show when closed
+      });
+    } else {
+      console.warn('[YP Mini] ❌ Slug not found.');
+    }
+  } catch (err) {
+    console.error('[YP Mini] 🛑 Error fetching slug:', err);
+  }
+}, 120);
+
+
 if (!document.getElementById("gg-note-overlay")) {
   try {
 const userName = window.gghostUserName || await getUserNameSafely();

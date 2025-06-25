@@ -22,33 +22,44 @@
   });
 
   btn.onclick = () => {
-    const targetUrl = "https://yourpeer.nyc/locations?sortBy=recentlyUpdated";
+    const targetUrl = "https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=70";
     window.location.href = targetUrl;
 
-    const intervalTime = 300;
-    const timeout = 10000;
-    const start = Date.now();
+    const timeout = 10000; // 10 seconds timeout for the observer
 
-    const findAndRedirect = setInterval(() => {
+    const observer = new MutationObserver((mutationsList, obs) => {
       const spanParent = document.querySelector("div.flex.items-center.justify-between > div.text-dark.font-medium");
       if (spanParent) {
         const spans = spanParent.querySelectorAll("span");
         if (spans.length === 3) {
           const totalPagesText = spans[2].textContent.trim();
+          console.log(`Found total pages text: "${totalPagesText}"`); // Logging
           const totalPages = parseInt(totalPagesText, 10);
           if (!isNaN(totalPages)) {
-            clearInterval(findAndRedirect);
+            console.log(`Parsed total pages: ${totalPages}`); // Logging
+            obs.disconnect(); // Stop observing
+            clearTimeout(observerTimeout); // Clear the timeout
             const lastPageUrl = `https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=${totalPages}`;
             window.location.href = lastPageUrl;
+          } else {
+            console.warn("Could not parse total pages from text:", totalPagesText); // Logging
           }
+        } else {
+          // console.log("Found spanParent, but it does not contain 3 spans. Found:", spans.length); // Logging - can be verbose
         }
+      } else {
+        // console.log("spanParent not found yet."); // Logging - can be very verbose
       }
+    });
 
-      if (Date.now() - start > timeout) {
-        clearInterval(findAndRedirect);
-        console.warn("⏳ Timeout: pagination not found in time.");
-      }
-    }, intervalTime);
+    // Start observing the document body for added nodes and subtree changes
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Timeout for the observer
+    const observerTimeout = setTimeout(() => {
+      observer.disconnect();
+      console.warn("⏳ Timeout: MutationObserver did not find pagination element in time.");
+    }, timeout);
   };
 
   document.body.appendChild(btn);
