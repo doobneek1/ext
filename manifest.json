@@ -25,16 +25,20 @@
   "content_scripts": [
   {
     "matches": ["https://gogetta.nyc/*", "https://yourpeer.nyc/locations*"],
-    "js": ["injector.js","listener.js", "power.js", "themeOverride.js", "autoClicker.js", "gghost.js", "yphost.js","buttoncall.js"],
+    "js": ["injector.js","listener.js", "power.js", "themeOverride.js", "autoClicker.js", "gghost.js", "yphost.js"],
     "css": ["style.css"],
     "run_at": "document_idle"
   },
   {
     "matches": ["https://mail.google.com/*"],
-    "js": ["gmail_injector.js", "power.js", "themeOverride.js", "autoClicker.js", "yphost.js","buttoncall.js"],
+    "js": ["gmail_injector.js", "power.js", "themeOverride.js", "autoClicker.js", "yphost.js"],
     "css": ["style.css"],
     "run_at": "document_idle"
-  },
+  },{
+  "matches": ["https://voice.google.com/*"],
+  "js": ["buttoncall.js"],
+  "run_at": "document_idle"
+},
   {
     "matches": ["<all_urls>"],
     "js": ["tel.js", "tesser.js"],

@@ -272,8 +272,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       } else {
         chrome.storage.local.remove("userName");
         userNameStatus.textContent = "Username cleared.";
-        chrome.tabs.sendMessage(tab.id, { type: "userNameUpdated", userName: null });
-      }
+     chrome.tabs.sendMessage(tab.id, { type: "userNameUpdated", userName: null }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.warn("[popup.js] ⚠️ Message failed:", chrome.runtime.lastError.message);
+          } else {
+            console.log("[popup.js] ✅ Message acknowledged:", response);
+          }
+        });      }
       setTimeout(() => {
         userNameStatus.textContent = "";
       }, 2000);
@@ -290,12 +295,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       saveUserName();
     });
 
-    window.addEventListener("unload", async () => {
-      const newUserName = userNameInput.value.trim();
-      const { userName: storedName } = await chrome.storage.local.get("userName");
-      if (storedName !== newUserName) {
-        saveUserName();
-      }
-    });
+window.addEventListener("beforeunload", () => {
+  const newUserName = userNameInput.value.trim();
+  chrome.storage.local.get("userName", ({ userName: storedName }) => {
+    if (storedName !== newUserName) {
+      chrome.storage.local.set({ userName: newUserName });
+    }
+  });
+});
+
   });
 });

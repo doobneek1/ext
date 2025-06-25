@@ -530,7 +530,7 @@ const userName = window.gghostUserName || await getUserNameSafely();
     
     // Note box is editable only if NOT in find mode AND username is set
     const isEditable = !isFindMode && !!userName;
-    noteBox.contentEditable = isEditable ? "true" : "false";
+noteBox.contentEditable = isEditable ? "true" : "false";
 noteBox.dataset.userName = userName || "";
 
     noteBox.style.pointerEvents = 'auto';
@@ -590,25 +590,32 @@ noteBox.style.scrollPaddingBottom = '40px';
 
         // Display all notes, then the current user's note for today in the editable area
         // This is a simplification. A better UI would have a dedicated input field.
+const readonlyHeader = document.createElement('div');
+readonlyHeader.id = "readonly-note-header";
+readonlyHeader.style.cssText = `
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  width: 300px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 13px;
+  color: #444;
+  font-style: italic;
+  z-index: 9998;
+`;
+
+readonlyHeader.innerHTML =
+  notesArray
+    .filter(n => !(n.user === userName && n.date === today))
+    .map(n => `<div style="margin-bottom:10px;"><strong>${n.user} (${n.date})</strong>:<br>${n.note}</div>`)
+    .join("") || "(No past notes available)";
+document.body.appendChild(readonlyHeader);
 noteBox.innerHTML = `
-  <div id="readonly-notes" style="
-    pointer-events: none;
-    user-select: text;
-    background: #f9f9f9;
-    padding: 5px;
-    margin-bottom: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-  ">
-    ${notesArray.map(n => {
-      const isCurrentUser = n.user === userName;
-      const isToday = n.date === today;
-      const isEditableNote = isCurrentUser && isToday;
-      if (isEditableNote) return ""; // Skip current editable note
-      return `<div style="margin-bottom:10px;"><strong>${n.user} (${n.date})</strong>:<br>${n.note}</div>`;
-    }).join("") || "(No past notes available)"}
-  </div>
-  <hr style="margin: 10px 0; border-top: 1px dashed #ccc;">
   <div id="editable-note" contenteditable="true" style="
     background:#e6ffe6;
     padding: 5px;
@@ -619,6 +626,7 @@ noteBox.innerHTML = `
     ${currentUserNoteForToday || "(Click here to add your note for today)"}
   </div>
 `;
+
 
         // if (!currentUserNoteForToday && !allNotesContent) {
         //      noteBox.innerText = "(Click here to add a note for today)";
@@ -637,11 +645,28 @@ noteBox.innerHTML = `
     });
     noteBox.insertBefore(dragBar, noteBox.firstChild);
     
-    noteBox.addEventListener('paste', (e) => {
-        e.preventDefault();
-        const text = e.clipboardData.getData('text/plain');
-        document.execCommand('insertText', false, text); 
-    });
+noteBox.addEventListener('paste', (e) => {
+  e.preventDefault();
+  const text = e.clipboardData.getData('text/plain');
+
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return;
+
+  // Delete any selected text first
+  selection.deleteFromDocument();
+
+  // Insert plain text at the caret position
+  const range = selection.getRangeAt(0);
+  const textNode = document.createTextNode(text);
+  range.insertNode(textNode);
+
+  // Move the caret after the inserted text
+  range.setStartAfter(textNode);
+  range.setEndAfter(textNode);
+  selection.removeAllRanges();
+  selection.addRange(range);
+});
+
 
     dragBar.addEventListener("mousedown", (e) => {
         isDragging = true;
@@ -651,9 +676,7 @@ noteBox.innerHTML = `
     });
     noteBox.style.outline = 'none';
     noteBox.setAttribute("tabindex", "0"); 
-    if (isEditable) {
-      noteBox.addEventListener("click", () => noteBox.focus());
-    }
+
 
 
     if (isEditable) {
