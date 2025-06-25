@@ -303,6 +303,24 @@
 //     }
 //   });
 // })();
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, match =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[match]
+  );
+}
+async function getUserNameSafely() {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage?.local?.get(["userName"], result => {
+        resolve(result?.userName || null);
+      });
+    } catch (err) {
+      console.warn("[🛑 Extension context lost while getting username]", err);
+      resolve(null);
+    }
+  });
+}
+
 function onUrlChange(callback) {
   let lastUrl = location.href;
   new MutationObserver(() => {
@@ -355,7 +373,12 @@ function findServiceName(obj, serviceId) {
   recurse(obj);
   return foundName;
 }
+
 async function injectGoGettaButtons() {
+      let offsetX = 0, offsetY = 0, isDragging = false;
+if (document.body.dataset.gghostRendered === 'true') return;
+document.body.dataset.gghostRendered = 'true';
+
   document.querySelectorAll('[data-gghost-button]').forEach(btn => btn.remove());
   const existingGoToYpBtn = document.querySelector('[data-go-to-yp]');
   if (existingGoToYpBtn) {
@@ -465,7 +488,8 @@ const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
 if (!document.getElementById("gg-note-overlay")) {
   try {
     // Use the global variable set by the message listener, or fallback to localStorage (though this will be problematic)
-    const userName = window.gghostUserName !== undefined ? window.gghostUserName : localStorage.getItem("userName");
+const userName = window.gghostUserName || await getUserNameSafely();
+
     const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
 
     if (!userName && !location.pathname.startsWith('/find/')) {
@@ -478,10 +502,10 @@ if (!document.getElementById("gg-note-overlay")) {
     // Fetch existing notes
     const res = await fetch(`${NOTE_API}?uuid=${uuid}`);
     const data = await res.json();
-    
+            const notesArray = [];
+
     let allNotesContent = "";
     if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-        const notesArray = [];
         // data is expected to be { user1: { "YYYY-MM-DD": "note" }, user2: { ... } }
         for (const user in data) {
             if (typeof data[user] === 'object') {
@@ -489,7 +513,7 @@ if (!document.getElementById("gg-note-overlay")) {
                     notesArray.push({
                         user: user,
                         date: date,
-                        note: data[user][date]
+                        note: escapeHtml(data[user][date])
                     });
                 }
             }
@@ -507,6 +531,7 @@ if (!document.getElementById("gg-note-overlay")) {
     // Note box is editable only if NOT in find mode AND username is set
     const isEditable = !isFindMode && !!userName;
     noteBox.contentEditable = isEditable ? "true" : "false";
+noteBox.dataset.userName = userName || "";
 
     noteBox.style.pointerEvents = 'auto';
     noteBox.addEventListener("click", () => {
@@ -517,8 +542,8 @@ if (!document.getElementById("gg-note-overlay")) {
 
     noteBox.style.position = 'fixed';
     noteBox.style.zIndex = 999999; 
-    noteBox.style.pointerEvents = 'auto';
     console.log('🧩 Note box added to DOM:', document.getElementById('gg-note-overlay'));
+noteBox.style.scrollPaddingBottom = '40px';
 
     Object.assign(noteBox.style, {
         position: "fixed",
@@ -565,12 +590,41 @@ if (!document.getElementById("gg-note-overlay")) {
 
         // Display all notes, then the current user's note for today in the editable area
         // This is a simplification. A better UI would have a dedicated input field.
-        noteBox.innerText = (allNotesContent ? allNotesContent + "\n\n--- Add your note for today ---\n" : "") + currentUserNoteForToday;
-        if (!currentUserNoteForToday && !allNotesContent) {
-             noteBox.innerText = "(Click here to add a note for today)";
-        } else if (!currentUserNoteForToday && allNotesContent) {
-            noteBox.innerText = allNotesContent + "\n\n(Click here to add your note for today)";
-        }
+noteBox.innerHTML = `
+  <div id="readonly-notes" style="
+    pointer-events: none;
+    user-select: text;
+    background: #f9f9f9;
+    padding: 5px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  ">
+    ${notesArray.map(n => {
+      const isCurrentUser = n.user === userName;
+      const isToday = n.date === today;
+      const isEditableNote = isCurrentUser && isToday;
+      if (isEditableNote) return ""; // Skip current editable note
+      return `<div style="margin-bottom:10px;"><strong>${n.user} (${n.date})</strong>:<br>${n.note}</div>`;
+    }).join("") || "(No past notes available)"}
+  </div>
+  <hr style="margin: 10px 0; border-top: 1px dashed #ccc;">
+  <div id="editable-note" contenteditable="true" style="
+    background:#e6ffe6;
+    padding: 5px;
+    border:1px dashed #ccc;
+    min-height: 60px;
+    cursor: text;
+  ">
+    ${currentUserNoteForToday || "(Click here to add your note for today)"}
+  </div>
+`;
+
+        // if (!currentUserNoteForToday && !allNotesContent) {
+        //      noteBox.innerText = "(Click here to add a note for today)";
+        // } else if (!currentUserNoteForToday && allNotesContent) {
+        //     noteBox.innerText = allNotesContent + "\n\n(Click here to add your note for today)";
+        // }
     }
 
     const dragBar = document.createElement('div');
@@ -602,7 +656,6 @@ if (!document.getElementById("gg-note-overlay")) {
     }
 
 
-    let offsetX = 0, offsetY = 0, isDragging = false;
     if (isEditable) {
         noteBox.setAttribute("role", "textbox");
     }
@@ -617,48 +670,34 @@ if (!document.getElementById("gg-note-overlay")) {
     });
 
     if (isEditable) {
-        let saveTimeout = null;
-        noteBox.addEventListener("input", () => {
-            clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => {
-                const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-                
-                // Extract only the text that is meant to be the current day's note.
-                // This is a bit naive. If the user deletes the "--- Add your note ---" line, this won't work well.
-                // A dedicated input field for "today's note" would be much better.
-                let currentDayNote = noteBox.innerText;
-                const separator = "--- Add your note for today ---";
-                const separatorIndex = currentDayNote.lastIndexOf(separator);
-                if (separatorIndex !== -1) {
-                    currentDayNote = currentDayNote.substring(separatorIndex + separator.length).trim();
-                } else if (allNotesContent) { 
-                    // If separator is gone, but there was old content, assume new text is everything after old.
-                    // This is brittle.
-                    currentDayNote = noteBox.innerText.replace(allNotesContent, "").trim();
-                }
-                // If it was empty and user types "(Click here...", treat it as empty
-                if (currentDayNote === "(Click here to add a note for today)" || currentDayNote === "(Click here to add your note for today)") {
-                    currentDayNote = "";
-                }
+      let saveTimeout = null;
+noteBox.addEventListener("input", () => {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const editable = document.getElementById("editable-note");
+    if (!editable) return;
 
+    let currentDayNote = editable.innerText.trim();
+    if (
+      currentDayNote === "(Click here to add a note for today)" ||
+      currentDayNote === "(Click here to add your note for today)"
+    ) {
+      currentDayNote = "";
+    }
 
-                fetch(NOTE_API, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ 
-                        uuid, 
-                        userName: userName, 
-                        date: today, 
-                        note: currentDayNote 
-                    })
-                }).then(() => {
-                    console.log(`[📝 Note saved for ${userName} on ${today}]`);
-                    // Potentially refresh the displayed notes here if needed, or simply rely on next load.
-                }).catch(err => {
-                    console.error("[❌ Failed to save note]", err);
-                });
-            }, 1000);
-        });
+    fetch(NOTE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uuid, userName, date: today, note: currentDayNote })
+    }).then(() => {
+      console.log(`[📝 Saved ${userName}'s note for ${today}]`);
+    }).catch(err => {
+      console.error("[❌ Failed to save note]", err);
+    });
+  }, 1000);
+});
+
     }
 
     document.body.appendChild(noteBox);
@@ -692,6 +731,8 @@ async function initializeGoGettaEnhancements() {
   
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+      document.body.dataset.gghostRendered = 'false';
+
       injectGoGettaButtons();
     }
   });

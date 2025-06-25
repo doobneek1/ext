@@ -25,7 +25,7 @@
   "content_scripts": [
   {
     "matches": ["https://gogetta.nyc/*", "https://yourpeer.nyc/locations*"],
-    "js": ["injector.js", "power.js", "themeOverride.js", "autoClicker.js", "gghost.js", "yphost.js","buttoncall.js"],
+    "js": ["injector.js","listener.js", "power.js", "themeOverride.js", "autoClicker.js", "gghost.js", "yphost.js","buttoncall.js"],
     "css": ["style.css"],
     "run_at": "document_idle"
   },
