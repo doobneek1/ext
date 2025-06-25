@@ -472,6 +472,11 @@ const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
       const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
       const data = await res.json();
       const slug = data.slug;
+   localStorage.setItem("ypLastViewedService", JSON.stringify({
+        name:  data.Organization?.name,
+        location: data.name,
+        uuid: uuid
+      }));
       if (slug) {
         const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
         console.log(`[YPButton] ✅ Redirecting to YourPeer (location level): ${ypUrl}`);
@@ -523,6 +528,9 @@ const userName = window.gghostUserName || await getUserNameSafely();
         allNotesContent = notesArray.map(n => `${n.user} (${n.date}): ${n.note}`).join("\n\n");
     }
 
+// 🧹 Remove any existing note box or wrapper before re-injecting
+document.getElementById("gg-note-overlay")?.remove();
+document.getElementById("gg-note-wrapper")?.remove();
 
     const noteBox = document.createElement("div");
     noteBox.id = "gg-note-overlay";
@@ -590,140 +598,153 @@ noteBox.style.scrollPaddingBottom = '40px';
 
         // Display all notes, then the current user's note for today in the editable area
         // This is a simplification. A better UI would have a dedicated input field.
-const readonlyHeader = document.createElement('div');
-readonlyHeader.id = "readonly-note-header";
-readonlyHeader.style.cssText = `
-  position: fixed;
-  top: 60px;
-  right: 20px;
-  width: 300px;
-  max-height: 200px;
-  overflow-y: auto;
-  background: #f0f0f0;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 8px;
-  font-size: 13px;
-  color: #444;
-  font-style: italic;
-  z-index: 9998;
-`;
+// 🧩 Wrapper for both read-only and editable notes
+const noteWrapper = document.createElement("div");
+noteWrapper.id = "gg-note-wrapper";
+Object.assign(noteWrapper.style, {
+  position: "fixed",
+  top: "100px",
+  right: "20px",
+  width: "320px",
+  maxHeight: "500px",
+  background: "#fff",
+  border: "2px solid #000",
+  borderRadius: "8px",
+  boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+  fontSize: "14px",
+  zIndex: 9999,
+  overflow: "hidden",
+  display: "flex",
+  flexDirection: "column"
+});
 
-readonlyHeader.innerHTML =
+// 🟦 Drag Bar
+const dragBar = document.createElement("div");
+let stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
+let org = stored.org || "";
+let location = stored.location || "";
+let uuid = stored.uuid || (fullServiceMatch || teamMatch || findMatch)?.[1];
+
+if (!org || !location) {
+  try {
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+    const data = await res.json();
+
+    org = data.Organization?.name || "";
+    location = data.name || "";
+
+    // Save updated values back
+    localStorage.setItem("ypLastViewedService", JSON.stringify({
+      org,
+      location,
+      uuid
+    }));
+  } catch (err) {
+    console.error("🛑 Failed to fetch and update ypLastViewedService:", err);
+  }
+}
+
+dragBar.textContent = `⋮ notes for ${org}${location ? ' - ' + location : ''}`;
+Object.assign(dragBar.style, {
+  background: "#eee",
+  padding: "6px 10px",
+  cursor: "grab",
+  fontWeight: "bold",
+  borderBottom: "1px solid #ccc"
+});
+noteWrapper.appendChild(dragBar);
+
+// 📚 Read-only notes (excluding current user's today note)
+const readOnlyDiv = document.createElement("div");
+readOnlyDiv.id = "readonly-notes";
+readOnlyDiv.innerHTML =
   notesArray
     .filter(n => !(n.user === userName && n.date === today))
     .map(n => `<div style="margin-bottom:10px;"><strong>${n.user} (${n.date})</strong>:<br>${n.note}</div>`)
-    .join("") || "(No past notes available)";
-document.body.appendChild(readonlyHeader);
-noteBox.innerHTML = `
-  <div id="editable-note" contenteditable="true" style="
-    background:#e6ffe6;
-    padding: 5px;
-    border:1px dashed #ccc;
-    min-height: 60px;
-    cursor: text;
-  ">
-    ${currentUserNoteForToday || "(Click here to add your note for today)"}
-  </div>
-`;
+    .join("") || "<i>(No past notes available)</i>";
+Object.assign(readOnlyDiv.style, {
+  background: "#f9f9f9",
+  padding: "10px",
+  overflowY: "auto",
+  maxHeight: "200px",
+  borderBottom: "1px solid #ccc",
+  fontSize: "13px",
+  fontStyle: "italic"
+});
+noteWrapper.appendChild(readOnlyDiv);
 
+// ✍️ Editable note area
+const editableDiv = document.createElement("div");
+editableDiv.id = "editable-note";
+editableDiv.contentEditable = isEditable ? "true" : "false";
+editableDiv.innerText = currentUserNoteForToday || "";
+Object.assign(editableDiv.style, {
+  background: isEditable ? "#e6ffe6" : "#f0f0f0",
+  padding: "10px",
+  flexGrow: 1,
+  overflowY: "auto",
+  cursor: isEditable ? "text" : "default",
+  whiteSpace: "pre-wrap"
+});
+if (isEditable) {
+  editableDiv.setAttribute("role", "textbox");
+  editableDiv.setAttribute("tabindex", "0");
 
-        // if (!currentUserNoteForToday && !allNotesContent) {
-        //      noteBox.innerText = "(Click here to add a note for today)";
-        // } else if (!currentUserNoteForToday && allNotesContent) {
-        //     noteBox.innerText = allNotesContent + "\n\n(Click here to add your note for today)";
-        // }
-    }
+  editableDiv.addEventListener("paste", (e) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+    selection.deleteFromDocument();
+    const range = selection.getRangeAt(0);
+    const textNode = document.createTextNode(text);
+    range.insertNode(textNode);
+    range.setStartAfter(textNode);
+    range.setEndAfter(textNode);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
 
-    const dragBar = document.createElement('div');
-    Object.assign(dragBar.style, {
-        height: '20px',
-        background: '#eee',
-        cursor: 'grab',
-        margin: '-10px -10px 10px -10px',
-        borderBottom: '1px solid #ccc'
-    });
-    noteBox.insertBefore(dragBar, noteBox.firstChild);
-    
-noteBox.addEventListener('paste', (e) => {
+  let saveTimeout = null;
+  editableDiv.addEventListener("input", () => {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      const note = editableDiv.innerText.trim();
+      fetch(NOTE_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uuid, userName, date: today, note })
+      }).then(() => {
+        console.log(`[📝 Saved ${userName}'s note for ${today}]`);
+      }).catch(err => {
+        console.error("[❌ Failed to save note]", err);
+      });
+    }, 1000);
+  });
+}
+noteWrapper.appendChild(editableDiv);
+
+// 🖱 Make wrapper draggable
+let isDragging = false, offsetX = 0, offsetY = 0;
+dragBar.addEventListener("mousedown", (e) => {
+  isDragging = true;
+  offsetX = e.clientX - noteWrapper.getBoundingClientRect().left;
+  offsetY = e.clientY - noteWrapper.getBoundingClientRect().top;
   e.preventDefault();
-  const text = e.clipboardData.getData('text/plain');
-
-  const selection = window.getSelection();
-  if (!selection.rangeCount) return;
-
-  // Delete any selected text first
-  selection.deleteFromDocument();
-
-  // Insert plain text at the caret position
-  const range = selection.getRangeAt(0);
-  const textNode = document.createTextNode(text);
-  range.insertNode(textNode);
-
-  // Move the caret after the inserted text
-  range.setStartAfter(textNode);
-  range.setEndAfter(textNode);
-  selection.removeAllRanges();
-  selection.addRange(range);
 });
-
-
-    dragBar.addEventListener("mousedown", (e) => {
-        isDragging = true;
-        offsetX = e.clientX - noteBox.getBoundingClientRect().left;
-        offsetY = e.clientY - noteBox.getBoundingClientRect().top;
-        e.preventDefault();
-    });
-    noteBox.style.outline = 'none';
-    noteBox.setAttribute("tabindex", "0"); 
-
-
-
-    if (isEditable) {
-        noteBox.setAttribute("role", "textbox");
-    }
-
-    document.addEventListener("mousemove", (e) => {
-        if (!isDragging) return;
-        noteBox.style.left = `${e.clientX - offsetX}px`;
-        noteBox.style.top = `${e.clientY - offsetY}px`;
-    });
-    document.addEventListener("mouseup", () => {
-        isDragging = false;
-    });
-
-    if (isEditable) {
-      let saveTimeout = null;
-noteBox.addEventListener("input", () => {
-  clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const editable = document.getElementById("editable-note");
-    if (!editable) return;
-
-    let currentDayNote = editable.innerText.trim();
-    if (
-      currentDayNote === "(Click here to add a note for today)" ||
-      currentDayNote === "(Click here to add your note for today)"
-    ) {
-      currentDayNote = "";
-    }
-
-    fetch(NOTE_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uuid, userName, date: today, note: currentDayNote })
-    }).then(() => {
-      console.log(`[📝 Saved ${userName}'s note for ${today}]`);
-    }).catch(err => {
-      console.error("[❌ Failed to save note]", err);
-    });
-  }, 1000);
+document.addEventListener("mousemove", (e) => {
+  if (!isDragging) return;
+  noteWrapper.style.left = `${e.clientX - offsetX}px`;
+  noteWrapper.style.top = `${e.clientY - offsetY}px`;
 });
+document.addEventListener("mouseup", () => isDragging = false);
+
+// 📌 Mount wrapper
+document.body.appendChild(noteWrapper);
+
 
     }
 
-    document.body.appendChild(noteBox);
   } catch (err) {
     console.error("🛑 Failed to load or show editable note:", err);
   }
