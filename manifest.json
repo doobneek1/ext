@@ -3,7 +3,8 @@
   "name": "doobneek feat YourPeer",
   "version": "5.9.9.1",
   "description": "Injects text formatting buttons and redirect logic.",
-"permissions": ["storage", "tabs", "webNavigation"],
+"permissions": ["storage", "tabs", "webNavigation",  "activeTab", 
+  "scripting"],
  "host_permissions": [
   "https://gogetta.nyc/*",
   "https://yourpeer.nyc/*",

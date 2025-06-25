@@ -235,12 +235,29 @@ document.querySelectorAll('div[id]').forEach(async section => {
 try {
   const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
   const noteRes = await fetch(`${NOTE_API}?uuid=${uuid}`);
-  const noteData = await noteRes.json();
-  const noteText = typeof noteData.note === "string" ? noteData.note.trim() : "";
+  const noteData = await noteRes.json(); // noteData is expected to be { user1: { "YYYY-MM-DD": "note" }, ... }
+
+  let allNotesContent = "";
+  if (noteData && typeof noteData === 'object' && Object.keys(noteData).length > 0) {
+      const notesArray = [];
+      for (const user in noteData) {
+          if (typeof noteData[user] === 'object') {
+              for (const date in noteData[user]) {
+                  notesArray.push({
+                      user: user,
+                      date: date,
+                      note: noteData[user][date]
+                  });
+              }
+          }
+      }
+      notesArray.sort((a, b) => new Date(a.date) - new Date(b.date));
+      allNotesContent = notesArray.map(n => `${n.user} (${n.date}): ${n.note}`).join("\n\n");
+  }
 
   const note = document.createElement("div");
   note.id = "yp-note-overlay";
-  note.textContent = noteText || "(No notes available)";
+  note.textContent = allNotesContent || "(No notes available for this location)"; // Updated to use allNotesContent
 Object.assign(note.style, {
   position: "fixed",
   top: "100px",
