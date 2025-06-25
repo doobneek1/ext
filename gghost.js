@@ -58,14 +58,18 @@ function showReminderModal(uuid, NOTE_API) {
       body: JSON.stringify({ uuid, userName: "reminder", date, note })
     });
 
-    const { org, location: locName } = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
+    const { org, location: locName,slug } = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
     const summaryText = `${org || 'GoGetta'}${locName ? ' - ' + locName : ''}: ${note.slice(0, 40).replace(/\n/g, ' ')}`.slice(0, 60);
-    const fullDescription = `${note.replace(/\n/g, '\\n')}${locName ? `\\nLocation: ${locName}` : ''}${org ? `\\nOrganization: ${org}` : ''}`;
+const ypLink = slug ? `\\nYP: https://yourpeer.nyc/locations/${slug}` : '';
+const fullDescription = `${note.replace(/\n/g, '\\n')}${locName ? `\\nLocation: ${locName}` : ''}${org ? `\\nOrganization: ${org}` : ''}${ypLink}`;
 
     if (mode === 'google') {
       openGoogleCalendarEvent({
         title: summaryText,
-        description: note + (locName ? `\nLocation: ${locName}` : '') + (org ? `\nOrganization: ${org}` : ''),
+        description: note +
+  (locName ? `\nLocation: ${locName}` : '') +
+  (org ? `\nOrganization: ${org}` : '') +
+  (slug ? `\nYP: https://yourpeer.nyc/locations/${slug}` : ''),
         date,
         locationUrl: `https://gogetta.nyc/team/location/${uuid}`
       });
@@ -382,7 +386,9 @@ const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
    localStorage.setItem("ypLastViewedService", JSON.stringify({
         name:  data.Organization?.name,
         location: data.name,
-        uuid: uuid
+        uuid: uuid,
+          slug: data.slug
+
       }));
       if (slug) {
         const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
