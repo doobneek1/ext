@@ -3,6 +3,202 @@ function escapeHtml(str) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[match]
   );
 }
+
+let isInConnectionMode = false;
+
+async function toggleConnectionMode() {
+  console.log('Toggling connection mode...');
+  isInConnectionMode = !isInConnectionMode;
+
+  const connectionButton = document.getElementById("connection-mode-button");
+  
+  // Check if the connection button exists
+  if (connectionButton) {
+    if (isInConnectionMode) {
+      console.log('Switching to connection mode.');
+      // Switch to connection mode
+      await showConnectedLocations(); // Make sure this is async
+      connectionButton.innerText = "Exit Connection Mode";
+    } else {
+      console.log('Exiting connection mode.');
+      // Exit connection mode
+      hideConnectedLocations();
+      connectionButton.innerText = "Show Other Branches";
+    }
+  } else {
+    console.warn('Connection mode button not found!');
+  }
+}
+
+async function addConnectionModeButton() {
+  const connectionButton = document.createElement("button");
+  connectionButton.id = "connection-mode-button";
+  connectionButton.style.marginLeft = "10px";
+  connectionButton.style.padding = "10px";
+  connectionButton.style.background = "#fff";
+  connectionButton.style.border = "2px solid #000";
+  connectionButton.style.borderRadius = "4px";
+  connectionButton.style.cursor = "pointer";
+  connectionButton.innerHTML = "Show Other Branches"; // Button text
+
+  // Append it next to the note box
+  const reminderNote = document.getElementById("reminder-note");
+  reminderNote.parentElement.appendChild(connectionButton);
+
+  connectionButton.addEventListener('click', toggleConnectionMode);
+  console.log('Connection button added and event listener attached.');
+
+  return connectionButton;
+}
+
+// Call this function when the page loads
+document.addEventListener("DOMContentLoaded", () => {
+  addConnectionModeButton();
+});
+
+
+
+async function showConnectedLocations() {
+    const fullServiceMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
+  const teamMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
+  const findMatch = location.pathname.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
+  
+  const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1]; // Get the current location UUID
+  if (!uuid) return;
+
+  const db = getDatabase();
+  const connectionsRef = db.ref(`/connections`);
+
+  console.log('Fetching connected locations...');
+  
+  // Fetch all the connection groups
+  const snapshot = await connectionsRef.once('value');
+  const connections = snapshot.val() || {};
+  
+  const connectionsDiv = document.createElement("div");
+  connectionsDiv.id = "connected-locations";
+  connectionsDiv.style.marginTop = "10px";
+  console.log('Displaying connected locations...');
+  
+  // Iterate through the connection groups
+  for (const [groupName, groupData] of Object.entries(connections)) {
+    const groupHeader = document.createElement("div");
+    groupHeader.style.cursor = "pointer";
+    groupHeader.style.fontWeight = "bold";
+    groupHeader.innerText = groupName;
+    groupHeader.addEventListener("click", () => toggleGroupVisibility(groupName));
+
+    const groupContainer = document.createElement("div");
+    groupContainer.style.display = "none"; // Initially hidden
+    groupContainer.id = `${groupName}-group-container`;
+
+    // Display UUIDs in the group
+    for (const [connectionStatus, connectedUuid] of Object.entries(groupData)) {
+      const locationLink = document.createElement("a");
+      locationLink.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
+      locationLink.target = "_blank";
+      locationLink.innerText = await getLocationName(connectedUuid);
+      locationLink.style.display = "block";
+
+      if (connectionStatus === "true") {
+        const disconnectButton = document.createElement("button");
+        disconnectButton.innerText = "Disconnect";
+        disconnectButton.style.backgroundColor = "red";
+        disconnectButton.style.color = "white";
+        disconnectButton.addEventListener('click', () => disconnectLocation(uuid, groupName, connectedUuid));
+        locationLink.appendChild(disconnectButton);
+      } else {
+        locationLink.style.color = "red"; // Indicate that the link is disconnected
+      }
+
+      groupContainer.appendChild(locationLink);
+    }
+
+    connectionsDiv.appendChild(groupHeader);
+    connectionsDiv.appendChild(groupContainer);
+  }
+
+  document.body.appendChild(connectionsDiv);
+}
+
+function hideConnectedLocations() {
+  const connectionsDiv = document.getElementById("connected-locations");
+  if (connectionsDiv) {
+    console.log('Hiding connected locations...');
+    connectionsDiv.remove();
+  }
+}
+
+
+
+
+function toggleGroupVisibility(groupName) {
+  const groupContainer = document.getElementById(`${groupName}-group-container`);
+  if (groupContainer.style.display === "none") {
+    groupContainer.style.display = "block";
+  } else {
+    groupContainer.style.display = "none";
+  }
+}
+
+function hideConnectedLocations() {
+  const connectionsDiv = document.getElementById("connected-locations");
+  if (connectionsDiv) {
+    connectionsDiv.remove();
+  }
+}
+
+// Helper function to get location name for UUID
+async function getLocationName(uuid) {
+  const db = getDatabase();
+  const ref = db.ref(`/locations/${uuid}`);
+  const snapshot = await ref.once("value");
+  const data = snapshot.val();
+  return data ? data.name : "Unknown Location";
+}
+
+// Firebase function to update connection status
+async function disconnectLocation(currentUuid, groupName, targetUuid) {
+  const db = getDatabase();
+  const connectionsRef = db.ref(`/connections/${groupName}/${targetUuid}`);
+
+  // Set the connection status to false
+  await connectionsRef.set(false);
+  console.log(`Disconnected ${currentUuid} from ${targetUuid} in group ${groupName}`);
+
+  // Re-render the connected locations after disconnection
+  showConnectedLocations();
+}
+
+// Firebase function to add a new group
+async function addNewGroup(groupName) {
+  const db = getDatabase();
+  const newGroupRef = db.ref(`/connections/${groupName}`);
+
+  // Initially set the group as empty
+  await newGroupRef.set({});
+  console.log(`New group ${groupName} added to connections.`);
+}
+
+// Firebase function to add a new UUID to a group
+async function addUuidToGroup(groupName, uuid) {
+  const db = getDatabase();
+  const groupRef = db.ref(`/connections/${groupName}`);
+
+  const snapshot = await groupRef.once('value');
+  const groupData = snapshot.val() || {};
+
+  // Add the UUID to the group with a default status of `true`
+  groupData[uuid] = true;
+  await groupRef.set(groupData);
+  console.log(`Added UUID ${uuid} to group ${groupName}`);
+}
+
+// Call this function when the page loads
+document.addEventListener("DOMContentLoaded", () => {
+  addConnectionModeButton();
+});
+
 function showReminderModal(uuid, NOTE_API) {
   const overlay = document.createElement("div");
   overlay.id = "reminder-modal";
@@ -286,10 +482,104 @@ function createYourPeerEmbedWindow(slug, onClose = () => {}) {
     isDragging = false;
   });
 }
+document.addEventListener("DOMContentLoaded", function() {
+  // Check if the specific element exists
+  const signInHeader = document.querySelector('.sign-in-header');
 
+  // If the element is found, hide the notes section
+  if (signInHeader) {
+    const noteOverlay = document.getElementById('gg-note-overlay');
+    const noteWrapper = document.getElementById('gg-note-wrapper');
+
+    if (noteOverlay) {
+      noteOverlay.style.display = 'none';  // Hides the note overlay
+    }
+
+    if (noteWrapper) {
+      noteWrapper.style.display = 'none';  // Hides the note wrapper
+    }
+  }
+});
+function addMicrophoneButton() {
+  const micButton = document.createElement("button");
+  micButton.id = "mic-button";
+  micButton.style.marginLeft = "10px";
+  micButton.style.padding = "10px";
+  micButton.style.background = "#fff";
+  micButton.style.border = "2px solid #000";
+  micButton.style.borderRadius = "50%";
+  micButton.style.cursor = "pointer";
+  micButton.innerHTML = "🎤"; // You can replace this with an actual microphone icon if needed
+
+  // Append it next to the textarea
+  const reminderNote = document.getElementById("reminder-note");
+  reminderNote.parentElement.appendChild(micButton);
+
+  return micButton;
+}
+
+let recognition;
+let isRecognizing = false;
+
+function initializeSpeechRecognition() {
+  // Check if the browser supports SpeechRecognition
+  if (!('webkitSpeechRecognition' in window)) {
+    alert("Speech recognition is not supported by this browser.");
+    return;
+  }
+
+  recognition = new webkitSpeechRecognition(); // For Chrome, use 'webkitSpeechRecognition'
+  recognition.continuous = true; // Keep listening even after pause
+  recognition.interimResults = true; // Show results while speaking
+  recognition.lang = "en-US"; // You can change the language here
+  recognition.maxAlternatives = 1; // Max alternatives to choose from
+
+  recognition.onstart = () => {
+    isRecognizing = true;
+    console.log("Speech recognition started.");
+  };
+
+  recognition.onend = () => {
+    isRecognizing = false;
+    console.log("Speech recognition ended.");
+  };
+
+  recognition.onerror = (event) => {
+    console.error("Speech recognition error:", event.error);
+  };
+
+  recognition.onresult = (event) => {
+    let transcript = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+
+    const reminderNote = document.getElementById("reminder-note");
+    reminderNote.value = transcript; // Update the textarea with the transcript
+  };
+}
+
+function attachMicButtonHandler() {
+  const micButton = addMicrophoneButton();
+  
+  micButton.addEventListener('click', () => {
+    if (isRecognizing) {
+      recognition.stop(); // Stop recording
+      micButton.innerHTML = "🎤"; // Change icon back to mic
+    } else {
+      recognition.start(); // Start recording
+      micButton.innerHTML = "🛑"; // Change icon to stop button
+    }
+  });
+}
+
+// Initialize everything when the document is ready
+document.addEventListener("DOMContentLoaded", () => {
+  initializeSpeechRecognition();
+  attachMicButtonHandler();
+});
 
 async function injectGoGettaButtons() {
-      let offsetX = 0, offsetY = 0, isDragging = false;
 if (document.body.dataset.gghostRendered === 'true') return;
 document.body.dataset.gghostRendered = 'true';
   document.querySelectorAll('[data-gghost-button]').forEach(btn => btn.remove());
@@ -545,6 +835,7 @@ const dragBar = document.createElement("div");
 let orgName = "";
 let locationName = "";
 const currentUuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
+
 if (currentUuid) {
   try {
     console.log(`[Notes Header] Attempting to fetch details for UUID: ${currentUuid}`);
@@ -580,10 +871,27 @@ if (currentUuid) {
   console.warn("[Notes Header] UUID is not available. Cannot fetch details.");
   const stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
 }
+
 if (orgName || locationName) {
   dragBar.textContent = `⋮ ${orgName}${locationName ? ' - ' + locationName : ''}`;
-} else{dragBar.textContent = `⋮ notes`;
+} else {
+  dragBar.textContent = `⋮ notes`;
 }
+
+// Create the "Show Other Branches" button
+const toggleButton = document.createElement("button");
+toggleButton.innerText = "Show Other Branches";
+toggleButton.style.marginLeft = "10px";
+toggleButton.style.fontSize = "14px";
+toggleButton.style.padding = "5px 10px";
+toggleButton.style.border = "2px solid #000";
+toggleButton.style.borderRadius = "4px";
+toggleButton.style.cursor = "pointer";
+toggleButton.addEventListener("click", toggleConnectionMode);
+
+// Append the toggle button to dragBar
+dragBar.appendChild(toggleButton);
+
 Object.assign(dragBar.style, {
   background: "#eee",
   padding: "6px 10px",
@@ -592,6 +900,7 @@ Object.assign(dragBar.style, {
   borderBottom: "1px solid #ccc"
 });
 noteWrapper.appendChild(dragBar);
+
 const readOnlyDiv = document.createElement("div");
 readOnlyDiv.id = "readonly-notes";
 readOnlyDiv.innerHTML =
