@@ -66,11 +66,21 @@
     </label>
   </div>
 
-  <div id="userNameSection">
-    <label for="userNameInput">What is your name?</label>
-    <input type="text" id="userNameInput" placeholder="Enter your name">
-    <div id="userNameStatus"></div>
+ <div id="userNameSection">
+  <label for="userNameInput">What is your name?</label>
+  <div style="display: flex; align-items: center;">
+    <input type="text" id="userNameInput" placeholder="Enter your name" style="flex: 1;" />
   </div>
+
+  <label for="userPasswordInput" style="margin-top: 10px;">Your password</label>
+  <div style="display: flex; align-items: center;">
+    <input type="password" id="userPasswordInput" placeholder="Enter password" style="flex: 1;" />
+    <button id="togglePasswordBtn" type="button" style="margin-left: 5px;">Show</button>
+  </div>
+
+  <div id="userNameStatus"></div>
+</div>
+
   <div id="reminderSection" style="margin-top: 20px; max-height: 150px; overflow-y: auto; border-top: 1px solid #ccc; padding-top: 10px;">
   <strong>Upcoming Reminders</strong>
   <ul id="reminderList" style="font-size: 13px; padding-left: 16px;"></ul>

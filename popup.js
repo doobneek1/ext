@@ -66,7 +66,16 @@ function updateExtensionBadge(reminders) {
   const gayMode = document.getElementById("gayModeToggle");
   const recolorOptions = document.getElementById("recolorOptions");
   const userNameSection = document.getElementById("userNameSection");
-  const userNameInput = document.getElementById("userNameInput");
+const userNameInput = document.getElementById("userNameInput");
+const toggleVisibilityBtn = document.getElementById("toggleVisibilityBtn");
+const userPasswordInput = document.getElementById("userPasswordInput");
+const togglePasswordBtn = document.getElementById("togglePasswordBtn");
+togglePasswordBtn.addEventListener("click", () => {
+  const isPassword = userPasswordInput.type === "password";
+  userPasswordInput.type = isPassword ? "text" : "password";
+  togglePasswordBtn.textContent = isPassword ? "hide" : "show";
+});
+
   const userNameStatus = document.getElementById("userNameStatus");
   userNameSection.style.display = "none";
   const { redirectEnabled, greenMode: gm, gayMode: ym } = await chrome.storage.local.get([
@@ -129,6 +138,13 @@ if (calendarInput) {
     userNameSection.style.display = "block";
     const { userName } = await chrome.storage.local.get("userName");
     if (userName) userNameInput.value = userName;
+    const { userPassword } = await chrome.storage.local.get("userPassword");
+if (userPassword) userPasswordInput.value = userPassword;
+userPasswordInput.addEventListener("keyup", () => {
+  const newPassword = userPasswordInput.value.trim();
+  chrome.storage.local.set({ userPassword: newPassword });
+});
+
     let saveTimeout = null;
 
 
@@ -138,7 +154,8 @@ const saveUserName = () => {
  const reservedNames = ["reminder"]; // Add more if needed
 
 if (!newUserName) {
-  // ... clear logic
+  userNameStatus.textContent = "Username cannot be empty.";
+  return;
 } else if (reservedNames.includes(newUserName.toLowerCase())) {
   userNameStatus.textContent = `"${newUserName}" is a reserved name. Please choose another.`;
   return;
@@ -153,7 +170,16 @@ if (!newUserName) {
   // ✅ Valid name
   chrome.storage.local.set({ userName: newUserName });
   userNameStatus.textContent = "Username saved!";
+  const newPassword = userPasswordInput.value.trim();
+chrome.storage.local.set({ userPassword: newPassword });
+
   chrome.tabs.sendMessage(tab.id, { type: "userNameUpdated", userName: newUserName }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.warn("[popup.js] ⚠️ Message failed:", chrome.runtime.lastError.message);
+    } else {
+      console.log("[popup.js] ✅ Message acknowledged:", response);
+    }
+  });  chrome.tabs.sendMessage(tab.id, { type: "passwordUpdated", userPassword: newPassword }, (response) => {
     if (chrome.runtime.lastError) {
       console.warn("[popup.js] ⚠️ Message failed:", chrome.runtime.lastError.message);
     } else {
@@ -185,6 +211,11 @@ window.addEventListener("beforeunload", () => {
     }
   });
 });
+userPasswordInput.addEventListener("blur", () => {
+  const newPassword = userPasswordInput.value.trim();
+  chrome.storage.local.set({ userPassword: newPassword });
+});
+
   });
 await fetchAndRenderReminders(); // ⬅️ Call the function!
 

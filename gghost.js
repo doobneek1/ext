@@ -4,6 +4,18 @@ function escapeHtml(str) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[match]
   );
 }
+async function checkResponse(response, actionDescription) {
+  const errText = await response.text();
+  if (!response.ok) {
+    if (response.status === 403) {
+      alert("⚠️ Incorrect password. Please check your name and password, then refresh the page.");
+    } else {
+      alert(`❌ ${actionDescription} failed.\n\nPlease check your name and password, then refresh the page.\n\nError: ${errText}`);
+    }
+    throw new Error(`${actionDescription} failed. Status ${response.status}: ${errText}`);
+  }
+}
+
 
 async function fetchLocationDetails(uuid) {
   try {
@@ -299,7 +311,7 @@ connectionsScrollWrapper.style.paddingTop = "10px";
   disconnectButton.style.color = "white";
   disconnectButton.style.padding = "2px 6px";
   disconnectButton.addEventListener("click", () =>
-    disconnectLocation(groupName, uuid, connectedUuid, NOTE_API)
+    disconnectLocation(groupName, userPassword, connectedUuid, NOTE_API)
   );
 
   const locationWrapper = document.createElement("div");
@@ -371,7 +383,7 @@ connectionsScrollWrapper.style.paddingTop = "10px";
         return;
       }
 
-      await addUuidToGroup(groupName, uuid, newConnectedUuid, NOTE_API);
+      await addUuidToGroup(groupName, uuid, newConnectedUuid, NOTE_API, userPassword);
       newLinkInput.value = "";
       hideConnectedLocations();
       await showConnectedLocations(NOTE_API);
@@ -419,12 +431,14 @@ function hideConnectedLocations() {
 
 
 
-async function disconnectLocation(groupName, uuid, connectedUuid, NOTE_API) {
+async function disconnectLocation(groupName,  userPassword,connectedUuid, NOTE_API) {
   try {
     const payload = {
       uuid:"connections",
       userName: groupName,
 date: `https://gogetta.nyc/team/location/${connectedUuid}`,
+      password: userPassword,
+
       note: false
     };
 
@@ -434,10 +448,8 @@ date: `https://gogetta.nyc/team/location/${connectedUuid}`,
       body: JSON.stringify(payload)
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Failed to disconnect: ${errText}`);
-    }
+await checkResponse(response, `Disconnection`);
+
 
     hideConnectedLocations();
     await showConnectedLocations(NOTE_API);
@@ -447,7 +459,7 @@ date: `https://gogetta.nyc/team/location/${connectedUuid}`,
 }
 
 
-async function addNewGroup(groupNameFromInput, linkUrlFromInput, NOTE_API) { // Updated signature
+async function addNewGroup(groupNameFromInput, linkUrlFromInput, NOTE_API,userPassword) { // Updated signature
   const path = location.pathname;
 
   const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
@@ -516,6 +528,8 @@ try {
       body: JSON.stringify({
         uuid: "connections",
         userName: groupNameFromInput,
+          password: userPassword,
+
         date: linkUrlFromInput,
         note: true
       })
@@ -526,6 +540,8 @@ try {
       body: JSON.stringify({
         uuid: "connections",
         userName: groupNameFromInput,
+          password: userPassword,
+
         date: `/team/location/${currentPageUuid}`,
         note: true
       })
@@ -550,11 +566,13 @@ try {
 }
 
 
-async function addUuidToGroup(groupName, uuid, connectedUuid, NOTE_API) {
+async function addUuidToGroup(groupName, uuid, connectedUuid, NOTE_API, userPassword) {
   try {
     const payload = {
       uuid,
       userName: groupName,
+        password: userPassword,
+
       date: `/team/location/${connectedUuid}`,  // Storing a canonical path
       note: true
     };
@@ -565,7 +583,7 @@ async function addUuidToGroup(groupName, uuid, connectedUuid, NOTE_API) {
       body: JSON.stringify(payload)
     });
 
-    if (!response.ok) throw new Error(`Failed to add UUID ${connectedUuid} to group ${groupName}`);
+await checkResponse(response, `Adding UUID ${connectedUuid} to group ${groupName}`);
     console.log(`✅ Added UUID ${connectedUuid} to group ${groupName}`);
   } catch (err) {
     console.error('[Add UUID Error]', err);
@@ -578,7 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
   addConnectionModeButton();
 });
 
-function showReminderModal(uuid, NOTE_API) {
+function showReminderModal(uuid, NOTE_API, userPassword) {
   const overlay = document.createElement("div");
   overlay.id = "reminder-modal";
   Object.assign(overlay.style, {
@@ -630,8 +648,9 @@ function showReminderModal(uuid, NOTE_API) {
     await fetch(NOTE_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uuid, userName: "reminder", date, note })
+      body: JSON.stringify({ uuid, userName: "reminder", password: userPassword,date, note })
     });
+await checkResponse(response, `Adding reminder`);
 
     const { org, location: locName,slug } = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
     const summaryText = `${org || 'GoGetta'}${locName ? ' - ' + locName : ''}: ${note.slice(0, 40).replace(/\n/g, ' ')}`.slice(0, 60);
@@ -697,6 +716,18 @@ function openGoogleCalendarEvent({ title, description, date, locationUrl }) {
 
   const calendarUrl = `https://calendar.google.com/calendar/render?${params.toString()}`;
   window.open(calendarUrl, '_blank');
+}
+async function getUserPasswordSafely() {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage?.local?.get(["userPassword"], result => {
+        resolve(result?.userPassword || null);
+      });
+    } catch (err) {
+      console.warn("[🛑 Extension context lost while getting password]", err);
+      resolve(null);
+    }
+  });
 }
 
 async function getUserNameSafely() {
@@ -1196,6 +1227,8 @@ const ypMiniBtn = createButton('YP Mini', async () => {
 if (!document.getElementById("gg-note-overlay")) {
   try {
 const userName = window.gghostUserName || await getUserNameSafely();
+const userPassword =  window.gghostPassword || await getUserPasswordSafely(); // 👈 Now you have access
+
     const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
 if (!userName && !location.pathname.startsWith('/find/')) {
   console.warn("[📝 Notes] Username not set. Prompting user to click the extension icon.");
@@ -1463,18 +1496,25 @@ if (isEditable) {
   let saveTimeout = null;
   editableDiv.addEventListener("input", () => {
     clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(() => {
-      const note = editableDiv.innerText.trim();
-      fetch(NOTE_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uuid, userName, date: today, note })
-      }).then(() => {
-        console.log(`[📝 Saved ${userName}'s note for ${today}]`);
-      }).catch(err => {
-        console.error("[❌ Failed to save note]", err);
-      });
-    }, 1000);
+saveTimeout = setTimeout(() => {
+  const note = editableDiv.innerText.trim();
+
+  fetch(NOTE_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+body: JSON.stringify({ uuid, userName, password: window.gghostPassword || userPassword, date: today, note })
+  })
+    .then(res => checkResponse(res, "Saving note"))  // <-- Check here
+    .then(() => {
+      console.log(`[📝 Saved ${userName}'s note for ${today}]`);
+    })
+    .catch(err => {
+      console.error("[❌ Failed to save note]", err);
+      alert(err.message); // Optional: showErrorBanner(err.message);
+    });
+
+}, 1000);
+
   });
 }
 noteWrapper.appendChild(editableDiv);
@@ -1490,6 +1530,18 @@ liveTranscribeBtn.textContent = "Start Transcribing";
 liveTranscribeBtn.style.padding = "6px 12px";
 liveTranscribeBtn.style.flex = "1";
 liveTranscribeBtn.style.marginRight = "5px";
+// createButton('🎤 Test Mic', () => {
+//   const rec = new webkitSpeechRecognition();
+//   rec.continuous = false;
+//   rec.interimResults = false;
+//   rec.onresult = (e) => console.log("✅ Transcript:", e.results[0][0].transcript);
+//   rec.onerror = (e) => console.error("❌ Error:", e.error);
+//   try {
+//     rec.start();
+//   } catch (err) {
+//     console.error("Failed to start:", err);
+//   }
+// }, 180); // Offset so it doesn't overlap other buttons
 
 // 🧠 AI Format Button
 const aiFormatBtn = document.createElement("button");
@@ -1539,28 +1591,67 @@ console.log("[AI Button] Received response:", response);
     aiFormatBtn.textContent = "🧠 Format with AI";
   }
 });
+if (!recognition && 'webkitSpeechRecognition' in window) {
+  initializeSpeechRecognition();
+}
 liveTranscribeBtn.addEventListener("click", () => {
-  if (!recognition) return;
+  if (!recognition) {
+    alert("Speech recognition not available.");
+    return;
+  }
+
+  const editableDiv = document.getElementById("editable-note");
+  if (!editableDiv) {
+    alert("Editable notes section not found.");
+    return;
+  }
 
   if (isRecognizing) {
     recognition.stop();
+    liveTranscribeBtn.textContent = "Start Transcribing";
+    return;
+  }
+
+  // Ensure clean setup before starting
+  recognition.onstart = () => {
+    isRecognizing = true;
+    liveTranscribeBtn.textContent = "Stop Transcribing";
+    console.log("[Live Transcribe] Started.");
+  };
+
+  recognition.onend = () => {
+    isRecognizing = false;
     liveTranscribeBtn.textContent = "🎤 Start Transcribing";
-  } else {
-    recognition.onresult = (event) => {
-      let transcript = "";
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
+    console.log("[Live Transcribe] Stopped.");
+  };
+
+  recognition.onerror = (event) => {
+    isRecognizing = false;
+    liveTranscribeBtn.textContent = "🎤 Start Transcribing";
+    console.error("[Live Transcribe] Error:", event.error);
+  };
+
+  recognition.onresult = (event) => {
+    let transcript = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {
         transcript += event.results[i][0].transcript;
       }
-      editableDiv.innerText += transcript + " ";
-    };
+    }
+    editableDiv.innerText += (editableDiv.innerText.length > 0 ? " " : "") + transcript;
+  };
+
+  try {
     recognition.start();
-    liveTranscribeBtn.textContent = "🛑 Stop Transcribing";
+  } catch (err) {
+    console.error("[Live Transcribe] Failed to start:", err);
+    alert("Could not start transcription. Try again.");
   }
 });
 
 reminderCheckbox.addEventListener("change", () => {
   if (reminderCheckbox.checked) {
-    showReminderModal(uuid, NOTE_API);
+    showReminderModal(uuid, NOTE_API, userPassword);
     reminderCheckbox.checked = false;
   }
 });
@@ -1625,6 +1716,18 @@ document.addEventListener('visibilitychange', () => {
       window.gghostUserName = request.userName; 
       injectGoGettaButtons(); 
       sendResponse({ status: "Username received by content script" });
+    }
+    return true; 
+  });
+    chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    if (request.type === "passwordUpdated") {
+      const existingOverlay = document.getElementById("gg-note-overlay");
+      if (existingOverlay) {
+        existingOverlay.remove();
+      }
+      window.gghostPassword = request.userPassword; 
+      injectGoGettaButtons(); 
+      sendResponse({ status: "Pass received by content script" });
     }
     return true; 
   });
