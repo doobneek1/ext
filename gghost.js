@@ -30,7 +30,12 @@ async function toggleConnectionMode() {
   const connectionButton = document.getElementById("connection-mode-button");
   const readonlyNotesDiv = document.getElementById("readonly-notes");
   const editableNoteDiv = document.getElementById("editable-note"); // Get editable note div
-  let connectionsDiv = document.getElementById("connected-locations"); // Use let as it might be re-assigned by showConnectedLocations
+const liveBtn = Array.from(document.querySelectorAll("button"))
+  .find(btn => btn.textContent.includes("Transcribing"));
+const aiBtn = Array.from(document.querySelectorAll("button"))
+  .find(btn => btn.textContent.includes("Format with AI"));
+
+let connectionsDiv = document.getElementById("connected-locations"); // Use let as it might be re-assigned by showConnectedLocations
 
   if (connectionButton) {
     if (isInConnectionMode) { // Switching TO connection (branches/groups) mode
@@ -38,6 +43,9 @@ async function toggleConnectionMode() {
       connectionButton.innerText = "Notes";
       if (readonlyNotesDiv) readonlyNotesDiv.style.display = "none";
       if (editableNoteDiv) editableNoteDiv.style.display = "none"; // Hide editable notes
+
+if (liveBtn) liveBtn.style.display = "none";
+if (aiBtn) aiBtn.style.display = "none";
 
       if (connectionsDiv) {
         // If connectionsDiv exists, ensure it's in the noteWrapper and visible
@@ -57,6 +65,8 @@ async function toggleConnectionMode() {
       connectionButton.innerText = "Show Other Branches";
       if (readonlyNotesDiv) readonlyNotesDiv.style.display = "block";
       if (editableNoteDiv) editableNoteDiv.style.display = "block"; // Show editable notes
+if (liveBtn) liveBtn.style.display = "inline-block";
+if (aiBtn) aiBtn.style.display = "inline-block";
 
       if (connectionsDiv) {
         connectionsDiv.style.display = "none"; // Just hide connections view
@@ -123,21 +133,18 @@ async function showConnectedLocations(NOTE_API) {
   const teamMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
   const findMatch = location.pathname.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
 
-  const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1]; // Get the current location UUID
+  const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
   if (!uuid) return;
-const firebaseURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/${uuid}.json`;
-  const res = await fetch(firebaseURL);  // Fetch the data from the Firebase URL
-  const allData = await res.json();  // Parse the response as JSON
 
-  // Handle the data (in your case, the connections)
-  const connections = allData || {};  // Fallback to an empty object if no data is found
+  const firebaseURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/${uuid}.json`;
+  const res = await fetch(firebaseURL);
+  const allData = await res.json();
+  const connections = allData || {};
 
   const connectionsDiv = document.createElement("div");
   connectionsDiv.id = "connected-locations";
   connectionsDiv.style.marginTop = "10px";
-  console.log('Displaying connected locations...');
 
-  // UI for adding a new group
   const addGroupDiv = document.createElement("div");
   addGroupDiv.style.marginBottom = "15px";
   addGroupDiv.style.padding = "10px";
@@ -147,193 +154,162 @@ const firebaseURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/location
   const groupNameInput = document.createElement("input");
   groupNameInput.type = "text";
   groupNameInput.placeholder = "New group name";
+  groupNameInput.style.width = "calc(50% - 15px)";
   groupNameInput.style.marginRight = "10px";
   groupNameInput.style.padding = "5px";
-  groupNameInput.id = "new-group-name-input"; // Added ID for potential future use
-  groupNameInput.style.marginBottom = "5px"; // Add some space
 
   const groupLinkInput = document.createElement("input");
   groupLinkInput.type = "url";
   groupLinkInput.placeholder = "New group link (GoGetta URL)";
+  groupLinkInput.style.width = "calc(50% - 15px)";
   groupLinkInput.style.marginRight = "10px";
   groupLinkInput.style.padding = "5px";
-  groupLinkInput.style.width = "calc(50% - 15px)"; // Adjust width
-  groupLinkInput.id = "new-group-link-input";
 
   const addGroupButton = document.createElement("button");
   addGroupButton.innerText = "Add New Group";
   addGroupButton.style.padding = "5px 10px";
-  addGroupButton.addEventListener('click', async () => {
+  addGroupButton.addEventListener("click", async () => {
     const newGroupName = groupNameInput.value.trim();
     const newGroupLink = groupLinkInput.value.trim();
     const forbidden = ["doobneek", "Gavilan"];
 
-    if (!newGroupName) {
-      alert("Please enter a group name.");
+    if (!newGroupName || forbidden.includes(newGroupName) || !newGroupLink.includes("/location/")) {
+      alert("Please enter a valid group name and link.");
       return;
-    }
-    if (forbidden.includes(newGroupName)) {
-      alert(`Group name "${newGroupName}" is reserved. Please choose another name.`);
-      return;
-    }
-    if (!newGroupLink) {
-      alert("Please enter a link for the new group.");
-      return;
-    }
-    if (!newGroupLink.includes("/location/")) { // Basic validation
-        alert("This doesn't look like a valid GoGetta location link.");
-        return;
     }
 
-    // Pass both name and link to addNewGroup
-    await addNewGroup(newGroupName, newGroupLink, NOTE_API); 
-    hideConnectedLocations(); // Refresh the view
+    await addNewGroup(newGroupName, newGroupLink, NOTE_API);
+    hideConnectedLocations();
     await showConnectedLocations(NOTE_API);
   });
 
-  // Adjust input widths for better layout
-  groupNameInput.style.width = "calc(50% - 15px)"; // Adjust width
-
   addGroupDiv.appendChild(groupNameInput);
-  addGroupDiv.appendChild(groupLinkInput); // Add new input
+  addGroupDiv.appendChild(groupLinkInput);
   addGroupDiv.appendChild(addGroupButton);
   connectionsDiv.appendChild(addGroupDiv);
-for (const [groupName, entry] of Object.entries(connections)) {
-  if (typeof entry !== 'object' || !entry) continue;
-  if (['reminder'].includes(groupName)) continue;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(Object.keys(entry)[0])) continue;
 
-  const groupContainer = document.createElement("div");
-  groupContainer.id = `${groupName}-group-container`;
-  groupContainer.style.marginBottom = "10px";
+  for (const [groupName, entry] of Object.entries(connections)) {
+    if (typeof entry !== "object" || !entry) continue;
+    if (['reminder'].includes(groupName)) continue;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(Object.keys(entry)[0])) continue;
 
-  const header = document.createElement("h4");
-  header.innerText = `▼ ${groupName}`;
-  header.style.cursor = "pointer";
-  header.onclick = () => toggleGroupVisibility(groupName);
-  groupContainer.appendChild(header);
+    const groupContainer = document.createElement("div");
+    groupContainer.id = `${groupName}-group-container`;
+    groupContainer.style.marginBottom = "10px";
 
-  const groupContent = document.createElement("div");
-  groupContent.id = `${groupName}-group-content`;
-  groupContent.style.display = "block";
+    const header = document.createElement("h4");
+    header.innerText = `▼ ${groupName}`;
+    header.style.cursor = "pointer";
+    header.onclick = () => toggleGroupVisibility(groupName);
+    groupContainer.appendChild(header);
 
-for (const [link, status] of Object.entries(entry)) {
-  if (!status || status === "false") continue;
+    const groupContent = document.createElement("div");
+    groupContent.id = `${groupName}-group-content`;
+    groupContent.style.display = "block";
 
-  const uuidMatch = link.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,})/i);
-  const connectedUuid = uuidMatch?.[1];
-  if (!connectedUuid) continue;
+    for (const [connectedUuid, status] of Object.entries(entry)) {
+      if (!status || status === "false") continue;
+      if (!/^[a-f0-9-]{12,}$/.test(connectedUuid)) {
+        console.warn(`[showConnectedLocations] Invalid UUID format: ${connectedUuid}`);
+        continue;
+      }
 
-  const { name: locName } = await fetchLocationDetails(connectedUuid);
+      const { name: locName } = await fetchLocationDetails(connectedUuid);
 
-  const locationLink = document.createElement("a");
-  locationLink.href = link;
-  locationLink.target = "_blank";
-  locationLink.innerText = locName || `Location ${connectedUuid}`;
-  locationLink.style.display = "inline-block";
-  locationLink.style.marginRight = "10px";
+      const locationLink = document.createElement("a");
+      locationLink.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
+      locationLink.target = "_blank";
+      locationLink.innerText = locName || `Location ${connectedUuid}`;
+      locationLink.style.display = "inline-block";
+      locationLink.style.marginRight = "10px";
 
-  const disconnectButton = document.createElement("button");
-  disconnectButton.innerText = "Disconnect";
-  disconnectButton.style.backgroundColor = "red";
-  disconnectButton.style.color = "white";
-  disconnectButton.style.padding = "2px 6px";
-  disconnectButton.addEventListener('click', () =>
-    disconnectLocation(groupName, uuid, link, NOTE_API)
-  );
+      const disconnectButton = document.createElement("button");
+      disconnectButton.innerText = "Disconnect";
+      disconnectButton.style.backgroundColor = "red";
+      disconnectButton.style.color = "white";
+      disconnectButton.style.padding = "2px 6px";
+      disconnectButton.addEventListener("click", () =>
+        disconnectLocation(groupName, uuid, connectedUuid, NOTE_API)
+      );
 
-  const locationWrapper = document.createElement("div");
-  locationWrapper.style.marginBottom = "8px";
-  locationWrapper.appendChild(locationLink);
-  locationWrapper.appendChild(disconnectButton);
+      const locationWrapper = document.createElement("div");
+      locationWrapper.style.marginBottom = "8px";
+      locationWrapper.appendChild(locationLink);
+      locationWrapper.appendChild(disconnectButton);
 
-  groupContent.appendChild(locationWrapper);
-}
-
-
-  // UI for adding a new link to this specific group
-  const addLinkToGroupDiv = document.createElement("div");
-  addLinkToGroupDiv.style.marginTop = "10px";
-  addLinkToGroupDiv.style.paddingTop = "10px";
-  addLinkToGroupDiv.style.borderTop = "1px dashed #eee";
-
-  const newLinkInput = document.createElement("input");
-  newLinkInput.type = "url";
-  newLinkInput.placeholder = "Paste GoGetta link here";
-  newLinkInput.style.marginRight = "5px";
-  newLinkInput.style.padding = "4px";
-  newLinkInput.style.width = "calc(70% - 10px)";
-
-  const addLinkButton = document.createElement("button");
-  addLinkButton.innerText = "Add Link";
-  addLinkButton.style.padding = "4px 8px";
-
-  const currentGroupPageUuid = uuid; // uuid is the current page's UUID from showConnectedLocations scope
-
-addLinkButton.addEventListener('click', async () => {
-  const newLink = newLinkInput.value.trim();
-  if (!newLink) {
-    alert("Please enter a link.");
-    return;
-  }
-
-  if (!newLink.includes("/location/")) {
-    alert("This doesn't look like a valid GoGetta location link.");
-    return;
-  }
-
-  // ✅ Extract UUID from the link using full parser
-  let newConnectedUuid = null;
-  try {
-    const url = new URL(newLink);
-    const pathSegments = url.pathname.split('/').filter(Boolean);
-    const locationIndex = pathSegments.findIndex(seg => seg === 'location');
-    if (locationIndex !== -1 && pathSegments.length > locationIndex + 1) {
-      newConnectedUuid = pathSegments[locationIndex + 1];
+      groupContent.appendChild(locationWrapper);
     }
-  } catch (err) {
-    console.warn("Invalid URL format:", newLink, err);
+
+    const addLinkToGroupDiv = document.createElement("div");
+    addLinkToGroupDiv.style.marginTop = "10px";
+    addLinkToGroupDiv.style.paddingTop = "10px";
+    addLinkToGroupDiv.style.borderTop = "1px dashed #eee";
+
+    const newLinkInput = document.createElement("input");
+    newLinkInput.type = "url";
+    newLinkInput.placeholder = "Paste GoGetta link here";
+    newLinkInput.style.marginRight = "5px";
+    newLinkInput.style.padding = "4px";
+    newLinkInput.style.width = "calc(70% - 10px)";
+
+    const addLinkButton = document.createElement("button");
+    addLinkButton.innerText = "Add Link";
+    addLinkButton.style.padding = "4px 8px";
+
+    addLinkButton.addEventListener("click", async () => {
+      const newLink = newLinkInput.value.trim();
+      if (!newLink.includes("/location/")) {
+        alert("This doesn't look like a valid GoGetta location link.");
+        return;
+      }
+
+      let newConnectedUuid = null;
+      try {
+        const url = new URL(newLink);
+        const pathSegments = url.pathname.split("/").filter(Boolean);
+        const locationIndex = pathSegments.findIndex((seg) => seg === "location");
+        if (locationIndex !== -1 && pathSegments.length > locationIndex + 1) {
+          newConnectedUuid = pathSegments[locationIndex + 1];
+        }
+      } catch (err) {
+        console.warn("Invalid URL format:", newLink, err);
+      }
+
+      if (!newConnectedUuid || !/^[a-f0-9-]{12,}$/.test(newConnectedUuid)) {
+        alert("Could not extract a valid UUID from the link.");
+        return;
+      }
+
+      if (newConnectedUuid === uuid) {
+        alert("You cannot link the current location to itself.");
+        return;
+      }
+
+      if (entry[newConnectedUuid] === "true" || entry[newConnectedUuid] === true) {
+        alert("This location is already in the group.");
+        return;
+      }
+
+      await addUuidToGroup(groupName, uuid, newConnectedUuid, NOTE_API);
+      newLinkInput.value = "";
+      hideConnectedLocations();
+      await showConnectedLocations(NOTE_API);
+    });
+
+    addLinkToGroupDiv.appendChild(newLinkInput);
+    addLinkToGroupDiv.appendChild(addLinkButton);
+    groupContent.appendChild(addLinkToGroupDiv);
+
+    groupContainer.appendChild(groupContent);
+    connectionsDiv.appendChild(groupContainer);
   }
 
-  if (!newConnectedUuid || !/^[a-f0-9-]{12,}$/.test(newConnectedUuid)) {
-    alert("Could not extract a valid UUID from the link.");
-    return;
-  }
-
-  if (newConnectedUuid === currentGroupPageUuid) {
-    alert("You cannot link the current location to itself.");
-    return;
-  }
-
-  // ✅ Check if UUID is already in the group
-  if (entry[newConnectedUuid] === "true" || entry[newConnectedUuid] === true) {
-    alert("This location is already in the group.");
-    return;
-  }
-
-  // ✅ Save only the UUID to Firebase
-  await addUuidToGroup(groupName, currentGroupPageUuid, newConnectedUuid, NOTE_API);
-
-  newLinkInput.value = ""; // Clear input
-  hideConnectedLocations(); // Refresh view
-  await showConnectedLocations(NOTE_API);
-});
-
-
-  addLinkToGroupDiv.appendChild(newLinkInput);
-  addLinkToGroupDiv.appendChild(addLinkButton);
-  groupContent.appendChild(addLinkToGroupDiv); // Add to the content div of the group
-
-  groupContainer.appendChild(groupContent);
-  connectionsDiv.appendChild(groupContainer);
-}
-
-  const noteWrapper = document.getElementById('gg-note-wrapper');
+  const noteWrapper = document.getElementById("gg-note-wrapper");
   if (noteWrapper) {
     noteWrapper.appendChild(connectionsDiv);
   } else {
     console.warn("[showConnectedLocations] gg-note-wrapper not found. Appending connectionsDiv to body as fallback.");
-    document.body.appendChild(connectionsDiv); // Fallback, though should not happen in this flow
+    document.body.appendChild(connectionsDiv);
   }
 }
 
@@ -353,13 +329,12 @@ function hideConnectedLocations() {
 
 
 
-// Firebase function to update connection status
-async function disconnectLocation(groupName, uuid,  link, NOTE_API) {
+async function disconnectLocation(groupName, uuid, connectedUuid, NOTE_API) {
   try {
     const payload = {
       uuid,
       userName: groupName,
-      date: link,
+      date: `https://gogetta.nyc/team/${connectedUuid}`,  // 👈 wrap UUID in expected path format
       note: false
     };
 
@@ -369,7 +344,11 @@ async function disconnectLocation(groupName, uuid,  link, NOTE_API) {
       body: JSON.stringify(payload)
     });
 
-    if (!response.ok);
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Failed to disconnect: ${errText}`);
+    }
+
     hideConnectedLocations();
     await showConnectedLocations(NOTE_API);
   } catch (err) {
@@ -480,7 +459,7 @@ async function addUuidToGroup(groupName, uuid, connectedUuid, NOTE_API) {
     const payload = {
       uuid,
       userName: groupName,
-      date: connectedUuid,  // storing the *UUID*, not the link
+      date: `/team/location/${connectedUuid}`,  // Storing a canonical path
       note: true
     };
 
@@ -805,6 +784,12 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 });
 function addMicrophoneButton() {
+  const reminderNote = document.getElementById("reminder-note");
+  if (!reminderNote) {
+    console.warn("🎤 reminder-note element not found.");
+    return null;  // Return null to indicate it didn't attach
+  }
+
   const micButton = document.createElement("button");
   micButton.id = "mic-button";
   micButton.style.marginLeft = "10px";
@@ -813,14 +798,12 @@ function addMicrophoneButton() {
   micButton.style.border = "2px solid #000";
   micButton.style.borderRadius = "50%";
   micButton.style.cursor = "pointer";
-  micButton.innerHTML = "🎤"; // You can replace this with an actual microphone icon if needed
+  micButton.innerHTML = "🎤";
 
-  // Append it next to the textarea
-  const reminderNote = document.getElementById("reminder-note");
   reminderNote.parentElement.appendChild(micButton);
-
   return micButton;
 }
+
 
 let recognition;
 let isRecognizing = false;
@@ -865,17 +848,30 @@ function initializeSpeechRecognition() {
 
 function attachMicButtonHandler() {
   const micButton = addMicrophoneButton();
-  
+  if (!micButton || !recognition) return;
+window.recognition = new webkitSpeechRecognition();
+
   micButton.addEventListener('click', () => {
-    if (isRecognizing) {
-      recognition.stop(); // Stop recording
-      micButton.innerHTML = "🎤"; // Change icon back to mic
-    } else {
-      recognition.start(); // Start recording
-      micButton.innerHTML = "🛑"; // Change icon to stop button
-    }
+ if (window.recognition) {
+  if (isRecognizing) {
+    window.recognition.stop();
+    liveTranscribeBtn.textContent = "🎤 Start Transcribing";
+  } else {
+    window.recognition.onresult = (event) => {
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        transcript += event.results[i][0].transcript;
+      }
+      editableDiv.innerText += transcript + " ";
+    };
+    window.recognition.start();
+    liveTranscribeBtn.textContent = "🛑 Stop Transcribing";
+  }
+}
+
   });
 }
+
 
 // Initialize everything when the document is ready
 document.addEventListener("DOMContentLoaded", () => {
@@ -1325,6 +1321,79 @@ if (isEditable) {
   });
 }
 noteWrapper.appendChild(editableDiv);
+const noteActionWrapper = document.createElement("div");
+noteActionWrapper.style.padding = "10px";
+noteActionWrapper.style.borderTop = "1px dashed #ccc";
+noteActionWrapper.style.display = "flex";
+noteActionWrapper.style.justifyContent = "space-between";
+
+// 🎙 Live Transcript Button
+const liveTranscribeBtn = document.createElement("button");
+liveTranscribeBtn.textContent = "🎤 Start Transcribing";
+liveTranscribeBtn.style.padding = "6px 12px";
+liveTranscribeBtn.style.flex = "1";
+liveTranscribeBtn.style.marginRight = "5px";
+
+// 🧠 AI Format Button
+const aiFormatBtn = document.createElement("button");
+aiFormatBtn.textContent = "🧠 Format with AI";
+aiFormatBtn.style.padding = "6px 12px";
+aiFormatBtn.style.flex = "1";
+
+// Add to DOM
+noteActionWrapper.appendChild(liveTranscribeBtn);
+noteActionWrapper.appendChild(aiFormatBtn);
+noteWrapper.appendChild(noteActionWrapper);
+aiFormatBtn.addEventListener("click", async () => {
+  const rawNote = editableDiv.innerText.trim();
+  if (!rawNote) {
+    alert("Note is empty.");
+    return;
+  }
+
+  aiFormatBtn.disabled = true;
+  aiFormatBtn.textContent = "🧠 Formatting...";
+
+  try {
+    const response = await fetch("https://convertnotetostructuredinfo-iygwucy2fa-uc.a.run.app", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ noteText: rawNote })
+    });
+
+    const data = await response.json();
+    if (data.structuredInfo) {
+      editableDiv.innerText = data.structuredInfo;
+    } else {
+      throw new Error(data.error || "No structured info returned");
+    }
+  } catch (err) {
+    alert("Failed to format note with AI:\n" + err.message);
+    console.error("[AI Format Error]", err);
+  } finally {
+    aiFormatBtn.disabled = false;
+    aiFormatBtn.textContent = "🧠 Format with AI";
+  }
+});
+liveTranscribeBtn.addEventListener("click", () => {
+  if (!recognition) return;
+
+  if (isRecognizing) {
+    recognition.stop();
+    liveTranscribeBtn.textContent = "🎤 Start Transcribing";
+  } else {
+    recognition.onresult = (event) => {
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        transcript += event.results[i][0].transcript;
+      }
+      editableDiv.innerText += transcript + " ";
+    };
+    recognition.start();
+    liveTranscribeBtn.textContent = "🛑 Stop Transcribing";
+  }
+});
+
 reminderCheckbox.addEventListener("change", () => {
   if (reminderCheckbox.checked) {
     showReminderModal(uuid, NOTE_API);
