@@ -135,32 +135,33 @@ if (calendarInput) {
   
 const saveUserName = () => {
   const newUserName = userNameInput.value.trim();
-  const reservedNames = ["reminder"]; // Add more if needed
+ const reservedNames = ["reminder"]; // Add more if needed
 
-  if (!newUserName) {
-    chrome.storage.local.remove("userName");
-    userNameStatus.textContent = "Username cleared.";
-    chrome.tabs.sendMessage(tab.id, { type: "userNameUpdated", userName: null }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.warn("[popup.js] ⚠️ Message failed:", chrome.runtime.lastError.message);
-      } else {
-        console.log("[popup.js] ✅ Message acknowledged:", response);
-      }
-    });
-  } else if (reservedNames.includes(newUserName.toLowerCase())) {
-    userNameStatus.textContent = `"${newUserName}" is a reserved name. Please choose another.`;
-    return; // ⛔ Do not save or send message
-  } else {
-    chrome.storage.local.set({ userName: newUserName });
-    userNameStatus.textContent = "Username saved!";
-    chrome.tabs.sendMessage(tab.id, { type: "userNameUpdated", userName: newUserName }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.warn("[popup.js] ⚠️ Message failed:", chrome.runtime.lastError.message);
-      } else {
-        console.log("[popup.js] ✅ Message acknowledged:", response);
-      }
-    });
-  }
+if (!newUserName) {
+  // ... clear logic
+} else if (reservedNames.includes(newUserName.toLowerCase())) {
+  userNameStatus.textContent = `"${newUserName}" is a reserved name. Please choose another.`;
+  return;
+} else if (
+  newUserName.toLowerCase().includes("/team/") ||
+  newUserName.toLowerCase().includes("/find/")
+) {
+  userNameStatus.textContent = `"${newUserName}" is not allowed. Please choose another name.`;
+  return;
+}
+ else {
+  // ✅ Valid name
+  chrome.storage.local.set({ userName: newUserName });
+  userNameStatus.textContent = "Username saved!";
+  chrome.tabs.sendMessage(tab.id, { type: "userNameUpdated", userName: newUserName }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.warn("[popup.js] ⚠️ Message failed:", chrome.runtime.lastError.message);
+    } else {
+      console.log("[popup.js] ✅ Message acknowledged:", response);
+    }
+  });
+}
+
 
   setTimeout(() => {
     userNameStatus.textContent = "";

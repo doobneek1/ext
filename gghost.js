@@ -24,23 +24,28 @@ async function fetchLocationDetails(uuid) {
 let isInConnectionMode = false;
 
 async function toggleConnectionMode() {
-    const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
+  const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
   isInConnectionMode = !isInConnectionMode;
 
   const connectionButton = document.getElementById("connection-mode-button");
-  
-  // Check if the connection button exists
+  const readonlyNotesDiv = document.getElementById("readonly-notes");
+  const connectionsDiv = document.getElementById("connected-locations");
+
   if (connectionButton) {
     if (isInConnectionMode) {
       console.log('Switching to connection mode.');
-      // Switch to connection mode
-      await showConnectedLocations(NOTE_API);  // Fetch and display connections
-      connectionButton.innerText = "Notes";  // Change button text to "Notes"
+      connectionButton.innerText = "Notes";
+      if (readonlyNotesDiv) readonlyNotesDiv.style.display = "none";
+      if (connectionsDiv) {
+        connectionsDiv.style.display = "block";
+      } else {
+        await showConnectedLocations(NOTE_API);
+      }
     } else {
       console.log('Exiting connection mode.');
-      // Exit connection mode
-      hideConnectedLocations();  // Hide connections
-      connectionButton.innerText = "Other Locations";  // Change button text back to "Other Locations"
+      connectionButton.innerText = "Show Other Branches";
+      if (readonlyNotesDiv) readonlyNotesDiv.style.display = "block";
+      if (connectionsDiv) connectionsDiv.style.display = "none";
     }
   } else {
     console.warn('Connection mode button not found!');
@@ -52,14 +57,10 @@ async function toggleConnectionMode() {
 
 
 function toggleGroupVisibility(groupName) {
-  const groupContainer = document.getElementById(`${groupName}-group-container`);
-  if (groupContainer.style.display === "none") {
-    groupContainer.style.display = "block";
-  } else {
-    groupContainer.style.display = "none";
-  }
+  const content = document.getElementById(`${groupName}-group-content`);
+  if (!content) return;
+  content.style.display = content.style.display === "none" ? "block" : "none";
 }
-
 
 
 
@@ -91,7 +92,7 @@ async function showConnectedLocations(NOTE_API) {
 
   const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1]; // Get the current location UUID
   if (!uuid) return;
-  const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/connections.json";
+const firebaseURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/${uuid}.json`;
   const res = await fetch(firebaseURL);  // Fetch the data from the Firebase URL
   const allData = await res.json();  // Parse the response as JSON
 
@@ -142,147 +143,64 @@ addGroupButton.addEventListener('click', async () => {
   addGroupDiv.appendChild(groupNameInput);
   addGroupDiv.appendChild(addGroupButton);
   connectionsDiv.appendChild(addGroupDiv);
+for (const [groupName, entry] of Object.entries(connections)) {
+  if (typeof entry !== 'object' || !entry) continue;
+  if (['reminder'].includes(groupName)) continue;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(Object.keys(entry)[0])) continue;
 
-  // Iterate through the connection groups
-  for (const [groupName, groupData] of Object.entries(connections)) {
-    const groupHeader = document.createElement("div");
-    groupHeader.style.cursor = "pointer";
-    groupHeader.style.fontWeight = "bold";
-    groupHeader.innerText = groupName;
-    groupHeader.addEventListener("click", () => toggleGroupVisibility(groupName));
+  const groupContainer = document.createElement("div");
+  groupContainer.id = `${groupName}-group-container`;
+  groupContainer.style.marginBottom = "10px";
 
-    const groupContainer = document.createElement("div");
-    groupContainer.style.display = "none"; // Initially hidden
-    groupContainer.id = `${groupName}-group-container`;
+  const header = document.createElement("h4");
+  header.innerText = `▼ ${groupName}`;
+  header.style.cursor = "pointer";
+  header.onclick = () => toggleGroupVisibility(groupName);
+  groupContainer.appendChild(header);
 
-    const stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
-    if (stored.uuid === uuid) { 
-      orgName = stored.org || "";
-      locationName = stored.location || "";
-      console.log(`[Notes Header] Used fallback localStorage data: Org='${orgName}', Location='${locationName}' for UUID='${uuid}'`);
-    } else {
-      let locationName = "";
-      try {
-        console.log(`[Notes Header] Attempting to fetch details for UUID: ${uuid}`);
-        const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
-        if (!res.ok) {
-          throw new Error(`API request failed with status ${res.status}`);
-        }
-        const data = await res.json();
-        orgName = data.Organization?.name || "";
-        locationName = data.name || "";
+  const groupContent = document.createElement("div");
+  groupContent.id = `${groupName}-group-content`;
+  groupContent.style.display = "block";
 
-        if (orgName || locationName) {
-          // Retrieve existing data from localStorage or initialize as an empty array
-          let storedData = JSON.parse(localStorage.getItem("ypLastViewedService")) || [];
+  for (const [link, status] of Object.entries(entry)) {
+    if (status !== "true" && status !== true) continue;
 
-          // Create the new entry
-          const newEntry = {
-            uuid: uuid,
-            orgName: orgName,
-            locationName: locationName,
-            slug: data.slug || "" // Assuming slug is available in the fetched data
-          };
+    const uuidMatch = link.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,})/i);
+    const connectedUuid = uuidMatch?.[1];
+    if (!connectedUuid) continue;
 
-          // Check if the entry for the current UUID already exists
-          const existingEntryIndex = storedData.findIndex(entry => entry.uuid === uuid);
-          if (existingEntryIndex === -1) {
-            // If the entry doesn't exist, add the new entry
-            storedData.push(newEntry);
-          } else {
-            // Optionally, update the existing entry if needed
-            storedData[existingEntryIndex] = newEntry;
-          }
+    const { name: locName } = await fetchLocationDetails(connectedUuid);
 
-          // Save the updated array back to localStorage
-          localStorage.setItem("ypLastViewedService", JSON.stringify(storedData));
-          console.log(`[Notes Header] Successfully fetched and stored: Org='${orgName}', Location='${locationName}' for UUID='${uuid}'`);
-        } else {
-          console.warn(`[Notes Header] API returned data but orgName or locationName is missing for UUID: ${uuid}. Data:`, data);
-        }
-      } catch (err) {
-        console.error(`[Notes Header] 🛑 Failed to fetch details from API for UUID ${uuid}:`, err);
-        // Retrieve stored data from localStorage as a fallback
-        let storedData = JSON.parse(localStorage.getItem("ypLastViewedService")) || [];
+    const locationLink = document.createElement("a");
+    locationLink.href = link;
+    locationLink.target = "_blank";
+    locationLink.innerText = locName || `Location ${connectedUuid}`;
+    locationLink.style.display = "inline-block";
+    locationLink.style.marginRight = "10px";
 
-        // Fallback logic when the data is missing or doesn't match the current UUID
-        const storedEntry = storedData.find(entry => entry.uuid === uuid);
-        if (storedEntry) {
-          orgName = storedEntry.orgName || "";
-          locationName = storedEntry.locationName || "";
-          console.log(`[Notes Header] Used fallback localStorage data: Org='${orgName}', Location='${locationName}' for UUID='${uuid}'`);
-        } else {
-          console.warn(`[Notes Header] No fallback data found for UUID: ${uuid}`);
-        }
-      }
-    }
-
-    // Display UUIDs in the group
-for (const [connectedUuid, status] of Object.entries(groupData)) {
-  const { name: locName } = await fetchLocationDetails(connectedUuid);
-
-  const locationLink = document.createElement("a");
-  locationLink.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
-  locationLink.target = "_blank";
-  locationLink.innerText = locName || `Location ${connectedUuid}`;
-  locationLink.style.display = "block";
-
-  if (status === true) { // ✅ FIXED: Use `status`, not `connectionStatus`
     const disconnectButton = document.createElement("button");
     disconnectButton.innerText = "Disconnect";
     disconnectButton.style.backgroundColor = "red";
     disconnectButton.style.color = "white";
-    disconnectButton.style.marginLeft = "10px";
-    disconnectButton.addEventListener('click', () => disconnectLocation(uuid, groupName, connectedUuid));
-    locationLink.appendChild(disconnectButton);
-  } else {
-    locationLink.style.color = "red"; // Indicate that the link is disconnected
+    disconnectButton.style.padding = "2px 6px";
+    disconnectButton.addEventListener('click', () =>
+      disconnectLocation(groupName, uuid, link, NOTE_API)
+    );
+
+    const locationWrapper = document.createElement("div");
+    locationWrapper.style.marginBottom = "8px";
+    locationWrapper.appendChild(locationLink);
+    locationWrapper.appendChild(disconnectButton);
+
+    groupContent.appendChild(locationWrapper);
   }
 
-  groupContainer.appendChild(locationLink);
+  groupContainer.appendChild(groupContent);
+  connectionsDiv.appendChild(groupContainer);
 }
 
 
-    // UI for adding a UUID to this group
-    const addUuidDiv = document.createElement("div");
-    addUuidDiv.style.marginTop = "5px";
-    addUuidDiv.style.paddingTop = "5px";
-    addUuidDiv.style.borderTop = "1px dashed #eee";
 
-    const uuidInput = document.createElement("input");
-    uuidInput.type = "text";
-    uuidInput.placeholder = "Enter UUID to add";
-    uuidInput.style.marginRight = "5px";
-    uuidInput.style.padding = "4px";
-    uuidInput.id = `add-uuid-input-${groupName}`; // Unique ID
-
-    const addUuidButton = document.createElement("button");
-    addUuidButton.innerText = "Add UUID to Group";
-    addUuidButton.style.padding = "4px 8px";
-    addUuidButton.addEventListener('click', async () => {
-      const newUuid = uuidInput.value.trim();
-      if (newUuid) {
-        // Validate UUID format (simple check for non-empty, can be enhanced)
-        if (newUuid.match(/^[a-f0-9-]+$/i) && newUuid.length > 10) { // Basic UUID-like check
-          await addUuidToGroup(groupName, newUuid);
-          // Refresh the view
-          hideConnectedLocations();
-          await showConnectedLocations(NOTE_API);
-        } else {
-          alert("Please enter a valid UUID format.");
-        }
-      } else {
-        alert("Please enter a UUID.");
-      }
-    });
-
-    addUuidDiv.appendChild(uuidInput);
-    addUuidDiv.appendChild(addUuidButton);
-    groupContainer.appendChild(addUuidDiv);
-
-    connectionsDiv.appendChild(groupHeader);
-    connectionsDiv.appendChild(groupContainer);
-  }
 
   document.body.appendChild(connectionsDiv);
 }
@@ -319,8 +237,7 @@ async function disconnectLocation(groupName, uuid,  link, NOTE_API) {
       body: JSON.stringify(payload)
     });
 
-    if (!response.ok) throw new Error(`Failed to disconnect UUID ${targetUuid} from group ${groupName}`);
-    console.log(`🚫 Disconnected ${targetUuid} from group ${groupName}`);
+    if (!response.ok);
     hideConnectedLocations();
     await showConnectedLocations(NOTE_API);
   } catch (err) {
