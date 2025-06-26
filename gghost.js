@@ -24,56 +24,73 @@ async function fetchLocationDetails(uuid) {
 let isInConnectionMode = false;
 
 async function toggleConnectionMode() {
+  console.log("[gghost.js] toggleConnectionMode called. Current isInConnectionMode:", isInConnectionMode); // Existing log
   const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
   isInConnectionMode = !isInConnectionMode;
+  console.log("[gghost.js] isInConnectionMode toggled to:", isInConnectionMode); // Existing log
 
   const connectionButton = document.getElementById("connection-mode-button");
   const readonlyNotesDiv = document.getElementById("readonly-notes");
-  const editableNoteDiv = document.getElementById("editable-note"); // Get editable note div
-const liveBtn = Array.from(document.querySelectorAll("button"))
-  .find(btn => btn.textContent.includes("Transcribing"));
-const aiBtn = Array.from(document.querySelectorAll("button"))
-  .find(btn => btn.textContent.includes("Format with AI"));
+  const editableNoteDiv = document.getElementById("editable-note"); 
+  const liveBtn = Array.from(document.querySelectorAll("button"))
+    .find(btn => btn.textContent.includes("Transcribing"));
+  const aiBtn = Array.from(document.querySelectorAll("button"))
+    .find(btn => btn.textContent.includes("Format with AI"));
+  let connectionsDiv = document.getElementById("connected-locations");
 
-let connectionsDiv = document.getElementById("connected-locations"); // Use let as it might be re-assigned by showConnectedLocations
+  // Log element states
+  console.log("[gghost.js] connectionButton:", connectionButton);
+  console.log("[gghost.js] readonlyNotesDiv:", readonlyNotesDiv);
+  console.log("[gghost.js] editableNoteDiv:", editableNoteDiv);
+  console.log("[gghost.js] liveBtn:", liveBtn);
+  console.log("[gghost.js] aiBtn:", aiBtn);
+  console.log("[gghost.js] connectionsDiv (initial):", connectionsDiv);
 
   if (connectionButton) {
     if (isInConnectionMode) { // Switching TO connection (branches/groups) mode
-      console.log('Switching to connection mode.');
+      console.log('[gghost.js] Switching to connection mode.');
       connectionButton.innerText = "Notes";
-      if (readonlyNotesDiv) readonlyNotesDiv.style.display = "none";
-      if (editableNoteDiv) editableNoteDiv.style.display = "none"; // Hide editable notes
-
-if (liveBtn) liveBtn.style.display = "none";
-if (aiBtn) aiBtn.style.display = "none";
+      if (readonlyNotesDiv) readonlyNotesDiv.style.display = "none"; else console.warn("[gghost.js] readonlyNotesDiv not found for hiding");
+      if (editableNoteDiv) editableNoteDiv.style.display = "none"; else console.warn("[gghost.js] editableNoteDiv not found for hiding");
+      if (liveBtn) liveBtn.style.display = "none"; else console.warn("[gghost.js] liveBtn not found for hiding");
+      if (aiBtn) aiBtn.style.display = "none"; else console.warn("[gghost.js] aiBtn not found for hiding");
 
       if (connectionsDiv) {
-        // If connectionsDiv exists, ensure it's in the noteWrapper and visible
+        console.log('[gghost.js] connectionsDiv exists. Ensuring it is in noteWrapper and visible.');
         const noteWrapper = document.getElementById('gg-note-wrapper');
         if (noteWrapper && connectionsDiv.parentNode !== noteWrapper) {
-            noteWrapper.appendChild(connectionsDiv); // Ensure it's correctly parented
+            console.log('[gghost.js] connectionsDiv is not a child of noteWrapper. Appending it.');
+            noteWrapper.appendChild(connectionsDiv); 
         }
         connectionsDiv.style.display = "block";
       } else {
-        // If connectionsDiv does not exist (e.g., removed by a refresh action or first time)
-        // showConnectedLocations will create it and append it to gg-note-wrapper
+        console.log('[gghost.js] connectionsDiv does not exist. Calling showConnectedLocations.');
         await showConnectedLocations(NOTE_API);
-        // connectionsDiv = document.getElementById("connected-locations"); // Re-fetch in case it was created
+        connectionsDiv = document.getElementById("connected-locations"); // Re-fetch
+        console.log('[gghost.js] connectionsDiv after showConnectedLocations:', connectionsDiv);
+        if (!connectionsDiv) {
+          console.error("[gghost.js] FAILED to get connectionsDiv after showConnectedLocations!");
+        } else {
+          connectionsDiv.style.display = "block"; // Ensure it's visible
+        }
       }
     } else { // Exiting connection mode, switching back TO notes view
-      console.log('Exiting connection mode.');
+      console.log('[gghost.js] Exiting connection mode.');
       connectionButton.innerText = "Show Other Branches";
-      if (readonlyNotesDiv) readonlyNotesDiv.style.display = "block";
-      if (editableNoteDiv) editableNoteDiv.style.display = "block"; // Show editable notes
-if (liveBtn) liveBtn.style.display = "inline-block";
-if (aiBtn) aiBtn.style.display = "inline-block";
+      if (readonlyNotesDiv) readonlyNotesDiv.style.display = "block"; else console.warn("[gghost.js] readonlyNotesDiv not found for showing");
+      if (editableNoteDiv) editableNoteDiv.style.display = "block"; else console.warn("[gghost.js] editableNoteDiv not found for showing");
+      if (liveBtn) liveBtn.style.display = "inline-block"; else console.warn("[gghost.js] liveBtn not found for showing");
+      if (aiBtn) aiBtn.style.display = "inline-block"; else console.warn("[gghost.js] aiBtn not found for showing");
 
       if (connectionsDiv) {
-        connectionsDiv.style.display = "none"; // Just hide connections view
+        console.log('[gghost.js] Hiding connectionsDiv.');
+        connectionsDiv.style.display = "none"; 
+      } else {
+        console.warn('[gghost.js] connectionsDiv not found when trying to hide in notes view.');
       }
     }
   } else {
-    console.warn('Connection mode button not found!');
+    console.warn('[gghost.js] Connection mode button (ID: connection-mode-button) not found!');
   }
 }
 
@@ -130,22 +147,40 @@ async function addConnectionModeButton() {
 
 
 async function showConnectedLocations(NOTE_API) {
+  console.log("[gghost.js] showConnectedLocations called with NOTE_API:", NOTE_API);
   const fullServiceMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
   const teamMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
   const findMatch = location.pathname.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
 
   const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
+  console.log("[gghost.js] showConnectedLocations: Extracted UUID:", uuid);
 
-
-  if (!uuid) return;
+  if (!uuid) {
+    console.warn("[gghost.js] showConnectedLocations: No UUID found, returning.");
+    return;
+  }
 
   // Fetch current page's organization details
   const currentPageLocationDetails = await fetchLocationDetails(uuid);
   const currentPageOrgName = currentPageLocationDetails.org;
+  console.log("[gghost.js] showConnectedLocations: Current page org name:", currentPageOrgName);
 
-const firebaseURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/connections.json`;
-  const res = await fetch(firebaseURL);
-  const allData = await res.json();
+  const firebaseURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/connections.json`;
+  console.log("[gghost.js] showConnectedLocations: Fetching connections from:", firebaseURL);
+  let allData;
+  try {
+    const res = await fetch(firebaseURL);
+    if (!res.ok) {
+      console.error("[gghost.js] showConnectedLocations: Firebase fetch failed!", res.status, await res.text());
+      return;
+    }
+    allData = await res.json();
+    console.log("[gghost.js] showConnectedLocations: Fetched all connection data:", JSON.parse(JSON.stringify(allData))); // Deep copy for logging
+  } catch (error) {
+    console.error("[gghost.js] showConnectedLocations: Error fetching or parsing Firebase data:", error);
+    return;
+  }
+  
   const allGroups = allData || {};
   const groupNames = Object.keys(allGroups).filter(name =>
   typeof allGroups[name] === "object" &&
@@ -166,11 +201,13 @@ const relevantGroups = Object.entries(allGroups).filter(
     typeof entry === "object" &&
     entry[uuid] === true // only keep groups where this UUID is connected
 );
+  console.log("[gghost.js] showConnectedLocations: Relevant groups for UUID", uuid, ":", relevantGroups);
 
 
   const connectionsDiv = document.createElement("div");
   connectionsDiv.id = "connected-locations";
   connectionsDiv.style.marginTop = "10px";
+  console.log("[gghost.js] showConnectedLocations: Created connectionsDiv:", connectionsDiv);
 
   const addGroupDiv = document.createElement("div");
   addGroupDiv.style.marginBottom = "15px";
@@ -353,9 +390,16 @@ connectionsDiv.appendChild(connectionsScrollWrapper);
   const noteWrapper = document.getElementById("gg-note-wrapper");
   if (noteWrapper) {
     noteWrapper.appendChild(connectionsDiv);
+    console.log("[gghost.js] showConnectedLocations: Appended connectionsDiv to gg-note-wrapper.");
   } else {
-    console.warn("[showConnectedLocations] gg-note-wrapper not found. Appending connectionsDiv to body as fallback.");
+    console.warn("[gghost.js] [showConnectedLocations] gg-note-wrapper not found. Appending connectionsDiv to body as fallback.");
     document.body.appendChild(connectionsDiv);
+  }
+  // Final check
+  if (!document.getElementById("connected-locations")) {
+    console.error("[gghost.js] CRITICAL: connectionsDiv (id: connected-locations) was NOT found in the DOM after attempting to append it in showConnectedLocations!");
+  } else {
+    console.log("[gghost.js] showConnectedLocations: Successfully created and appended connected-locations div.");
   }
 }
 
@@ -1442,14 +1486,14 @@ noteActionWrapper.style.justifyContent = "space-between";
 
 // 🎙 Live Transcript Button
 const liveTranscribeBtn = document.createElement("button");
-liveTranscribeBtn.textContent = "🎤 Start Transcribing";
+liveTranscribeBtn.textContent = "Start Transcribing";
 liveTranscribeBtn.style.padding = "6px 12px";
 liveTranscribeBtn.style.flex = "1";
 liveTranscribeBtn.style.marginRight = "5px";
 
 // 🧠 AI Format Button
 const aiFormatBtn = document.createElement("button");
-aiFormatBtn.textContent = "🧠 Format with AI";
+aiFormatBtn.textContent = "Format with AI";
 aiFormatBtn.style.padding = "6px 12px";
 aiFormatBtn.style.flex = "1";
 
@@ -1465,7 +1509,7 @@ aiFormatBtn.addEventListener("click", async () => {
   }
 
   aiFormatBtn.disabled = true;
-  aiFormatBtn.textContent = "🧠 Formatting...";
+  aiFormatBtn.textContent = "Formatting...";
 
   try {
   console.log("[AI Button] Raw note:", rawNote);
