@@ -11,19 +11,28 @@ async function toggleConnectionMode() {
   isInConnectionMode = !isInConnectionMode;
 
   const connectionButton = document.getElementById("connection-mode-button");
-  
-  // Check if the connection button exists
+  const readOnlyNotes = document.getElementById("readonly-notes");
+  const editableNote = document.getElementById("editable-note");
+  const reminderToggleWrapper = document.getElementById("reminder-toggle-wrapper"); // Added this ID in the HTML structure assumption
+  const connectedLocationsDiv = document.getElementById("connected-locations"); // The main container for connection UI
+
   if (connectionButton) {
     if (isInConnectionMode) {
       console.log('Switching to connection mode.');
-      // Switch to connection mode
-      await showConnectedLocations();  // Fetch and display connections
-      connectionButton.innerText = "Notes";  // Change button text to "Notes"
+      if (readOnlyNotes) readOnlyNotes.style.display = "none";
+      if (editableNote) editableNote.style.display = "none";
+      if (reminderToggleWrapper) reminderToggleWrapper.style.display = "none";
+      await showConnectedLocations(); // Creates and shows the connections UI
+      connectionButton.innerText = "Notes";
     } else {
       console.log('Exiting connection mode.');
-      // Exit connection mode
-      hideConnectedLocations();  // Hide connections
-      connectionButton.innerText = "Other Locations";  // Change button text back to "Other Locations"
+      hideConnectedLocations(); // Removes the connections UI
+
+      if (readOnlyNotes) readOnlyNotes.style.display = "block"; // Or your default display type
+      if (editableNote) editableNote.style.display = "block"; // Or your default display type
+      if (reminderToggleWrapper) reminderToggleWrapper.style.display = "flex"; // Or your default display type
+      
+      connectionButton.innerText = "Other Locations";
     }
   } else {
     console.warn('Connection mode button not found!');
@@ -48,24 +57,13 @@ function toggleGroupVisibility(groupName) {
 
 
 
-// Add the connection mode button
-async function addConnectionModeButton() {
-  const connectionButton = document.createElement("button");
-  connectionButton.id = "connection-mode-button";
-  connectionButton.innerText = "Other Locations";  // Default text
-  connectionButton.style.position = "fixed";
-  connectionButton.style.bottom = "20px";
-  connectionButton.style.left = "20px";
-  connectionButton.style.padding = "10px 16px";
-  connectionButton.style.zIndex = 9999;
-  connectionButton.addEventListener('click', toggleConnectionMode);
+// The addConnectionModeButton function (previously creating a fixed button at bottom-left)
+// has been removed to avoid duplication. The connection mode toggle button
+// is now solely managed within the notes widget's drag bar, created by injectGoGettaButtons.
 
-  document.body.appendChild(connectionButton);
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  addConnectionModeButton();  // Add connection mode button when the page loads
-});
+// document.addEventListener("DOMContentLoaded", () => {
+//   addConnectionModeButton();  // This call is also removed.
+// });
 
 
 
@@ -1113,10 +1111,10 @@ if (orgName || locationName) {
   dragBar.textContent = `⋮ notes`;
 }
 
-// Create the "Show Other Branches" button
+// Create the connection mode toggle button
 const toggleButton = document.createElement("button");
 toggleButton.id = "connection-mode-button"; // Assign the correct ID
-toggleButton.innerText = "Show Other Branches";
+toggleButton.innerText = "Other Locations"; // Default text when not in connection mode
 toggleButton.style.marginLeft = "10px";
 toggleButton.style.fontSize = "14px";
 toggleButton.style.padding = "5px 10px";
@@ -1161,10 +1159,12 @@ Object.assign(readOnlyDiv.style, {
 });
 noteWrapper.appendChild(readOnlyDiv);
 const reminderToggleWrapper = document.createElement("div");
+reminderToggleWrapper.id = "reminder-toggle-wrapper"; // Assign an ID here
 Object.assign(reminderToggleWrapper.style, {
   padding: "10px",
   background: "#f0f0f0",
-  borderTop: "1px solid #ccc"
+  borderTop: "1px solid #ccc",
+  display: "flex" // Initial display state, might be overridden by toggleConnectionMode
 });
 
 const reminderCheckbox = document.createElement("input");
