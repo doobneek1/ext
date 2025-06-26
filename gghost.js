@@ -1,13 +1,30 @@
 function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
   return str.replace(/[&<>"']/g, match =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[match]
   );
 }
 
+async function fetchLocationDetails(uuid) {
+  try {
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+    if (!res.ok) throw new Error("Fetch failed");
+    const data = await res.json();
+    return {
+      org: data.Organization?.name || "",
+      name: data.name || "",
+      slug: data.slug || ""
+    };
+  } catch (err) {
+    console.warn("Failed to fetch location:", err);
+    return { org: "", name: "", slug: "" };
+  }
+}
+
 let isInConnectionMode = false;
 
 async function toggleConnectionMode() {
-  console.log('Toggling connection mode...');
+    const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
   isInConnectionMode = !isInConnectionMode;
 
   const connectionButton = document.getElementById("connection-mode-button");
@@ -17,7 +34,7 @@ async function toggleConnectionMode() {
     if (isInConnectionMode) {
       console.log('Switching to connection mode.');
       // Switch to connection mode
-      await showConnectedLocations();  // Fetch and display connections
+      await showConnectedLocations(NOTE_API);  // Fetch and display connections
       connectionButton.innerText = "Notes";  // Change button text to "Notes"
     } else {
       console.log('Exiting connection mode.');
@@ -63,14 +80,11 @@ async function addConnectionModeButton() {
   document.body.appendChild(connectionButton);
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  addConnectionModeButton();  // Add connection mode button when the page loads
-});
 
 
 
 
-async function showConnectedLocations() {
+async function showConnectedLocations(NOTE_API) {
   const fullServiceMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
   const teamMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
   const findMatch = location.pathname.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
@@ -106,17 +120,24 @@ async function showConnectedLocations() {
   const addGroupButton = document.createElement("button");
   addGroupButton.innerText = "Add New Group";
   addGroupButton.style.padding = "5px 10px";
-  addGroupButton.addEventListener('click', async () => {
-    const newGroupName = groupNameInput.value.trim();
-    if (newGroupName) {
-      await addNewGroup(newGroupName);
-      // Refresh the view to show the new group
-      hideConnectedLocations(); // Remove old view
-      await showConnectedLocations(); // Re-render view
-    } else {
-      alert("Please enter a group name.");
-    }
-  });
+addGroupButton.addEventListener('click', async () => {
+  const newGroupName = groupNameInput.value.trim();
+  const forbidden = ["doobneek", "Gavilan"];
+
+  if (!newGroupName) {
+    alert("Please enter a group name.");
+    return;
+  }
+  if (forbidden.includes(newGroupName)) {
+    alert(`Group name "${newGroupName}" is reserved. Please choose another name.`);
+    return;
+  }
+
+  await addNewGroup(newGroupName, NOTE_API);
+  hideConnectedLocations();
+  await showConnectedLocations(NOTE_API);
+});
+
 
   addGroupDiv.appendChild(groupNameInput);
   addGroupDiv.appendChild(addGroupButton);
@@ -197,26 +218,30 @@ async function showConnectedLocations() {
     }
 
     // Display UUIDs in the group
-    for (const [connectionStatus, connectedUuid] of Object.entries(groupData)) {
-      const locationLink = document.createElement("a");
-      locationLink.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
-      locationLink.target = "_blank";
-      locationLink.innerText = locationName || `Location ${connectedUuid}`;
-      locationLink.style.display = "block";
+for (const [connectedUuid, status] of Object.entries(groupData)) {
+  const { name: locName } = await fetchLocationDetails(connectedUuid);
 
-      if (connectionStatus === "true") {
-        const disconnectButton = document.createElement("button");
-        disconnectButton.innerText = "Disconnect";
-        disconnectButton.style.backgroundColor = "red";
-        disconnectButton.style.color = "white";
-        disconnectButton.addEventListener('click', () => disconnectLocation(uuid, groupName, connectedUuid));
-        locationLink.appendChild(disconnectButton);
-      } else {
-        locationLink.style.color = "red"; // Indicate that the link is disconnected
-      }
+  const locationLink = document.createElement("a");
+  locationLink.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
+  locationLink.target = "_blank";
+  locationLink.innerText = locName || `Location ${connectedUuid}`;
+  locationLink.style.display = "block";
 
-      groupContainer.appendChild(locationLink);
-    }
+  if (status === true) { // ✅ FIXED: Use `status`, not `connectionStatus`
+    const disconnectButton = document.createElement("button");
+    disconnectButton.innerText = "Disconnect";
+    disconnectButton.style.backgroundColor = "red";
+    disconnectButton.style.color = "white";
+    disconnectButton.style.marginLeft = "10px";
+    disconnectButton.addEventListener('click', () => disconnectLocation(uuid, groupName, connectedUuid));
+    locationLink.appendChild(disconnectButton);
+  } else {
+    locationLink.style.color = "red"; // Indicate that the link is disconnected
+  }
+
+  groupContainer.appendChild(locationLink);
+}
+
 
     // UI for adding a UUID to this group
     const addUuidDiv = document.createElement("div");
@@ -242,7 +267,7 @@ async function showConnectedLocations() {
           await addUuidToGroup(groupName, newUuid);
           // Refresh the view
           hideConnectedLocations();
-          await showConnectedLocations();
+          await showConnectedLocations(NOTE_API);
         } else {
           alert("Please enter a valid UUID format.");
         }
@@ -279,131 +304,116 @@ function hideConnectedLocations() {
 
 
 // Firebase function to update connection status
-async function disconnectLocation(currentUuid, groupName, targetUuid) {
+async function disconnectLocation(groupName, uuid,  link, NOTE_API) {
   try {
-    const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/connections.json";
-    
-    // Fetch the current connections data
-    const res = await fetch(firebaseURL);
-    const allData = await res.json(); // Parse the response as JSON
-
-    // Get the group data or initialize as an empty object if the group doesn't exist
-    const groupData = allData?.[groupName] || {};
-
-    // If the targetUuid doesn't exist, log a warning and exit
-    if (!groupData[targetUuid]) {
-      console.warn(`No connection found for ${targetUuid} in group ${groupName}`);
-      return;
-    }
-
-    // Set the connection status to false for the target UUID
-    groupData[targetUuid] = false;
-
-    // Update Firebase with the modified group data using PATCH
-    const updateResponse = await fetch(firebaseURL, {
-      method: 'PATCH', // Use PATCH instead of PUT
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        ...allData, // Retain existing data
-        [groupName]: groupData // Update the group with the modified connection status
-      })
-    });
-
-    // Check for a successful response
-    if (!updateResponse.ok) {
-      throw new Error(`Failed to update connection status for ${targetUuid}`);
-    }
-
-    console.log(`Disconnected ${currentUuid} from ${targetUuid} in group ${groupName}`);
-
-    // Re-render the connected locations after disconnection
-    hideConnectedLocations(); // Clear the old view first
-    await showConnectedLocations(); // Then show the updated view
-  } catch (err) {
-    console.error('[Disconnect Error] 🛑 Failed to disconnect location:', err);
-  }
-}
-
-
-
-// Firebase function to add a new group
-async function addNewGroup(groupName) {
-  try {
-    const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/connections.json";
-
-    // Fetch the existing data from Firebase
-    const res = await fetch(firebaseURL);
-    const allData = await res.json(); // Parse the response as JSON
-
-    // Add the new group as an empty object
-    const updatedData = {
-      ...allData, // Retain existing data
-      [groupName]: {} // Add the new group as an empty object
+    const payload = {
+      uuid,
+      userName: groupName,
+      date: link,
+      note: "false"
     };
 
-    // Update Firebase with the new group using PATCH
-    const updateResponse = await fetch(firebaseURL, {
-      method: 'PATCH', // Use PATCH instead of PUT
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(updatedData) // Send the updated data with the new group
+    const response = await fetch(NOTE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
 
-    if (!updateResponse.ok) {
-      throw new Error(`Failed to add new group: ${groupName}`);
-    }
-
-    console.log(`New group ${groupName} added to connections.`);
+    if (!response.ok) throw new Error(`Failed to disconnect UUID ${targetUuid} from group ${groupName}`);
+    console.log(`🚫 Disconnected ${targetUuid} from group ${groupName}`);
+    hideConnectedLocations();
+    await showConnectedLocations(NOTE_API);
   } catch (err) {
-    console.error('[Add New Group Error] 🛑 Failed to add new group:', err);
+    console.error('[Disconnect Error]', err);
   }
 }
 
 
+async function addNewGroup(currentUuid, NOTE_API) {
+  const path = location.pathname;
 
-async function addUuidToGroup(groupName, uuid) {
+  const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
+  const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
+  const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
+  const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
+
+  const forbiddenNames = ["doobneek", "Gavilan"];
+  const groupName = prompt("Enter a new group name:")?.trim();
+  if (!groupName) return alert("Group name is required.");
+  if (forbiddenNames.includes(groupName)) return alert("This group name is reserved.");
+  if (groupName.length < 2) return alert("Group name is too short.");
+
+  // Check if the group already exists
+  const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/connections.json";
+  const res = await fetch(firebaseURL);
+  const existing = await res.json();
+  if (existing?.[groupName]) return alert("Group name already exists.");
+
+  // Ask for a full GoGetta URL and use it directly
+  const link = prompt("Paste a GoGetta link to connect as the first UUID:");
+  if (!link?.includes("/location/")) return alert("This doesn't look like a valid GoGetta location link.");
+  
+  const uuidMatch = link.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,})/i);
+  const connectedUuid = uuidMatch?.[1];
+  if (!connectedUuid) return alert("Could not extract UUID from the link.");
+  if (connectedUuid === currentUuid) return alert("You can't connect this location to itself.");
+
+  // Confirm group creation with full link as data
+  const confirmMsg = `Create group "${groupName}" and link to:\n${link}`;
+  if (!confirm(confirmMsg)) return;
+
   try {
-    const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/connections.json";
-
-    // Fetch the current connections data
-    const res = await fetch(firebaseURL);
-    const allData = await res.json(); // Parse the response as JSON
-
-    // Get the current group data or initialize as an empty object
-    const groupData = allData?.[groupName] || {};
-
-    // Add the UUID to the group with a default status of `true` (if not already there)
-    if (groupData[uuid] !== undefined) {
-      console.log(`UUID ${uuid} is already in group ${groupName}, no update needed.`);
-      return; // No update needed if the UUID already exists
-    }
-
-    groupData[uuid] = true; // Add UUID with the status of true
-
-    // Update Firebase with the modified group data using PATCH
-    const updateResponse = await fetch(firebaseURL, {
-      method: 'PATCH', // Use PATCH instead of PUT
-      headers: {
-        'Content-Type': 'application/json'
-      },
+    const response = await fetch(NOTE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...allData, // Retain existing data
-        [groupName]: groupData // Only update the specific group with the new UUID added
+        uuid,
+        userName: groupName,
+        date: link,        // Send full URL as-is
+        note: true         // Must be a boolean
       })
     });
 
-    if (!updateResponse.ok) {
-      throw new Error(`Failed to add UUID ${uuid} to group ${groupName}`);
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Server error: ${response.status} - ${errText}`);
     }
 
-    console.log(`Added UUID ${uuid} to group ${groupName}`);
+    console.log(`✅ Group "${groupName}" created with linked UUID ${connectedUuid}.`);
+    alert(`Group "${groupName}" created.`);
+
+    hideConnectedLocations();
+    await showConnectedLocations(NOTE_API);
+
   } catch (err) {
-    console.error('[Add UUID to Group Error] 🛑 Failed to add UUID:', err);
+    console.error("[Group Creation Error]", err);
+    alert("Failed to create group.");
   }
 }
+
+
+async function addUuidToGroup(groupName, uuid,  link, NOTE_API) {
+  try {
+    const payload = {
+      uuid,
+      userName: groupName,  // signal it's a group write
+      date: link,                        // skip date for group entries
+      note: "true"                     // store value as stringified boolean
+    };
+
+    const response = await fetch(NOTE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) throw new Error(`Failed to add UUID ${uuid} to group ${groupName}`);
+    console.log(`✅ Added UUID ${uuid} to group ${groupName}`);
+  } catch (err) {
+    console.error('[Add UUID Error]', err);
+  }
+}
+
 
 // Call this function when the page loads
 document.addEventListener("DOMContentLoaded", () => {
@@ -981,21 +991,26 @@ const data = allData?.[uuid] || {};
 
             const notesArray = [];
     let allNotesContent = "";
-    if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-        for (const user in data) {
-            if (typeof data[user] === 'object') {
-                for (const date in data[user]) {
-                    notesArray.push({
-                        user: user,
-                        date: date,
-                        note: escapeHtml(data[user][date])
-                    });
-                }
-            }
-        }
-        notesArray.sort((a, b) => new Date(a.date) - new Date(b.date));
-        allNotesContent = notesArray.map(n => `${n.user} (${n.date}): ${n.note}`).join("\n\n");
+if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+  for (const user in data) {
+    if (typeof data[user] === 'object') {
+      for (const date in data[user]) {
+        // ✅ Skip if not a valid YYYY-MM-DD
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+
+        notesArray.push({
+          user: user,
+          date: date,
+          note: escapeHtml(data[user][date])
+        });
+      }
     }
+  }
+
+  notesArray.sort((a, b) => new Date(a.date) - new Date(b.date));
+  allNotesContent = notesArray.map(n => `${n.user} (${n.date}): ${n.note}`).join("\n\n");
+}
+
 document.getElementById("gg-note-overlay")?.remove();
 document.getElementById("gg-note-wrapper")?.remove();
     const noteBox = document.createElement("div");
