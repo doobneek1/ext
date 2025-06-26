@@ -1426,13 +1426,20 @@ aiFormatBtn.addEventListener("click", async () => {
   aiFormatBtn.textContent = "🧠 Formatting...";
 
   try {
-    const response = await fetch("https://convertnotetostructuredinfo-iygwucy2fa-uc.a.run.app", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ noteText: rawNote })
-    });
+  console.log("[AI Button] Raw note:", rawNote);
+
+const response = await fetch("https://convertnotetostructuredinfo-iygwucy2fa-uc.a.run.app", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ noteText: rawNote })
+});
+
+console.log("[AI Button] Received response:", response);
+
 
     const data = await response.json();
+    console.log("[AI Button] Parsed response JSON:", data);
+
     if (data.structuredInfo) {
       editableDiv.innerText = data.structuredInfo;
     } else {
