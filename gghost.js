@@ -29,23 +29,38 @@ async function toggleConnectionMode() {
 
   const connectionButton = document.getElementById("connection-mode-button");
   const readonlyNotesDiv = document.getElementById("readonly-notes");
-  const connectionsDiv = document.getElementById("connected-locations");
+  const editableNoteDiv = document.getElementById("editable-note"); // Get editable note div
+  let connectionsDiv = document.getElementById("connected-locations"); // Use let as it might be re-assigned by showConnectedLocations
 
   if (connectionButton) {
-    if (isInConnectionMode) {
+    if (isInConnectionMode) { // Switching TO connection (branches/groups) mode
       console.log('Switching to connection mode.');
       connectionButton.innerText = "Notes";
       if (readonlyNotesDiv) readonlyNotesDiv.style.display = "none";
+      if (editableNoteDiv) editableNoteDiv.style.display = "none"; // Hide editable notes
+
       if (connectionsDiv) {
+        // If connectionsDiv exists, ensure it's in the noteWrapper and visible
+        const noteWrapper = document.getElementById('gg-note-wrapper');
+        if (noteWrapper && connectionsDiv.parentNode !== noteWrapper) {
+            noteWrapper.appendChild(connectionsDiv); // Ensure it's correctly parented
+        }
         connectionsDiv.style.display = "block";
       } else {
+        // If connectionsDiv does not exist (e.g., removed by a refresh action or first time)
+        // showConnectedLocations will create it and append it to gg-note-wrapper
         await showConnectedLocations(NOTE_API);
+        // connectionsDiv = document.getElementById("connected-locations"); // Re-fetch in case it was created
       }
-    } else {
+    } else { // Exiting connection mode, switching back TO notes view
       console.log('Exiting connection mode.');
       connectionButton.innerText = "Show Other Branches";
       if (readonlyNotesDiv) readonlyNotesDiv.style.display = "block";
-      if (connectionsDiv) connectionsDiv.style.display = "none";
+      if (editableNoteDiv) editableNoteDiv.style.display = "block"; // Show editable notes
+
+      if (connectionsDiv) {
+        connectionsDiv.style.display = "none"; // Just hide connections view
+      }
     }
   } else {
     console.warn('Connection mode button not found!');
@@ -58,8 +73,26 @@ async function toggleConnectionMode() {
 
 function toggleGroupVisibility(groupName) {
   const content = document.getElementById(`${groupName}-group-content`);
-  if (!content) return;
-  content.style.display = content.style.display === "none" ? "block" : "none";
+const header = document.querySelector(`#${CSS.escape(groupName)}-group-container h4`);
+
+  if (!content) {
+    console.warn(`[toggleGroupVisibility] Content element not found for group: ${groupName}-group-content`);
+    return;
+  }
+  if (!header) {
+    console.warn(`[toggleGroupVisibility] Header element not found for group: ${groupName}-group-container h4`);
+  }
+
+  console.log(`[toggleGroupVisibility] Toggling group: ${groupName}. Current display: ${content.style.display}`);
+  if (content.style.display === "none" || content.style.display === "") { // Check for "" as it might be the initial state if not explicitly set
+    content.style.display = "block";
+    if (header) header.innerText = `▼ ${groupName}`;
+    console.log(`[toggleGroupVisibility] Group ${groupName} expanded.`);
+  } else {
+    content.style.display = "none";
+    if (header) header.innerText = `▶ ${groupName}`;
+    console.log(`[toggleGroupVisibility] Group ${groupName} collapsed.`);
+  }
 }
 
 
@@ -117,30 +150,52 @@ const firebaseURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/location
   groupNameInput.style.marginRight = "10px";
   groupNameInput.style.padding = "5px";
   groupNameInput.id = "new-group-name-input"; // Added ID for potential future use
+  groupNameInput.style.marginBottom = "5px"; // Add some space
+
+  const groupLinkInput = document.createElement("input");
+  groupLinkInput.type = "url";
+  groupLinkInput.placeholder = "New group link (GoGetta URL)";
+  groupLinkInput.style.marginRight = "10px";
+  groupLinkInput.style.padding = "5px";
+  groupLinkInput.style.width = "calc(50% - 15px)"; // Adjust width
+  groupLinkInput.id = "new-group-link-input";
 
   const addGroupButton = document.createElement("button");
   addGroupButton.innerText = "Add New Group";
   addGroupButton.style.padding = "5px 10px";
-addGroupButton.addEventListener('click', async () => {
-  const newGroupName = groupNameInput.value.trim();
-  const forbidden = ["doobneek", "Gavilan"];
+  addGroupButton.addEventListener('click', async () => {
+    const newGroupName = groupNameInput.value.trim();
+    const newGroupLink = groupLinkInput.value.trim();
+    const forbidden = ["doobneek", "Gavilan"];
 
-  if (!newGroupName) {
-    alert("Please enter a group name.");
-    return;
-  }
-  if (forbidden.includes(newGroupName)) {
-    alert(`Group name "${newGroupName}" is reserved. Please choose another name.`);
-    return;
-  }
+    if (!newGroupName) {
+      alert("Please enter a group name.");
+      return;
+    }
+    if (forbidden.includes(newGroupName)) {
+      alert(`Group name "${newGroupName}" is reserved. Please choose another name.`);
+      return;
+    }
+    if (!newGroupLink) {
+      alert("Please enter a link for the new group.");
+      return;
+    }
+    if (!newGroupLink.includes("/location/")) { // Basic validation
+        alert("This doesn't look like a valid GoGetta location link.");
+        return;
+    }
 
-  await addNewGroup(newGroupName, NOTE_API);
-  hideConnectedLocations();
-  await showConnectedLocations(NOTE_API);
-});
+    // Pass both name and link to addNewGroup
+    await addNewGroup(newGroupName, newGroupLink, NOTE_API); 
+    hideConnectedLocations(); // Refresh the view
+    await showConnectedLocations(NOTE_API);
+  });
 
+  // Adjust input widths for better layout
+  groupNameInput.style.width = "calc(50% - 15px)"; // Adjust width
 
   addGroupDiv.appendChild(groupNameInput);
+  addGroupDiv.appendChild(groupLinkInput); // Add new input
   addGroupDiv.appendChild(addGroupButton);
   connectionsDiv.appendChild(addGroupDiv);
 for (const [groupName, entry] of Object.entries(connections)) {
@@ -162,47 +217,124 @@ for (const [groupName, entry] of Object.entries(connections)) {
   groupContent.id = `${groupName}-group-content`;
   groupContent.style.display = "block";
 
-  for (const [link, status] of Object.entries(entry)) {
-    if (status !== "true" && status !== true) continue;
+for (const [link, status] of Object.entries(entry)) {
+  if (!status || status === "false") continue;
 
-    const uuidMatch = link.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,})/i);
-    const connectedUuid = uuidMatch?.[1];
-    if (!connectedUuid) continue;
+  const uuidMatch = link.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,})/i);
+  const connectedUuid = uuidMatch?.[1];
+  if (!connectedUuid) continue;
 
-    const { name: locName } = await fetchLocationDetails(connectedUuid);
+  const { name: locName } = await fetchLocationDetails(connectedUuid);
 
-    const locationLink = document.createElement("a");
-    locationLink.href = link;
-    locationLink.target = "_blank";
-    locationLink.innerText = locName || `Location ${connectedUuid}`;
-    locationLink.style.display = "inline-block";
-    locationLink.style.marginRight = "10px";
+  const locationLink = document.createElement("a");
+  locationLink.href = link;
+  locationLink.target = "_blank";
+  locationLink.innerText = locName || `Location ${connectedUuid}`;
+  locationLink.style.display = "inline-block";
+  locationLink.style.marginRight = "10px";
 
-    const disconnectButton = document.createElement("button");
-    disconnectButton.innerText = "Disconnect";
-    disconnectButton.style.backgroundColor = "red";
-    disconnectButton.style.color = "white";
-    disconnectButton.style.padding = "2px 6px";
-    disconnectButton.addEventListener('click', () =>
-      disconnectLocation(groupName, uuid, link, NOTE_API)
-    );
+  const disconnectButton = document.createElement("button");
+  disconnectButton.innerText = "Disconnect";
+  disconnectButton.style.backgroundColor = "red";
+  disconnectButton.style.color = "white";
+  disconnectButton.style.padding = "2px 6px";
+  disconnectButton.addEventListener('click', () =>
+    disconnectLocation(groupName, uuid, link, NOTE_API)
+  );
 
-    const locationWrapper = document.createElement("div");
-    locationWrapper.style.marginBottom = "8px";
-    locationWrapper.appendChild(locationLink);
-    locationWrapper.appendChild(disconnectButton);
+  const locationWrapper = document.createElement("div");
+  locationWrapper.style.marginBottom = "8px";
+  locationWrapper.appendChild(locationLink);
+  locationWrapper.appendChild(disconnectButton);
 
-    groupContent.appendChild(locationWrapper);
+  groupContent.appendChild(locationWrapper);
+}
+
+
+  // UI for adding a new link to this specific group
+  const addLinkToGroupDiv = document.createElement("div");
+  addLinkToGroupDiv.style.marginTop = "10px";
+  addLinkToGroupDiv.style.paddingTop = "10px";
+  addLinkToGroupDiv.style.borderTop = "1px dashed #eee";
+
+  const newLinkInput = document.createElement("input");
+  newLinkInput.type = "url";
+  newLinkInput.placeholder = "Paste GoGetta link here";
+  newLinkInput.style.marginRight = "5px";
+  newLinkInput.style.padding = "4px";
+  newLinkInput.style.width = "calc(70% - 10px)";
+
+  const addLinkButton = document.createElement("button");
+  addLinkButton.innerText = "Add Link";
+  addLinkButton.style.padding = "4px 8px";
+
+  const currentGroupPageUuid = uuid; // uuid is the current page's UUID from showConnectedLocations scope
+
+addLinkButton.addEventListener('click', async () => {
+  const newLink = newLinkInput.value.trim();
+  if (!newLink) {
+    alert("Please enter a link.");
+    return;
   }
+
+  if (!newLink.includes("/location/")) {
+    alert("This doesn't look like a valid GoGetta location link.");
+    return;
+  }
+
+  // ✅ Extract UUID from the link using full parser
+  let newConnectedUuid = null;
+  try {
+    const url = new URL(newLink);
+    const pathSegments = url.pathname.split('/').filter(Boolean);
+    const locationIndex = pathSegments.findIndex(seg => seg === 'location');
+    if (locationIndex !== -1 && pathSegments.length > locationIndex + 1) {
+      newConnectedUuid = pathSegments[locationIndex + 1];
+    }
+  } catch (err) {
+    console.warn("Invalid URL format:", newLink, err);
+  }
+
+  if (!newConnectedUuid || !/^[a-f0-9-]{12,}$/.test(newConnectedUuid)) {
+    alert("Could not extract a valid UUID from the link.");
+    return;
+  }
+
+  if (newConnectedUuid === currentGroupPageUuid) {
+    alert("You cannot link the current location to itself.");
+    return;
+  }
+
+  // ✅ Check if UUID is already in the group
+  if (entry[newConnectedUuid] === "true" || entry[newConnectedUuid] === true) {
+    alert("This location is already in the group.");
+    return;
+  }
+
+  // ✅ Save only the UUID to Firebase
+  await addUuidToGroup(groupName, currentGroupPageUuid, newConnectedUuid, NOTE_API);
+
+  newLinkInput.value = ""; // Clear input
+  hideConnectedLocations(); // Refresh view
+  await showConnectedLocations(NOTE_API);
+});
+
+
+  addLinkToGroupDiv.appendChild(newLinkInput);
+  addLinkToGroupDiv.appendChild(addLinkButton);
+  groupContent.appendChild(addLinkToGroupDiv); // Add to the content div of the group
 
   groupContainer.appendChild(groupContent);
   connectionsDiv.appendChild(groupContainer);
 }
 
-
-
-
-  document.body.appendChild(connectionsDiv);
+  const noteWrapper = document.getElementById('gg-note-wrapper');
+  if (noteWrapper) {
+    noteWrapper.appendChild(connectionsDiv);
+  } else {
+    console.warn("[showConnectedLocations] gg-note-wrapper not found. Appending connectionsDiv to body as fallback.");
+    document.body.appendChild(connectionsDiv); // Fallback, though should not happen in this flow
+  }
 }
 
 
@@ -228,7 +360,7 @@ async function disconnectLocation(groupName, uuid,  link, NOTE_API) {
       uuid,
       userName: groupName,
       date: link,
-      note: "false"
+      note: false
     };
 
     const response = await fetch(NOTE_API, {
@@ -246,48 +378,80 @@ async function disconnectLocation(groupName, uuid,  link, NOTE_API) {
 }
 
 
-async function addNewGroup(currentUuid, NOTE_API) {
+async function addNewGroup(groupNameFromInput, linkUrlFromInput, NOTE_API) { // Updated signature
   const path = location.pathname;
 
   const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
   const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
   const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
-  const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
+  const currentPageUuid = (fullServiceMatch || teamMatch || findMatch)?.[1]; // UUID of the current page
 
-  const forbiddenNames = ["doobneek", "Gavilan"];
-  const groupName = prompt("Enter a new group name:")?.trim();
-  if (!groupName) return alert("Group name is required.");
-  if (forbiddenNames.includes(groupName)) return alert("This group name is reserved.");
-  if (groupName.length < 2) return alert("Group name is too short.");
+  if (!currentPageUuid) {
+    alert("Could not determine the current location's UUID. Cannot add group.");
+    return;
+  }
 
-  // Check if the group already exists
-  const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/connections.json";
-  const res = await fetch(firebaseURL);
-  const existing = await res.json();
-  if (existing?.[groupName]) return alert("Group name already exists.");
+  // Validations for groupNameFromInput and linkUrlFromInput are expected to be done by the caller,
+  // but we can keep some crucial ones here as a safeguard.
 
-  // Ask for a full GoGetta URL and use it directly
-  const link = prompt("Paste a GoGetta link to connect as the first UUID:");
-  if (!link?.includes("/location/")) return alert("This doesn't look like a valid GoGetta location link.");
+  if (!groupNameFromInput || groupNameFromInput.length < 2) {
+    alert("Group name is invalid (must be at least 2 characters).");
+    return;
+  }
+  // Forbidden names check is also done by caller.
+
+  if (!linkUrlFromInput || !linkUrlFromInput.includes("/location/")) {
+    alert("The provided link does not appear to be a valid GoGetta location link.");
+    return;
+  }
   
-  const uuidMatch = link.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,})/i);
-  const connectedUuid = uuidMatch?.[1];
-  if (!connectedUuid) return alert("Could not extract UUID from the link.");
-  if (connectedUuid === currentUuid) return alert("You can't connect this location to itself.");
+  const uuidMatchInProvidedLink = linkUrlFromInput.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,})/i);
+  const connectedUuidViaLink = uuidMatchInProvidedLink?.[1];
 
-  // Confirm group creation with full link as data
-  const confirmMsg = `Create group "${groupName}" and link to:\n${link}`;
-  if (!confirm(confirmMsg)) return;
+  if (!connectedUuidViaLink) {
+    alert("Could not extract a UUID from the provided link.");
+    return;
+  }
+
+  if (connectedUuidViaLink === currentPageUuid) {
+    alert("You cannot link a location to itself within a group.");
+    return;
+  }
+
+  // Check if the group name already exists for *this specific location's connections*
+  const locationNotesURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/${currentPageUuid}.json`;
+  try {
+    const res = await fetch(locationNotesURL);
+    const existingLocationNotes = await res.json();
+    if (existingLocationNotes && existingLocationNotes[groupNameFromInput]) {
+      alert(`A group named "${groupNameFromInput}" already exists for this location. Please choose a different name or add the link to the existing group.`);
+      return;
+    }
+  } catch (err) {
+    console.error("Error checking for existing group name:", err);
+    alert("Could not verify if group name is unique. Please try again.");
+    return;
+  }
+  
+  // Confirmation (optional, could be removed if inline inputs are clear enough)
+  const confirmMsg = `Create group "${groupNameFromInput}" and add the link: ${linkUrlFromInput}?`;
+  if (!confirm(confirmMsg)) {
+    console.log("[addNewGroup] User cancelled group creation.");
+    return;
+  }
 
   try {
     const response = await fetch(NOTE_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        uuid,
-        userName: groupName,
-        date: link,        // Send full URL as-is
-        note: true         // Must be a boolean
+        uuid: currentPageUuid,      // UUID of the current page/location where the group is being added
+        userName: groupNameFromInput, // This acts as the key for the group
+        date: linkUrlFromInput,     // The URL to be stored under this new group
+        note: true                // Using "true" (string) as this is what addUuidToGroup uses. 
+                                    // The original addNewGroup used boolean `true`.
+                                    // Let's be consistent with addUuidToGroup for now.
+                                    // If the API strictly needs boolean, this might need adjustment.
       })
     });
 
@@ -296,26 +460,28 @@ async function addNewGroup(currentUuid, NOTE_API) {
       throw new Error(`Server error: ${response.status} - ${errText}`);
     }
 
-    console.log(`✅ Group "${groupName}" created with linked UUID ${connectedUuid}.`);
-    alert(`Group "${groupName}" created.`);
+    console.log(`✅ Group "${groupNameFromInput}" created with link ${linkUrlFromInput}.`);
+    alert(`Group "${groupNameFromInput}" created successfully!`);
 
-    hideConnectedLocations();
-    await showConnectedLocations(NOTE_API);
+    // The calling function (`showConnectedLocations` button handler) will call:
+    // hideConnectedLocations();
+    // await showConnectedLocations(NOTE_API);
+    // So, no need to duplicate that here.
 
   } catch (err) {
     console.error("[Group Creation Error]", err);
-    alert("Failed to create group.");
+    alert(`Failed to create group "${groupNameFromInput}". Error: ${err.message}`);
   }
 }
 
 
-async function addUuidToGroup(groupName, uuid,  link, NOTE_API) {
+async function addUuidToGroup(groupName, uuid, connectedUuid, NOTE_API) {
   try {
     const payload = {
       uuid,
-      userName: groupName,  // signal it's a group write
-      date: link,                        // skip date for group entries
-      note: "true"                     // store value as stringified boolean
+      userName: groupName,
+      date: connectedUuid,  // storing the *UUID*, not the link
+      note: true
     };
 
     const response = await fetch(NOTE_API, {
@@ -324,8 +490,8 @@ async function addUuidToGroup(groupName, uuid,  link, NOTE_API) {
       body: JSON.stringify(payload)
     });
 
-    if (!response.ok) throw new Error(`Failed to add UUID ${uuid} to group ${groupName}`);
-    console.log(`✅ Added UUID ${uuid} to group ${groupName}`);
+    if (!response.ok) throw new Error(`Failed to add UUID ${connectedUuid} to group ${groupName}`);
+    console.log(`✅ Added UUID ${connectedUuid} to group ${groupName}`);
   } catch (err) {
     console.error('[Add UUID Error]', err);
   }
