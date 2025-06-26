@@ -232,20 +232,20 @@ const relevantGroups = Object.entries(allGroups).filter(
   const groupNameInput = document.createElement("input");
   groupNameInput.setAttribute("list", "group-list-datalist");
   groupNameInput.type = "text";
-  groupNameInput.placeholder = "New group name";
+  groupNameInput.placeholder = "Group name";
   groupNameInput.style.width = "calc(50% - 15px)";
   groupNameInput.style.marginRight = "10px";
   groupNameInput.style.padding = "5px";
 
   const groupLinkInput = document.createElement("input");
   groupLinkInput.type = "url";
-  groupLinkInput.placeholder = "New group link (GoGetta URL)";
+  groupLinkInput.placeholder = "New GG URL";
   groupLinkInput.style.width = "calc(50% - 15px)";
   groupLinkInput.style.marginRight = "10px";
   groupLinkInput.style.padding = "5px";
 
   const addGroupButton = document.createElement("button");
-  addGroupButton.innerText = "Add New Group";
+  addGroupButton.innerText = "+ New Grp/+ Loc2Grp";
   addGroupButton.style.padding = "5px 10px";
   addGroupButton.addEventListener("click", async () => {
     const newGroupName = groupNameInput.value.trim();
@@ -371,7 +371,7 @@ connectionsScrollWrapper.style.paddingTop = "10px";
       }
 
       if (!newConnectedUuid || !/^[a-f0-9-]{12,}$/.test(newConnectedUuid)) {
-        alert("Could not extract a valid UUID from the link.");
+        alert("Re-check the link.");
         return;
       }
 
@@ -470,7 +470,7 @@ async function addNewGroup(groupNameFromInput, linkUrlFromInput, NOTE_API,userPa
   const currentPageUuid = (fullServiceMatch || teamMatch || findMatch)?.[1]; // UUID of the current page
 
   if (!currentPageUuid) {
-    alert("Could not determine the current location's UUID. Cannot add group.");
+    alert("Invalid link. Cannot add group.");
     return;
   }
 
@@ -492,7 +492,7 @@ async function addNewGroup(groupNameFromInput, linkUrlFromInput, NOTE_API,userPa
   const connectedUuidViaLink = uuidMatchInProvidedLink?.[1];
 
   if (!connectedUuidViaLink) {
-    alert("Could not extract a UUID from the provided link.");
+    alert("The link doesn’t look right—try copying it again from GoGetta.");
     return;
   }
 
@@ -559,7 +559,7 @@ try {
   }
 
   console.log(`✅ Group "${groupNameFromInput}" created with links:\n- ${linkUrlFromInput}\n- /team/location/${currentPageUuid}`);
-  alert(`Group "${groupNameFromInput}" created successfully with both locations!`);
+  alert(`Group "${groupNameFromInput}" created successfully with this and the other locations!`);
 } catch (err) {
   console.error("[Group Creation Error]", err);
   alert(`Failed to create group "${groupNameFromInput}". Error: ${err.message}`);
@@ -624,13 +624,13 @@ function showReminderModal(uuid, NOTE_API, userPassword) {
   });
 
   modal.innerHTML = `
-    <h3 style="margin-top:0;">📅 Set a Reminder</h3>
+    <h3 style="margin-top:0;">Set a Reminder</h3>
     <label>Date: <input type="date" id="reminder-date" style="width:100%;margin:5px 0;"></label>
     <label>Note:<textarea id="reminder-note" style="width:100%;height:100px;"></textarea></label>
     <div style="text-align:right;margin-top:10px;">
       <button id="reminder-cancel">Cancel</button>
-      <button id="reminder-google" style="margin-left:5px;">📅 Add to Google</button>
-      <button id="reminder-download" style="margin-left:5px;">📥 Download .ics</button>
+      <button id="reminder-google" style="margin-left:5px;">Add to Google</button>
+      <button id="reminder-download" style="margin-left:5px;">Download .ics</button>
     </div>
   `;
 
@@ -1001,7 +1001,7 @@ function attachMicButtonHandler() {
 
     if (isRecognizing) {
       recognition.stop();
-      micButton.innerHTML = "🎤"; // Reset button text/icon
+      micButton.innerHTML = "Mic"; // Reset button text/icon
       // isRecognizing will be set to false by recognition.onend
     } else {
       // Configure onresult specifically for the reminder note
@@ -1585,7 +1585,7 @@ console.log("[AI Button] Received response:", response);
       throw new Error(data.error || "No structured info returned");
     }
   } catch (err) {
-    alert("Failed to format note with AI:\n" + err.message);
+    alert("doobneek couldn’t format your note with AI:\n" + err.message);
     console.error("[AI Format Error]", err);
   } finally {
     aiFormatBtn.disabled = false;
