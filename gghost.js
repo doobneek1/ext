@@ -38,6 +38,8 @@ let isInConnectionMode = false;
 async function toggleConnectionMode() {
   console.log("[gghost.js] toggleConnectionMode called. Current isInConnectionMode:", isInConnectionMode); // Existing log
   const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
+  const userPassword =  window.gghostPassword || await getUserPasswordSafely(); // 👈 Now you have access
+
   isInConnectionMode = !isInConnectionMode;
   console.log("[gghost.js] isInConnectionMode toggled to:", isInConnectionMode); // Existing log
 
@@ -77,7 +79,7 @@ async function toggleConnectionMode() {
         connectionsDiv.style.display = "block";
       } else {
         console.log('[gghost.js] connectionsDiv does not exist. Calling showConnectedLocations.');
-        await showConnectedLocations(NOTE_API);
+        await showConnectedLocations(NOTE_API, userPassword);
         connectionsDiv = document.getElementById("connected-locations"); // Re-fetch
         console.log('[gghost.js] connectionsDiv after showConnectedLocations:', connectionsDiv);
         if (!connectionsDiv) {
@@ -158,7 +160,7 @@ async function addConnectionModeButton() {
 
 
 
-async function showConnectedLocations(NOTE_API) {
+async function showConnectedLocations(NOTE_API, userPassword) {
   console.log("[gghost.js] showConnectedLocations called with NOTE_API:", NOTE_API);
   const fullServiceMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
   const teamMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
@@ -255,9 +257,9 @@ const relevantGroups = Object.entries(allGroups).filter(
       return;
     }
 
-    await addNewGroup(newGroupName, newGroupLink, NOTE_API);
+    await addNewGroup(newGroupName, newGroupLink, NOTE_API,userPassword);
     hideConnectedLocations();
-    await showConnectedLocations(NOTE_API);
+    await showConnectedLocations(NOTE_API, userPassword);
   });
 connectionsDiv.appendChild(groupListDatalist);
 
@@ -386,7 +388,7 @@ connectionsScrollWrapper.style.paddingTop = "10px";
       await addUuidToGroup(groupName, uuid, newConnectedUuid, NOTE_API, userPassword);
       newLinkInput.value = "";
       hideConnectedLocations();
-      await showConnectedLocations(NOTE_API);
+      await showConnectedLocations(NOTE_API, userPassword);
     });
 
     addLinkToGroupDiv.appendChild(newLinkInput);
@@ -452,7 +454,7 @@ await checkResponse(response, `Disconnection`);
 
 
     hideConnectedLocations();
-    await showConnectedLocations(NOTE_API);
+    await showConnectedLocations(NOTE_API, userPassword);
   } catch (err) {
     console.error('[Disconnect Error]', err);
   }
@@ -650,7 +652,6 @@ function showReminderModal(uuid, NOTE_API, userPassword) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ uuid, userName: "reminder", password: userPassword,date, note })
     });
-await checkResponse(response, `Adding reminder`);
 
     const { org, location: locName,slug } = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
     const summaryText = `${org || 'GoGetta'}${locName ? ' - ' + locName : ''}: ${note.slice(0, 40).replace(/\n/g, ' ')}`.slice(0, 60);
