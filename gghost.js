@@ -128,6 +128,7 @@ async function addConnectionModeButton() {
 
 
 
+
 async function showConnectedLocations(NOTE_API) {
   const fullServiceMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
   const teamMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
@@ -135,6 +136,10 @@ async function showConnectedLocations(NOTE_API) {
 
   const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
   if (!uuid) return;
+
+  // Fetch current page's organization details
+  const currentPageLocationDetails = await fetchLocationDetails(uuid);
+  const currentPageOrgName = currentPageLocationDetails.org;
 
   const firebaseURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/${uuid}.json`;
   const res = await fetch(firebaseURL);
@@ -214,12 +219,22 @@ async function showConnectedLocations(NOTE_API) {
         continue;
       }
 
-      const { name: locName } = await fetchLocationDetails(connectedUuid);
+      const { org: connectedOrgName, name: connectedLocName } = await fetchLocationDetails(connectedUuid);
+      let linkText = "";
+      if (connectedLocName) {
+        if (currentPageOrgName && connectedOrgName && currentPageOrgName !== connectedOrgName) {
+          linkText = `${connectedOrgName} - ${connectedLocName}`;
+        } else {
+          linkText = connectedLocName;
+        }
+      } else {
+        linkText = `Location ${connectedUuid}`;
+      }
 
       const locationLink = document.createElement("a");
       locationLink.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
       locationLink.target = "_blank";
-      locationLink.innerText = locName || `Location ${connectedUuid}`;
+      locationLink.innerText = linkText;
       locationLink.style.display = "inline-block";
       locationLink.style.marginRight = "10px";
 
@@ -334,7 +349,7 @@ async function disconnectLocation(groupName, uuid, connectedUuid, NOTE_API) {
     const payload = {
       uuid,
       userName: groupName,
-      date: `https://gogetta.nyc/team/${connectedUuid}`,  // 👈 wrap UUID in expected path format
+date: `https://gogetta.nyc/team/location/${connectedUuid}`,
       note: false
     };
 
@@ -847,35 +862,91 @@ function initializeSpeechRecognition() {
 }
 
 function attachMicButtonHandler() {
-  const micButton = addMicrophoneButton();
-  if (!micButton || !recognition) return;
-window.recognition = new webkitSpeechRecognition();
+  const micButton = addMicrophoneButton(); // This function already ensures reminder-note exists
+  if (!micButton) {
+    console.warn("Mic button could not be added to the reminder modal.");
+    return;
+  }
+
+  // Ensure recognition is initialized. If not, this handler shouldn't have been called
+  // or initializeSpeechRecognition should be called first.
+  // We rely on the DOMContentLoaded listener to call initializeSpeechRecognition then attachMicButtonHandler.
+  if (!recognition) {
+    console.warn("Speech recognition not initialized. Mic button will not work.");
+    // Optionally, try to initialize it here if it's robust enough
+    // initializeSpeechRecognition();
+    // if (!recognition) return; // If still not initialized, then exit.
+    return;
+  }
 
   micButton.addEventListener('click', () => {
- if (window.recognition) {
-  if (isRecognizing) {
-    window.recognition.stop();
-    liveTranscribeBtn.textContent = "🎤 Start Transcribing";
-  } else {
-    window.recognition.onresult = (event) => {
-      let transcript = "";
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        transcript += event.results[i][0].transcript;
-      }
-      editableDiv.innerText += transcript + " ";
-    };
-    window.recognition.start();
-    liveTranscribeBtn.textContent = "🛑 Stop Transcribing";
-  }
-}
+    const reminderNoteTextarea = document.getElementById("reminder-note");
+    if (!reminderNoteTextarea) {
+        console.error("reminder-note textarea not found on mic click!");
+        return;
+    }
 
+    if (isRecognizing) {
+      recognition.stop();
+      micButton.innerHTML = "🎤"; // Reset button text/icon
+      // isRecognizing will be set to false by recognition.onend
+    } else {
+      // Configure onresult specifically for the reminder note
+      recognition.onresult = (event) => {
+        let transcript = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            transcript += event.results[i][0].transcript;
+          }
+        }
+        // Append to existing content, or set if empty
+        reminderNoteTextarea.value += (reminderNoteTextarea.value.length > 0 ? " " : "") + transcript;
+      };
+      
+      recognition.onstart = () => {
+        isRecognizing = true;
+        micButton.innerHTML = "🛑"; // Change button to stop icon/text
+        console.log("Reminder speech recognition started.");
+      };
+
+      recognition.onend = () => {
+        isRecognizing = false;
+        micButton.innerHTML = "🎤"; // Reset button text/icon
+        console.log("Reminder speech recognition ended.");
+         // Important: Reset onstart and onend to their defaults or clear them
+         // if they were specifically set for this interaction, to avoid conflicts
+         // with the global note's speech recognition if it uses the same `recognition` instance.
+         // However, the current code seems to re-assign onresult for the global note when it starts.
+      };
+      
+      recognition.onerror = (event) => {
+        console.error("Reminder speech recognition error:", event.error);
+        // Ensure isRecognizing is reset if an error occurs that stops recognition
+        if(isRecognizing) {
+            isRecognizing = false;
+            micButton.innerHTML = "🎤";
+        }
+      };
+
+      try {
+        recognition.start();
+      } catch (e) {
+        console.error("Error starting recognition:", e);
+        // Potentially show an alert to the user or update UI
+        alert("Could not start microphone. Please check permissions and try again.");
+      }
+    }
   });
 }
 
 
 // Initialize everything when the document is ready
 document.addEventListener("DOMContentLoaded", () => {
-  initializeSpeechRecognition();
+  initializeSpeechRecognition(); // Ensures `recognition` object is created
+  // attachMicButtonHandler is called when the reminder modal is shown,
+  // which is a more appropriate place if addMicrophoneButton is also called then.
+  // However, the current structure calls addMicrophoneButton from attachMicButtonHandler.
+  // Let's keep the original flow for now, assuming addMicrophoneButton is robust.
   attachMicButtonHandler();
 });
 
