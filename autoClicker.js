@@ -1,31 +1,45 @@
 
 document.addEventListener('click', (e) => {
   const okBtn = e.target.closest('button.Button-primary');
-  if (!okBtn || okBtn.textContent.trim() !== 'OK') return;
 
-  console.log('[YP] 🖱️ OK button clicked — waiting for save to complete...');
+  if (!okBtn || okBtn.textContent.trim().toUpperCase() !== 'OK') return;
 
-  // Wait for a little moment after clicking OK to allow save to trigger
-  setTimeout(() => {
-    const arrowButton = document.querySelector('button.Button-compact svg.fa-chevron-down')?.closest('button');
-if (arrowButton && !arrowButton.disabled) {
-  console.log('[YP] ✅ Chevron enabled — clicking it');
-  arrowButton.click();
-} else {
-  const currentUrl = window.location.href;
-  if (/\/other-info$/.test(currentUrl)) {
-    const newUrl = currentUrl.replace(/\/other-info$/, '/documents');
-    console.warn('[YP] ❌ Chevron disabled on other-info — switching to documents:', newUrl);
+  // Skip the first OK button with extra margin classes
+  if (okBtn.classList.contains('mt-3') && okBtn.classList.contains('mb-3')) {
+    console.log('[YP] 🖱️ First OK button clicked (mt-3 mb-3) — no redirect yet');
+    return;
+  }
+
+  console.log('[YP] ✅ Final OK button clicked — will redirect if chevron is disabled');
+setTimeout(() => {
+  const arrowButton = document.querySelector('button.Button-compact svg.fa-chevron-down')?.closest('button');
+
+  if (arrowButton && !arrowButton.disabled) {
+    console.log('[YP] ✅ Chevron enabled — clicking it');
+    arrowButton.click();
+  } else {
+    const currentUrl = window.location.href;
+
+if (/\/documents\/other-info\/?$/.test(currentUrl)) {
+  if (!sessionStorage.getItem('ypRedirected')) {
+    sessionStorage.setItem('ypRedirected', 'true');
+    const newUrl = currentUrl.replace(/\/documents\/other-info\/?$/, '');
+    console.warn('[YP] ❌ Redirecting from /documents/other-info — new URL:', newUrl);
     window.location.href = newUrl;
   } else {
-    const newUrl = currentUrl.replace(/\/[^/]+\/?$/, '');  // Removes last slug
-    console.warn('[YP] ❌ Chevron disabled — redirecting to:', newUrl);
-    window.location.href = newUrl;
+    console.log('[YP] 🚫 Redirect skipped — already redirected this session');
   }
 }
+else {
+      const newUrl = currentUrl.replace(/\/[^/]+\/?$/, '');
+      console.warn('[YP] ❌ Chevron disabled — fallback redirect to:', newUrl);
+      window.location.href = newUrl;
+    }
+  }
+}, 500);
 
-  }, 500); // Adjust delay as needed based on actual save time (500ms usually works)
 });
+
 function tryClickYesButton() {
   const yesBtn = document.querySelector('button.Button-primary.Button-fluid');
   if (
@@ -67,7 +81,7 @@ chrome.storage.local.get("redirectEnabled", (data) => {
 
   const observer = new MutationObserver(() => {
     tryClickNoLetsEdit();
-    tryClickOkOnProofsRequired();
+    // tryClickOkOnProofsRequired();
     autoClickServiceTabs();
       tryClickYesButton(); // 👈 Add this line
 

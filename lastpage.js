@@ -57,7 +57,7 @@
     btn.textContent = "Most outdated page";
     Object.assign(btn.style, {
       position: "fixed",
-      top: "10px",
+      top: "40px",
       right: "10px",
       zIndex: "999999",
       padding: "8px 12px",
