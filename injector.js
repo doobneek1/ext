@@ -270,21 +270,79 @@
     }).join('');
   }
 
-  function formatTimeRange(text) {
-    return text.replace(/(\d{1,4}[ap])-(\d{1,4}[ap])/gi, (_, start, end) => {
-      const parse = (t) => {
-        const period = t.includes('a') ? 'AM' : 'PM';
-        t = t.replace(/[ap]/i, '');
-        let h = parseInt(t.slice(0, 2)), m = parseInt(t.slice(2) || 0);
-        if (period === 'PM' && h !== 12) h += 12;
-        if (period === 'AM' && h === 12) h = 0;
-        return new Date(0, 0, 0, h, m);
-      };
-      const s = parse(start), e = parse(end);
-      const nextDay = e < s ? '⁺¹' : '';
-      return `${s.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} — ${e.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${nextDay}`;
-    });
-  }
+  // function formatTimeRange(text) {
+  //   return text.replace(/(\d{1,4}[ap])-(\d{1,4}[ap])/gi, (_, start, end) => {
+  //     const parse = (t) => {
+  //       const period = t.includes('a') ? 'AM' : 'PM';
+  //       t = t.replace(/[ap]/i, '');
+  //       let h = parseInt(t.slice(0, 2)), m = parseInt(t.slice(2) || 0);
+  //       if (period === 'PM' && h !== 12) h += 12;
+  //       if (period === 'AM' && h === 12) h = 0;
+  //       return new Date(0, 0, 0, h, m);
+  //     };
+  //     const s = parse(start), e = parse(end);
+  //     const nextDay = e < s ? '⁺¹' : '';
+  //     return `${s.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} — ${e.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${nextDay}`;
+  //   });
+  // }
+  function expandDayRange(text) {
+  const days = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
+  const fullDays = {
+    su: 'Sunday',
+    mo: 'Monday',
+    tu: 'Tuesday',
+    we: 'Wednesday',
+    th: 'Thursday',
+    fr: 'Friday',
+    sa: 'Saturday'
+  };
+
+  return text.replace(/\b(su|mo|tu|we|th|fr|sa)-(su|mo|tu|we|th|fr|sa)\b/gi, (_, startAbbr, endAbbr) => {
+    const start = startAbbr.toLowerCase();
+    const end = endAbbr.toLowerCase();
+    const startIdx = days.indexOf(start);
+    const endIdx = days.indexOf(end);
+
+    if (startIdx === -1 || endIdx === -1) return `${startAbbr}-${endAbbr}`; // fallback if invalid
+
+    // If range wraps around the week
+    if (endIdx < startIdx) {
+      return `${fullDays[start]} through ${fullDays[end]} (next week)`;
+    }
+
+    return `${fullDays[start]} through ${fullDays[end]}`;
+  });
+}
+
+function formatTimeRange(text) {
+  return text.replace(/(\d{3,4}[ap]?)-(\d{3,4}[ap]?)/gi, (_, start, end) => {
+    const parse = (t, defaultPeriod) => {
+      let period = /[ap]/i.test(t) ? (t.includes('a') ? 'AM' : 'PM') : defaultPeriod;
+      t = t.replace(/[ap]/i, '');
+      let h = parseInt(t.slice(0, -2) || t) || 0;
+      let m = parseInt(t.slice(-2)) || 0;
+
+      if (h < 1 || h > 12) {
+        // Handle cases like 930 or 1230 → h = 9 or 12, m = 30
+        h = Math.floor(parseInt(t) / 100);
+        m = parseInt(t) % 100;
+      }
+
+      if (period === 'PM' && h !== 12) h += 12;
+      if (period === 'AM' && h === 12) h = 0;
+
+      return new Date(0, 0, 0, h, m);
+    };
+
+    // If both are missing AM/PM, assume 9xx-4xx means AM to PM
+    const bothLackPeriod = !/[ap]/i.test(start) && !/[ap]/i.test(end);
+    const s = parse(start, bothLackPeriod ? 'AM' : 'AM');
+    const e = parse(end, bothLackPeriod ? 'PM' : 'PM');
+
+    const nextDay = e < s ? '⁺¹' : '';
+    return `${s.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} — ${e.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${nextDay}`;
+  });
+}
 
   function formatAge(text) {
     return text.replace(/age\((.+?)\)/gi, (_, ages) => {

@@ -158,7 +158,58 @@ async function addConnectionModeButton() {
 
 
 
+// async function doesSanitizedGroupNameExist(userInput) {
+//   const firebaseURL = 'https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/connections.json';
 
+//   if (!userInput || typeof userInput !== 'string') return false;
+
+//   const sanitize = str => str.replace(/\s+/g, '').toLowerCase();
+//   const sanitizedInput = sanitize(userInput);
+
+//   try {
+//     const res = await fetch(firebaseURL);
+//     if (!res.ok) {
+//       console.error(`[checkIfGroupExists] Firebase fetch failed: ${res.status}`, await res.text());
+//       return false;
+//     }
+
+//     const allData = await res.json();
+//     if (!allData || typeof allData !== 'object') return false;
+
+//     return Object.keys(allData).some(groupName => {
+//       const sanitizedGroupName = sanitize(groupName);
+//       return sanitizedGroupName === sanitizedInput;
+//     });
+//   } catch (err) {
+//     console.error('[checkIfGroupExists] Error fetching/parsing group data:', err);
+//     return false;
+//   }
+// }
+
+async function doesSanitizedGroupNameExist(userInput) {
+  const firebaseURL = 'https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/connections.json';
+
+  if (!userInput || typeof userInput !== 'string') return false;
+
+  const sanitize = str => str.replace(/\s+/g, '').toLowerCase(); // allow spaces in UI, sanitize internally
+  const sanitizedInput = sanitize(userInput);
+
+  try {
+    const res = await fetch(firebaseURL);
+    if (!res.ok) {
+      console.error(`[checkIfGroupExists] Firebase fetch failed: ${res.status}`, await res.text());
+      return false;
+    }
+
+    const allData = await res.json();
+    if (!allData || typeof allData !== 'object') return false;
+
+    return Object.keys(allData).some(groupName => sanitize(groupName) === sanitizedInput);
+  } catch (err) {
+    console.error('[checkIfGroupExists] Error fetching/parsing group data:', err);
+    return false;
+  }
+}
 
 async function showConnectedLocations(NOTE_API, userPassword) {
   console.log("[gghost.js] showConnectedLocations called with NOTE_API:", NOTE_API);
@@ -252,10 +303,15 @@ const relevantGroups = Object.entries(allGroups).filter(
     const newGroupLink = groupLinkInput.value.trim();
     const forbidden = ["doobneek", "Gavilan"];
 
-    if (!newGroupName || forbidden.includes(newGroupName) || !newGroupLink.includes("/location/")) {
-      alert("Please enter a valid group name and link.");
-      return;
-    }
+    // if (!newGroupName || forbidden.includes(newGroupName) || (!newGroupLink.includes("/location/")&&!doesSanitizedGroupNameExist(newGroupName))) {
+    //   alert("Please enter a valid group name and link.");
+    //   return;
+    // }
+const isExistingGroup = await doesSanitizedGroupNameExist(newGroupName);
+if (!newGroupName || forbidden.includes(newGroupName) || (!newGroupLink.includes("/location/") && !isExistingGroup)) {
+  alert("Please enter a valid group name and link.");
+  return;
+}
 
     await addNewGroup(newGroupName, newGroupLink, NOTE_API,userPassword);
     hideConnectedLocations();
@@ -291,6 +347,7 @@ connectionsScrollWrapper.style.maxHeight = "300px";
 connectionsScrollWrapper.style.overflowY = "auto";
 connectionsScrollWrapper.style.borderTop = "1px solid #ccc";
 connectionsScrollWrapper.style.paddingTop = "10px";
+connectionsDiv.appendChild(connectionsScrollWrapper);
 
    for (const [connectedUuid, status] of Object.entries(entry)) {
   if (!status || status === "false") continue;
@@ -353,7 +410,9 @@ connectionsScrollWrapper.style.paddingTop = "10px";
 
     addLinkButton.addEventListener("click", async () => {
       const newLink = newLinkInput.value.trim();
-      if (!newLink.includes("/location/")) {
+      const isValidGoGettaLink = /^https:\/\/(www\.)?gogetta\.nyc\/(team|find)\/location\/[a-f0-9-]{12,}(\/.*)?$/.test(newLink);
+
+if (!isValidGoGettaLink&&!doesSanitizedGroupNameExist(groupName)) {
         alert("This doesn't look like a valid GoGetta location link.");
         return;
       }
@@ -370,12 +429,12 @@ connectionsScrollWrapper.style.paddingTop = "10px";
         console.warn("Invalid URL format:", newLink, err);
       }
 
-      if (!newConnectedUuid || !/^[a-f0-9-]{12,}$/.test(newConnectedUuid)) {
+      if ((!newConnectedUuid&&!doesSanitizedGroupNameExist(groupName)) || !/^[a-f0-9-]{12,}$/.test(newConnectedUuid)) {
         alert("Re-check the link.");
         return;
       }
 
-      if (newConnectedUuid === uuid) {
+      if ((newConnectedUuid === uuid)&&!doesSanitizedGroupNameExist(groupName)) {
         alert("You cannot link the current location to itself.");
         return;
       }
@@ -397,7 +456,6 @@ connectionsScrollWrapper.style.paddingTop = "10px";
 
     groupContainer.appendChild(groupContent);
 connectionsScrollWrapper.appendChild(groupContainer);
-connectionsDiv.appendChild(connectionsScrollWrapper);
 
   }
 
@@ -469,7 +527,7 @@ async function addNewGroup(groupNameFromInput, linkUrlFromInput, NOTE_API,userPa
   const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
   const currentPageUuid = (fullServiceMatch || teamMatch || findMatch)?.[1]; // UUID of the current page
 
-  if (!currentPageUuid) {
+  if (!currentPageUuid&&!doesSanitizedGroupNameExist(groupNameFromInput)) {
     alert("Invalid link. Cannot add group.");
     return;
   }
@@ -483,23 +541,24 @@ async function addNewGroup(groupNameFromInput, linkUrlFromInput, NOTE_API,userPa
   }
   // Forbidden names check is also done by caller.
 
-  if (!linkUrlFromInput || !linkUrlFromInput.includes("/location/")) {
+  if ((!linkUrlFromInput || !linkUrlFromInput.includes("/location/"))&&doesSanitizedGroupNameExist(groupNameFromInput)) {
     alert("The provided link does not appear to be a valid GoGetta location link.");
     return;
   }
   
   const uuidMatchInProvidedLink = linkUrlFromInput.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,})/i);
-  const connectedUuidViaLink = uuidMatchInProvidedLink?.[1];
+const trimmedLink = linkUrlFromInput.trim();
+const connectedUuidViaLink = uuidMatchInProvidedLink?.[1] || "";
 
-  if (!connectedUuidViaLink) {
-    alert("The link doesn’t look right—try copying it again from GoGetta.");
-    return;
-  }
+const allowBecauseLinkIsBlank = trimmedLink === "";
+const allowBecauseValidUuid = connectedUuidViaLink !== "";
+const allowBecauseGroupExists = doesSanitizedGroupNameExist(groupNameFromInput);
 
-  if (connectedUuidViaLink === currentPageUuid) {
-    alert("You cannot link a location to itself within a group.");
-    return;
-  }
+if (!allowBecauseLinkIsBlank && !allowBecauseValidUuid && !allowBecauseGroupExists) {
+  alert("Please enter a valid GoGetta location link or an existing group name.");
+  return;
+}
+
 
   // Check if the group name already exists for *this specific location's connections*
   const locationNotesURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/${currentPageUuid}.json`;
@@ -1180,7 +1239,6 @@ if (!Array.isArray(storedData)) {
   // Check if the entry for the current UUID already exists
   const existingEntryIndex = storedData.findIndex(entry => entry.uuid === uuid);
   if (existingEntryIndex === -1) {
-    // If the entry doesn't exist, add the new entry
     storedData.push(newEntry);
   } else {
     // If the entry exists, update it
