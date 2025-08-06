@@ -6,20 +6,74 @@ document.addEventListener('click', (e) => {
   if (btnText !== 'OK' && btnText !== 'DONE EDITING') return;
 
   const currentUrl = window.location.href.replace(/\/$/, ''); // remove trailing slash if present
+  localStorage.setItem('ypLastOkClickTime', Date.now().toString());
+  if (currentUrl.endsWith('closureInfo') ) {
+    console.log('[YP] ✅ OK clicked on /closureInfo — waiting for BACK TO THE MAP');
+  localStorage.setItem('ypLastOkClickTime', Date.now().toString());
+    console.log("ypLastOkClickTime done")
+
+    setTimeout(() => {
+      const backToMapBtn = document.querySelector('button.Button.mt-4.Button-primary.Button-fluid');
+      if (backToMapBtn && backToMapBtn.textContent.trim().toUpperCase() === 'BACK TO THE MAP') {
+        backToMapBtn.click();
+        console.log('[YP] 🗺️ Clicked BACK TO THE MAP');
+      } else {
+        console.warn('[YP] ⚠️ BACK TO THE MAP button not found');
+      }
+    }, 1000); // 1 second delay
+    return; // 🛑 Don't continue to the chevron logic
+  }
 
   // 🛑 Skip action on /services or /location pages
-  if (currentUrl.endsWith('services') || currentUrl.endsWith('location')) {
-    console.log('[YP] 🛑 OK click ignored on services or location page');
+if (
+  currentUrl.endsWith('location') ||
+  currentUrl.endsWith('services')
+){    console.log('[YP] 🛑 OK click ignored on services or location page');
     return;
   }
 
 // 🛑 Special case: /questions/website → replace with /services
-if (/\/questions\/website$/.test(currentUrl)) {
-  const newUrl = currentUrl.replace(/\/questions\/website$/, '/services');
-  console.warn('[YP] 🌀 Redirecting from /questions/website → /services — new URL:', newUrl);
-  window.location.href = newUrl;
+function waitForElement(selector, timeout = 5000) {
+  return new Promise((resolve, reject) => {
+    const intervalTime = 100;
+    let timeElapsed = 0;
+
+    const interval = setInterval(() => {
+      const el = document.querySelector(selector);
+      if (el) {
+        clearInterval(interval);
+        resolve(el);
+      } else if ((timeElapsed += intervalTime) >= timeout) {
+        clearInterval(interval);
+        reject(new Error(`[YP] ⏱️ Timeout: Element "${selector}" not found within ${timeout}ms`));
+      }
+    }, intervalTime);
+  });
+}
+
+if (/\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)) {
+  const yesButtonSelector = 'button.Button.mt-2.Button-primary.Button-fluid';
+  const nextButtonSelector = 'button.Button.mt-4.Button-primary.Button-fluid';
+
+  waitForElement(yesButtonSelector)
+    .then((yesButton) => {
+      console.warn('[YP] ✅ Clicking "YES" button');
+      yesButton.click();
+
+      // Wait for "GO TO NEXT SECTION" button after clicking YES
+      return waitForElement(nextButtonSelector);
+    })
+    .then((nextButton) => {
+      console.warn('[YP] ✅ Clicking "GO TO NEXT SECTION" button after YES');
+      nextButton.click();
+    })
+    .catch((err) => {
+      console.warn(`[YP] ⚠️ ${err.message}`);
+    });
+
   return;
 }
+
 
 
   // Skip the first OK button with extra margin classes
@@ -34,24 +88,8 @@ if (/\/questions\/website$/.test(currentUrl)) {
     const arrowButton = document.querySelector('button.Button-compact svg.fa-chevron-down')?.closest('button');
 
     if (arrowButton && !arrowButton.disabled) {
-      console.log('[YP] ✅ Chevron enabled — clicking it');
       arrowButton.click();
-    } else {
-      if (/\/documents\/other-info\/?$/.test(currentUrl)) {
-        if (!sessionStorage.getItem('ypRedirected')) {
-          sessionStorage.setItem('ypRedirected', 'true');
-          const newUrl = currentUrl.replace(/\/documents\/other-info\/?$/, '');
-          console.warn('[YP] ❌ Redirecting from /documents/other-info — new URL:', newUrl);
-          window.location.href = newUrl;
-        } else {
-          console.log('[YP] 🚫 Redirect skipped — already redirected this session');
-        }
-      } else {
-        const newUrl = currentUrl.replace(/\/[^/]+\/?$/, '');
-        console.warn('[YP] ❌ Chevron disabled — fallback redirect to:', newUrl);
-        window.location.href = newUrl;
-      }
-    }
+    } 
   }, 500);
 });
 
@@ -110,13 +148,6 @@ autoClickServiceTabs();
 chrome.storage.local.get("redirectEnabled", (data) => {
   if (!data.redirectEnabled) return;
 
-  const url = location.href;
-  const cancelRedirectTargets = [
-    'location-address', 'organization-name', 'location-name', 'location-description',
-    'phone-number', 'website', 'name', 'description', 'opening-hours',
-    'languages', 'membership', 'area', 'other-info'
-  ];
-
   const observer = new MutationObserver(() => {
     tryClickNoLetsEdit();
     // tryClickOkOnProofsRequired();
@@ -138,24 +169,52 @@ if (cancelBtn && cancelBtn.textContent.trim().toUpperCase() === 'CANCEL') {
 
   });
 
-  function tryClickNoLetsEdit() {
-    const btn = document.querySelector('button.Button-primary.Button-fluid.Button-basic');
-    if (btn && btn.textContent.trim().toUpperCase().includes("NO, LET'S EDIT IT")) {
-      btn.click();
-    }
+// function tryClickNoLetsEdit() {
+//   const currentUrl = window.location.pathname;
+//     const btn = document.querySelector('button.Button-primary.Button-fluid.Button-basic');
+
+//   // ✅ Only proceed if on /questions/website
+// if (/\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)||/\/closureinfo\/?$/.test(currentUrl)) {
+ 
+//   const lastOkClickTime = parseInt(localStorage.getItem('ypLastOkClickTime') || '0', 10);
+//     const now = Date.now();
+
+//     // ✅ Skip clicking "NO, LET'S EDIT IT" if "OK" was clicked within the last second
+//     if (now - lastOkClickTime < 5000) {
+//       console.log("[YP] Skipping 'NO, LET'S EDIT IT' — 'OK' clicked too recently.");
+//       return;
+//     }
+//   if (btn && btn.textContent.trim().toUpperCase().includes("NO, LET'S EDIT IT")) {
+//       btn.click();
+//       console.log("[YP] Clicked 'NO, LET'S EDIT IT'");
+//     }
+   
+//   } else if (btn && btn.textContent.trim().toUpperCase().includes("NO, LET'S EDIT IT")) {
+//       btn.click();
+//       console.log("[YP] Clicked 'NO, LET'S EDIT IT'");
+//     }
+// }
+
+function tryClickNoLetsEdit() {
+  const currentUrl = window.location.pathname;
+  const btn = document.querySelector('button.Button-primary.Button-fluid.Button-basic');
+
+  const lastOkClickTime = parseInt(localStorage.getItem('ypLastOkClickTime') || '0', 10);
+  const now = Date.now();
+  const elapsed = now - lastOkClickTime;
+
+  const isClosureInfo = /\/closureinfo\/?$/.test(currentUrl);
+  const isOtherMatch = /\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl);
+
+  // ⏳ Skip if OK was clicked in the last 5s (for closureInfo)
+  if ((isClosureInfo || isOtherMatch) && elapsed < 5000) {
+    console.log(`[YP] ⏳ Skipping 'NO, LET'S EDIT IT' — recent OK click (${elapsed}ms ago)`);
+    return;
   }
 
-function tryClickOkOnProofsRequired() {
-  if (!/proofs-required$/.test(location.href)) return;
-
-  const okBtn = document.querySelector('button.Button-primary:not(.Button-basic)');
-  if (okBtn && okBtn.textContent.trim().toUpperCase() === 'OK') {
-    okBtn.click();
-
-    // Delay going back slightly to allow any modal close animations or actions to complete
-    setTimeout(() => {
-      history.back();
-    }, 300); // Adjust delay if needed
+  if (btn && btn.textContent.trim().toUpperCase().includes("NO, LET'S EDIT IT")) {
+    btn.click();
+    console.log("[YP] ✅ Clicked 'NO, LET'S EDIT IT'");
   }
 }
 

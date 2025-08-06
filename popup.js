@@ -31,14 +31,62 @@ async function fetchAndRenderReminders() {
 }
 
 
+// function renderReminderList(remindersToShow, filtered = false) {
+//   const list = document.getElementById("reminderList");
+//   const clearBtn = document.getElementById("clearReminderFilter");
+
+//   list.innerHTML = "";
+//   const today = new Date().toISOString().split("T")[0];
+
+//   for (const r of remindersToShow) {
+//     const dateText = r.date === today ? "Today" : r.date;
+//     const li = document.createElement("li");
+//     li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${dateText}</a>: ${r.note}`;
+//     list.appendChild(li);
+//   }
+
+//   // Toggle "Show All" button
+//   clearBtn.style.display = filtered ? "block" : "none";
+// }
 function renderReminderList(remindersToShow, filtered = false) {
   const list = document.getElementById("reminderList");
   const clearBtn = document.getElementById("clearReminderFilter");
-
   list.innerHTML = "";
-  const today = new Date().toISOString().split("T")[0];
 
-  for (const r of remindersToShow) {
+  const today = new Date().toISOString().split("T")[0];
+  const upcoming = remindersToShow.filter(r => r.date >= today);
+  const past = remindersToShow.filter(r => r.date < today).reverse();
+
+  // --- 🕒 Past Reminder Fold Section ---
+  if (past.length) {
+    const pastContainer = document.createElement("div");
+    pastContainer.style = `
+      opacity: 0.6;
+      margin-bottom: 10px;
+    `;
+
+    for (const r of past) {
+      const li = document.createElement("li");
+      li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${r.date}</a>: ${r.note}`;
+      pastContainer.appendChild(li);
+    }
+
+    const foldNotice = document.createElement("div");
+    foldNotice.style = `
+      text-align: center;
+      font-size: 12px;
+      color: #888;
+      padding: 4px 0;
+      border-top: 1px dashed #ccc;
+      margin-bottom: 10px;
+    `;
+
+    list.appendChild(pastContainer); // past on top
+    list.appendChild(foldNotice);   // visual divider
+  }
+
+  // --- 📅 Upcoming Reminders ---
+  for (const r of upcoming) {
     const dateText = r.date === today ? "Today" : r.date;
     const li = document.createElement("li");
     li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${dateText}</a>: ${r.note}`;
@@ -48,6 +96,7 @@ function renderReminderList(remindersToShow, filtered = false) {
   // Toggle "Show All" button
   clearBtn.style.display = filtered ? "block" : "none";
 }
+
 
 document.getElementById("clearReminderFilter").addEventListener("click", () => {
   renderReminderList(allReminders);

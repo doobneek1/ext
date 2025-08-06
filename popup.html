@@ -42,6 +42,14 @@
     #userNameSection { margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; }
     #userNameInput { width: calc(100% - 10px); padding: 5px; margin-top: 5px; }
     #userNameStatus { font-size: 0.8em; color: green; margin-top: 5px; min-height: 1.2em; }
+  #reminderSection {
+  margin-top: 20px;
+  max-height: 150px;
+  overflow-y: auto;
+  border-top: 1px solid #ccc;
+  padding-top: 10px;
+}
+
   </style>
 </head>
 <body>
@@ -81,10 +89,13 @@
   <div id="userNameStatus"></div>
 </div>
 
-  <div id="reminderSection" style="margin-top: 20px; max-height: 150px; overflow-y: auto; border-top: 1px solid #ccc; padding-top: 10px;">
+<div id="reminderSection"
+     style="margin-top: 20px; max-height: 150px; overflow-y: auto; border-top: 1px solid #ccc; padding-top: 10px;">
   <strong>Upcoming Reminders</strong>
-  <ul id="reminderList" style="font-size: 13px; padding-left: 16px;"></ul>
-<button id="clearReminderFilter" style="width: 100%; margin-top: 5px; display: none;">Show All</button>
+  <ul id="reminderList" style="font-size: 13px; padding-left: 16px; margin: 0;"></ul>
+  <button id="clearReminderFilter" style="width: 100%; margin-top: 5px; display: none;">Show All</button>
+</div>
+
 
 </div>
 

@@ -22,16 +22,32 @@ async function fetchLocationDetails(uuid) {
     const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
     if (!res.ok) throw new Error("Fetch failed");
     const data = await res.json();
+
     return {
       org: data.Organization?.name || "",
       name: data.name || "",
-      slug: data.slug || ""
+      slug: data.slug || "",
+      address: data.address?.street || "",
+      city: data.address?.city || "",
+      state: data.address?.state || "",
+      zip: data.address?.postalCode || "",
+      services: Array.isArray(data.Services) ? data.Services.map(s => s.name).filter(Boolean) : []
     };
   } catch (err) {
     console.warn("Failed to fetch location:", err);
-    return { org: "", name: "", slug: "" };
+    return {
+      org: "",
+      name: "",
+      slug: "",
+      address: "",
+      city: "",
+      state: "",
+      zip: "",
+      services: []
+    };
   }
 }
+
 
 let isInConnectionMode = false;
 
@@ -43,7 +59,9 @@ async function toggleConnectionMode() {
   isInConnectionMode = !isInConnectionMode;
   console.log("[gghost.js] isInConnectionMode toggled to:", isInConnectionMode); // Existing log
 
-  const connectionButton = document.getElementById("connection-mode-button");
+const connectionButton =
+  document.getElementById("connection-mode-button") ||
+  document.getElementById("notes-toggle-button");
   const readonlyNotesDiv = document.getElementById("readonly-notes");
   const editableNoteDiv = document.getElementById("editable-note"); 
   const liveBtn = Array.from(document.querySelectorAll("button"))
@@ -296,34 +314,90 @@ const relevantGroups = Object.entries(allGroups).filter(
   groupLinkInput.style.padding = "5px";
 
   const addGroupButton = document.createElement("button");
-  addGroupButton.innerText = "+ New Grp/+ Loc2Grp";
-  addGroupButton.style.padding = "5px 10px";
-  addGroupButton.addEventListener("click", async () => {
-    const newGroupName = groupNameInput.value.trim();
-    const newGroupLink = groupLinkInput.value.trim();
-    const forbidden = ["doobneek", "Gavilan"];
+addGroupButton.innerText = "+ New Grp/+ Loc2Grp";
+//   addGroupButton.style.padding = "5px 10px";
+//   addGroupButton.addEventListener("click", async () => {
+//     const newGroupName = groupNameInput.value.trim();
+//     const newGroupLink = groupLinkInput.value.trim();
+//     const forbidden = ["doobneek", "Gavilan", "kiesha", "liz"];
 
-    // if (!newGroupName || forbidden.includes(newGroupName) || (!newGroupLink.includes("/location/")&&!doesSanitizedGroupNameExist(newGroupName))) {
-    //   alert("Please enter a valid group name and link.");
-    //   return;
-    // }
-const isExistingGroup = await doesSanitizedGroupNameExist(newGroupName);
-if (!newGroupName || forbidden.includes(newGroupName) || (!newGroupLink.includes("/location/") && !isExistingGroup)) {
-  alert("Please enter a valid group name and link.");
-  return;
-}
+//     // if (!newGroupName || forbidden.includes(newGroupName) || (!newGroupLink.includes("/location/")&&!doesSanitizedGroupNameExist(newGroupName))) {
+//     //   alert("Please enter a valid group name and link.");
+//     //   return;
+//     // }
+// const isExistingGroup = await doesSanitizedGroupNameExist(newGroupName);
+// if (!newGroupName || forbidden.includes(newGroupName) || (!newGroupLink.includes("/location/") && !isExistingGroup)) {
+//   alert("Please enter a valid group name and link.");
+//   return;
+// }
 
-    await addNewGroup(newGroupName, newGroupLink, NOTE_API,userPassword);
-    hideConnectedLocations();
-    await showConnectedLocations(NOTE_API, userPassword);
-  });
+//     await addNewGroup(newGroupName, newGroupLink, NOTE_API,userPassword);
+//     hideConnectedLocations();
+//     await showConnectedLocations(NOTE_API, userPassword);
+//   });
+groupNameInput.addEventListener("input", async () => {
+  const currentGroup = groupNameInput.value.trim();
+  const isExisting = await doesSanitizedGroupNameExist(currentGroup);
+
+  if (isExisting) {
+    // Change button text and behavior for existing group
+    addGroupButton.innerText = "Add This Location to Group";
+    groupLinkInput.disabled = true;
+
+    const path = location.pathname;
+    const match = path.match(/\/location\/([a-f0-9-]{12,})/);
+    const currentUuid = match?.[1];
+
+    if (currentUuid) {
+      groupLinkInput.value = `https://gogetta.nyc/team/location/${currentUuid}`;
+    }
+
+    addGroupButton.onclick = async () => {
+      await addNewGroup(currentGroup, groupLinkInput.value, NOTE_API, userPassword);
+      hideConnectedLocations();
+      await showConnectedLocations(NOTE_API, userPassword);
+    };
+  } else {
+    // Reset to new group behavior
+    addGroupButton.innerText = "Create a group";
+    groupLinkInput.disabled = false;
+    groupLinkInput.value = "";
+
+    addGroupButton.onclick = async () => {
+      const newGroupName = groupNameInput.value.trim();
+      const newGroupLink = groupLinkInput.value.trim();
+      const forbidden = ["doobneek", "Gavilan","liz","kiesha"];
+
+      const isExistingGroup = await doesSanitizedGroupNameExist(newGroupName);
+      if (
+        !newGroupName || forbidden.includes(newGroupName) ||
+        (!newGroupLink.includes("/location/") && !isExistingGroup)
+      ) {
+        alert("Please enter a valid group name and link.");
+        return;
+      }
+
+      await addNewGroup(newGroupName, newGroupLink, NOTE_API, userPassword);
+      hideConnectedLocations();
+      await showConnectedLocations(NOTE_API, userPassword);
+    };
+  }
+});
+
 connectionsDiv.appendChild(groupListDatalist);
 
   addGroupDiv.appendChild(groupNameInput);
   addGroupDiv.appendChild(groupLinkInput);
   addGroupDiv.appendChild(addGroupButton);
   connectionsDiv.appendChild(addGroupDiv);
+const connectionsScrollWrapper = document.createElement("div");
+connectionsScrollWrapper.style.maxHeight = "300px";
+connectionsScrollWrapper.style.overflowY = "auto";
+connectionsScrollWrapper.style.borderTop = "1px solid #ccc";
+connectionsScrollWrapper.style.paddingTop = "10px";
+connectionsScrollWrapper.style.paddingBottom = "20px"; // 👈 adds breathing room for bottom button
 
+connectionsDiv.appendChild(connectionsScrollWrapper);
 for (const [groupName, entry] of relevantGroups) {
     if (typeof entry !== "object" || !entry) continue;
     if (['reminder'].includes(groupName)) continue;
@@ -342,12 +416,7 @@ for (const [groupName, entry] of relevantGroups) {
     const groupContent = document.createElement("div");
     groupContent.id = `${groupName}-group-content`;
     groupContent.style.display = "block";
-const connectionsScrollWrapper = document.createElement("div");
-connectionsScrollWrapper.style.maxHeight = "300px";
-connectionsScrollWrapper.style.overflowY = "auto";
-connectionsScrollWrapper.style.borderTop = "1px solid #ccc";
-connectionsScrollWrapper.style.paddingTop = "10px";
-connectionsDiv.appendChild(connectionsScrollWrapper);
+
 
    for (const [connectedUuid, status] of Object.entries(entry)) {
   if (!status || status === "false") continue;
@@ -357,12 +426,77 @@ connectionsDiv.appendChild(connectionsScrollWrapper);
   }
 
   // Create link element with UUID first
-  const locationLink = document.createElement("a");
-  locationLink.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
-  locationLink.target = "_blank";
-  locationLink.innerText = `Location ${connectedUuid}`; // Initial display
-  locationLink.style.display = "inline-block";
-  locationLink.style.marginRight = "10px";
+  // const locationLink = document.createElement("a");
+  // locationLink.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
+  // locationLink.target = "_blank";
+  // locationLink.innerText = `Location ${connectedUuid}`; // Initial display
+  // locationLink.style.display = "inline-block";
+  // locationLink.style.marginRight = "10px";
+let locationDisplayElement;
+
+if (connectedUuid === uuid) {
+  // Bold text for current page
+  locationDisplayElement = document.createElement("strong");
+  locationDisplayElement.innerText = "This location";
+  locationDisplayElement.style.display = "inline-block";
+  locationDisplayElement.style.marginRight = "10px";
+} else {
+  // Hyperlink for other locations
+  locationDisplayElement = document.createElement("a");
+  locationDisplayElement.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
+  locationDisplayElement.target = "_blank";
+  locationDisplayElement.innerText = `Location ${connectedUuid}`;
+  locationDisplayElement.style.display = "inline-block";
+  locationDisplayElement.style.marginRight = "10px";
+}
+const tooltip = document.createElement("div");
+tooltip.style.position = "absolute";
+tooltip.style.padding = "8px";
+tooltip.style.background = "#fff";
+tooltip.style.border = "1px solid #ccc";
+tooltip.style.borderRadius = "4px";
+tooltip.style.boxShadow = "0 2px 6px rgba(0,0,0,0.15)";
+tooltip.style.maxWidth = "300px";
+tooltip.style.zIndex = "9999";
+tooltip.style.display = "none";
+tooltip.innerText = "Loading...";
+
+document.body.appendChild(tooltip);
+
+let cache = {};
+
+locationDisplayElement.addEventListener("mouseenter", async (e) => {
+  tooltip.style.left = `${e.pageX + 10}px`;
+  tooltip.style.top = `${e.pageY + 10}px`;
+  tooltip.style.display = "block";
+  tooltip.innerText = "Loading…";
+
+  if (cache[connectedUuid]) {
+    tooltip.innerHTML = cache[connectedUuid];
+    return;
+  }
+
+  try {
+const data = await fetchLocationDetails(connectedUuid);
+const addrParts = [data.address, data.city, data.state, data.zip].filter(Boolean);
+const addr = addrParts.join(", ") || "Address not available";
+
+const serviceList = data.services.length
+  ? data.services.map(s => `• ${s}`).join("<br>")
+  : "No services listed";
+
+    const tooltipContent = `<strong>${addr}</strong><br><br>${serviceList}`;
+    cache[connectedUuid] = tooltipContent;
+    tooltip.innerHTML = tooltipContent;
+  } catch (err) {
+    tooltip.innerText = "Error loading details.";
+    console.error(`[Tooltip] Failed to load data for ${connectedUuid}:`, err);
+  }
+});
+
+locationDisplayElement.addEventListener("mouseleave", () => {
+  tooltip.style.display = "none";
+});
 
   const disconnectButton = document.createElement("button");
   disconnectButton.innerText = "Disconnect";
@@ -375,20 +509,34 @@ connectionsDiv.appendChild(connectionsScrollWrapper);
 
   const locationWrapper = document.createElement("div");
   locationWrapper.style.marginBottom = "8px";
-  locationWrapper.appendChild(locationLink);
+  locationWrapper.appendChild(locationDisplayElement);
+
+  // locationWrapper.appendChild(locationLink);
   locationWrapper.appendChild(disconnectButton);
   groupContent.appendChild(locationWrapper);
 
-  // Replace text with org/loc name once fetched
+  // // Replace text with org/loc name once fetched
+  // fetchLocationDetails(connectedUuid).then(({ org: connectedOrgName, name: connectedLocName }) => {
+  //   if (connectedLocName) {
+  //     if (currentPageOrgName && connectedOrgName && currentPageOrgName !== connectedOrgName) {
+  //       locationLink.innerText = `${connectedOrgName} - ${connectedLocName}`;
+  //     } else {
+  //       locationLink.innerText = connectedLocName;
+  //     }
+  //   }
+  // });
   fetchLocationDetails(connectedUuid).then(({ org: connectedOrgName, name: connectedLocName }) => {
-    if (connectedLocName) {
-      if (currentPageOrgName && connectedOrgName && currentPageOrgName !== connectedOrgName) {
-        locationLink.innerText = `${connectedOrgName} - ${connectedLocName}`;
-      } else {
-        locationLink.innerText = connectedLocName;
-      }
-    }
-  });
+  if (!connectedLocName) return;
+
+  if (connectedUuid === uuid) {
+    locationDisplayElement.innerText = "This location";
+  } else if (currentPageOrgName && connectedOrgName && currentPageOrgName !== connectedOrgName) {
+    locationDisplayElement.innerText = `${connectedOrgName} - ${connectedLocName}`;
+  } else {
+    locationDisplayElement.innerText = connectedLocName;
+  }
+});
+
 }
 
 
@@ -493,6 +641,7 @@ function hideConnectedLocations() {
 
 async function disconnectLocation(groupName,  userPassword,connectedUuid, NOTE_API) {
   try {
+    
     const payload = {
       uuid:"connections",
       userName: groupName,
@@ -575,66 +724,66 @@ if (!allowBecauseLinkIsBlank && !allowBecauseValidUuid && !allowBecauseGroupExis
     return;
   }
   
-  // Confirmation (optional, could be removed if inline inputs are clear enough)
+// Only ask for confirmation if group doesn't already exist
+const groupExists = await doesSanitizedGroupNameExist(groupNameFromInput);
+if (!groupExists) {
   const confirmMsg = `Create group "${groupNameFromInput}" and add the link: ${linkUrlFromInput}?`;
   if (!confirm(confirmMsg)) {
     console.log("[addNewGroup] User cancelled group creation.");
     return;
   }
+}
+const urlsToSave = [];
+
+const canonicalCurrent = `https://gogetta.nyc/team/location/${currentPageUuid}`;
+urlsToSave.push(canonicalCurrent);
+
+const uuidMatch = trimmedLink.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,})/);
+const otherUuid = uuidMatch?.[1];
+
+// Only add other UUID if it's valid AND not equal to the current page
+if (otherUuid && otherUuid !== currentPageUuid) {
+  const canonicalOther = `https://gogetta.nyc/team/location/${otherUuid}`;
+  urlsToSave.push(canonicalOther);
+}
+
 try {
-  const responses = await Promise.all([
-    fetch(NOTE_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uuid: "connections",
-        userName: groupNameFromInput,
+  const responses = await Promise.all(
+    urlsToSave.map(url =>
+      fetch(NOTE_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uuid: "connections",
+          userName: groupNameFromInput,
           password: userPassword,
-
-        date: linkUrlFromInput,
-        note: true
+          date: url,
+          note: true
+        })
       })
-    }),
-    fetch(NOTE_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uuid: "connections",
-        userName: groupNameFromInput,
-          password: userPassword,
+    )
+  );
 
-        date: `/team/location/${currentPageUuid}`,
-        note: true
-      })
-    })
-  ]);
-
-  const [res1, res2] = responses;
-
-  if (!res1.ok || !res2.ok) {
-    const errText1 = await res1.text();
-    const errText2 = await res2.text();
-    throw new Error(`One or both requests failed:\n${res1.status} - ${errText1}\n${res2.status} - ${errText2}`);
-  }
-
-  console.log(`✅ Group "${groupNameFromInput}" created with links:\n- ${linkUrlFromInput}\n- /team/location/${currentPageUuid}`);
-  alert(`Group "${groupNameFromInput}" created successfully with this and the other locations!`);
+  console.log(`[✅] Group "${groupNameFromInput}" saved with URLs:`, urlsToSave);
 } catch (err) {
   console.error("[Group Creation Error]", err);
   alert(`Failed to create group "${groupNameFromInput}". Error: ${err.message}`);
 }
 
+
 }
 
 
-async function addUuidToGroup(groupName, uuid, connectedUuid, NOTE_API, userPassword) {
+async function addUuidToGroup(groupName, uuid, newConnectedUuid, NOTE_API, userPassword) {
   try {
+    console.log("[🛂 Password used for POST]", userPassword);
+
     const payload = {
-      uuid,
+      uuid: "connections",
       userName: groupName,
         password: userPassword,
 
-      date: `/team/location/${connectedUuid}`,  // Storing a canonical path
+      date: `https://gogetta.nyc/team/location/${newConnectedUuid}`,  // Storing a canonical path
       note: true
     };
 
@@ -644,8 +793,8 @@ async function addUuidToGroup(groupName, uuid, connectedUuid, NOTE_API, userPass
       body: JSON.stringify(payload)
     });
 
-await checkResponse(response, `Adding UUID ${connectedUuid} to group ${groupName}`);
-    console.log(`✅ Added UUID ${connectedUuid} to group ${groupName}`);
+await checkResponse(response, `Adding UUID ${newConnectedUuid} to group ${groupName}`);
+    console.log(`✅ Added UUID ${newConnectedUuid} to group ${groupName}`);
   } catch (err) {
     console.error('[Add UUID Error]', err);
   }
@@ -695,7 +844,7 @@ function showReminderModal(uuid, NOTE_API, userPassword) {
 
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
-
+attachMicButtonHandler();
   document.getElementById("reminder-cancel").onclick = () => overlay.remove();
 
   const handleSave = async (mode) => {
@@ -895,8 +1044,29 @@ function createYourPeerEmbedWindow(slug, onClose = () => {}) {
     alignItems: "center"
   });
 
-  const title = document.createElement("span");
-  title.textContent = "⋮ YourPeer Details";
+  // const title = document.createElement("span");
+  // title.textContent = "⋮ YourPeer Details";
+const title = document.createElement("button");
+title.textContent = "Copy YP Link";
+Object.assign(title.style, {
+  fontSize: "12px",
+  padding: "4px 8px",
+  cursor: "pointer",
+  backgroundColor: "#f0f0f0",
+  border: "1px solid #ccc",
+  borderRadius: "4px"
+});
+title.onclick = () => {
+  navigator.clipboard.writeText(`https://yourpeer.nyc/locations/${slug}`)
+    .then(() => {
+      title.textContent = "Copied!";
+      setTimeout(() => { title.textContent = "Copy YP Link"; }, 1200);
+    })
+    .catch(() => {
+      title.textContent = "Failed to copy";
+      setTimeout(() => { title.textContent = "Copy YP Link"; }, 1200);
+    });
+};
 
   const closeBtn = document.createElement("span");
   closeBtn.innerHTML = "&times;";
@@ -1119,7 +1289,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // which is a more appropriate place if addMicrophoneButton is also called then.
   // However, the current structure calls addMicrophoneButton from attachMicButtonHandler.
   // Let's keep the original flow for now, assuming addMicrophoneButton is robust.
-  attachMicButtonHandler();
+  // attachMicButtonHandler();
 });
 
 async function injectGoGettaButtons() {
@@ -1393,9 +1563,15 @@ noteBox.style.scrollPaddingBottom = '40px';
         }
 const noteWrapper = document.createElement("div");
 noteWrapper.id = "gg-note-wrapper";
+const savedPos = JSON.parse(localStorage.getItem("ggNotePosition") || "{}");
+const defaultTop = 100;
+const defaultLeft = 20;
+noteWrapper.style.top = `${Math.max(40, savedPos.top || defaultTop)}px`;  // ⬅ clamped vertical restore
+noteWrapper.style.left = `${Math.max(0, savedPos.left || defaultLeft)}px`;
+
 Object.assign(noteWrapper.style, {
   position: "fixed",
-  top: "100px",
+  // top: "100px",
   right: "20px",
   width: "320px",
   maxHeight: "500px",
@@ -1458,7 +1634,7 @@ if (orgName || locationName) {
 
 // Create the "Show Other Branches" button
 const toggleButton = document.createElement("button");
-toggleButton.id = "connection-mode-button"; // Assign the correct ID
+toggleButton.id = "notes-toggle-button"; // <-- Use a unique ID
 toggleButton.innerText = "Show Other Branches";
 toggleButton.style.marginLeft = "10px";
 toggleButton.style.fontSize = "14px";
@@ -1483,15 +1659,68 @@ noteWrapper.appendChild(dragBar);
 const readOnlyDiv = document.createElement("div");
 readOnlyDiv.id = "readonly-notes";
 readOnlyDiv.innerHTML =
-  notesArray
-    .filter(n => !(n.user === userName && n.date === today))
-    .map(n => {
-      const safeUser = n.user === 'doobneek'
-        ? `<a href="https://doobneek.org" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
-        : `<strong>${escapeHtml(n.user)}</strong>`;
-      return `<div style="margin-bottom:10px;">${safeUser} (${n.date}):<br>${n.note}</div>`;
-    })
-    .join("") || "<i>(No past notes available)</i>";
+notesArray
+  .filter(n => !(n.user === userName && n.date === today && n.note.trim().toLowerCase() !== "revalidated123435355342"))
+  .map(n => {
+    const safeUser = n.user === 'doobneek'
+      ? `<a href="https://doobneek.org" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
+      : `<strong>${escapeHtml(n.user)}</strong>`;
+
+    const isReminder = n.user === "reminder";
+    const today = new Date().toISOString().slice(0, 10);
+    const isDue = n.date <= today;
+const isDone = /\n?\s*Done by .+$/i.test(n.note.trim());
+    const noteId = `done-btn-${n.date}-${n.uuid || 'x'}`; // add n.uuid if available
+
+    const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"
+      ? "Revalidated"
+      : escapeHtml(n.note);
+
+    let html = `<div style="margin-bottom:10px;">${safeUser} (${n.date}):<br>${displayNote}`;
+
+    if (isReminder && isDue && !isDone) {
+      html += `<br><button id="${noteId}" style="margin-top:5px;">Done?</button>`;
+      // Defer event binding to after DOM insert
+      setTimeout(() => {
+        const btn = document.getElementById(noteId);
+        if (btn) {
+          btn.addEventListener("click", async () => {
+            const updatedNote = `${n.note.trim()}\n\nDone by ${userName}`;
+            try {
+              const response = await fetch(NOTE_API, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  uuid,
+                  userName: "reminder",
+                  password: userPassword,
+                  date: n.date,
+                  note: updatedNote
+                })
+              });
+
+await checkResponse(response, "Marking reminder done");
+
+// ✅ Update UI immediately
+btn.textContent = "Thanks!";
+btn.disabled = true;
+btn.style.backgroundColor = "#ccc";
+
+
+            } catch (err) {
+              console.error("❌ Failed to mark done", err);
+              alert("Failed to update reminder.");
+            }
+          });
+        }
+      }, 0);
+    }
+
+    html += `</div>`;
+    return html;
+  })
+  .join("") || "<i>(No past notes available)</i>";
+
 
 Object.assign(readOnlyDiv.style, {
   background: "#f9f9f9",
@@ -1502,6 +1731,7 @@ Object.assign(readOnlyDiv.style, {
   fontSize: "13px",
   fontStyle: "italic"
 });
+
 noteWrapper.appendChild(readOnlyDiv);
 const reminderToggleWrapper = document.createElement("div");
 Object.assign(reminderToggleWrapper.style, {
@@ -1526,7 +1756,10 @@ noteWrapper.appendChild(reminderToggleWrapper);
 const editableDiv = document.createElement("div");
 editableDiv.id = "editable-note";
 editableDiv.contentEditable = isEditable ? "true" : "false";
-editableDiv.innerText = currentUserNoteForToday || "";
+editableDiv.innerText =
+  currentUserNoteForToday?.trim().toLowerCase() === "revalidated123435355342"
+    ? ""
+    : currentUserNoteForToday || "";
 Object.assign(editableDiv.style, {
   background: isEditable ? "#e6ffe6" : "#f0f0f0",
   padding: "10px",
@@ -1538,52 +1771,195 @@ Object.assign(editableDiv.style, {
 if (isEditable) {
   editableDiv.setAttribute("role", "textbox");
   editableDiv.setAttribute("tabindex", "0");
+  // editableDiv.addEventListener("paste", (e) => {
+  //   e.preventDefault();
+  //   const text = e.clipboardData.getData('text/plain');
+  //   const selection = window.getSelection();
+  //   if (!selection.rangeCount) return;
+  //   selection.deleteFromDocument();
+  //   const range = selection.getRangeAt(0);
+  //   const textNode = document.createTextNode(text);
+  //   range.insertNode(textNode);
+  //   range.setStartAfter(textNode);
+  //   range.setEndAfter(textNode);
+  //   selection.removeAllRanges();
+  //   selection.addRange(range);
+  // });
   editableDiv.addEventListener("paste", (e) => {
-    e.preventDefault();
-    const text = e.clipboardData.getData('text/plain');
-    const selection = window.getSelection();
-    if (!selection.rangeCount) return;
-    selection.deleteFromDocument();
-    const range = selection.getRangeAt(0);
-    const textNode = document.createTextNode(text);
-    range.insertNode(textNode);
-    range.setStartAfter(textNode);
-    range.setEndAfter(textNode);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  });
+  e.preventDefault();
+  const text = e.clipboardData.getData('text/plain');
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return;
+  selection.deleteFromDocument();
+  const range = selection.getRangeAt(0);
+  const textNode = document.createTextNode(text);
+  range.insertNode(textNode);
+  range.setStartAfter(textNode);
+  range.setEndAfter(textNode);
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  // ✅ Fire input event to trigger save logic
+  editableDiv.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
   let saveTimeout = null;
-  editableDiv.addEventListener("input", () => {
-    clearTimeout(saveTimeout);
-saveTimeout = setTimeout(() => {
-  const note = editableDiv.innerText.trim();
+//   editableDiv.addEventListener("input", () => {
+//     clearTimeout(saveTimeout);
+// saveTimeout = setTimeout(() => {
+//   const note = editableDiv.innerText.trim();
 
-  fetch(NOTE_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-body: JSON.stringify({ uuid, userName, password: window.gghostPassword || userPassword, date: today, note })
-  })
-    .then(res => checkResponse(res, "Saving note"))  // <-- Check here
-    .then(() => {
-      console.log(`[📝 Saved ${userName}'s note for ${today}]`);
-    })
-    .catch(err => {
-      console.error("[❌ Failed to save note]", err);
-      alert(err.message); // Optional: showErrorBanner(err.message);
-    });
+//   fetch(NOTE_API, {
+//     method: "POST",
+//     headers: { "Content-Type": "application/json" },
+// body: JSON.stringify({ uuid, userName, password: window.gghostPassword || userPassword, date: today, note })
+//   })
+//     .then(res => checkResponse(res, "Saving note"))  // <-- Check here
+//     .then(() => {
+//       console.log(`[📝 Saved ${userName}'s note for ${today}]`);
+//     })
+//     .catch(err => {
+//       console.error("[❌ Failed to save note]", err);
+//       alert(err.message); // Optional: showErrorBanner(err.message);
+//     });
 
-}, 1000);
+// }, 1000);
 
-  });
+//   });
+// editableDiv.addEventListener("input", () => {
+//   clearTimeout(saveTimeout);
+//   saveTimeout = setTimeout(() => {
+//     const note = editableDiv.innerText.trim();
+//     if (!note) return;
+
+//     if (note.toLowerCase() !== revalidationCode) {
+//       // Show Revalidated button again if overwriting
+//       if (revalidateBtn) revalidateBtn.style.display = "block";
+//     }
+
+//     fetch(NOTE_API, {
+//       method: "POST",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify({ uuid, userName, password: userPassword, date: today, note })
+//     })
+//       .then(res => checkResponse(res, "Saving note"))
+//       .then(() => {
+//         console.log(`[📝 Saved ${userName}'s note for ${today}]`);
+//       })
+//       .catch(err => {
+//         console.error("[❌ Failed to save note]", err);
+//         alert(err.message);
+//       });
+
+//   }, 1000);
+// });
+editableDiv.addEventListener("input", () => {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async () => {
+    const note = editableDiv.innerText.trim();
+    const payload = {
+      uuid,
+      userName,
+      password: userPassword,
+      date: today,
+      note: note || null  // 👈 null or false will delete it
+    };
+
+    try {
+      const response = await fetch(NOTE_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      await checkResponse(response, note ? "Saving note" : "Deleting note");
+      console.log(note ? `[📝 Saved ${userName}'s note for ${today}]` : `[🗑️ Deleted ${userName}'s note for ${today}]`);
+    } catch (err) {
+      console.error("[❌ Failed to save/delete note]", err);
+      alert(err.message);
+    }
+  }, 1000);
+});
+
 }
 noteWrapper.appendChild(editableDiv);
+
 const noteActionWrapper = document.createElement("div");
 noteActionWrapper.style.padding = "10px";
 noteActionWrapper.style.borderTop = "1px dashed #ccc";
 noteActionWrapper.style.display = "flex";
 noteActionWrapper.style.justifyContent = "space-between";
 
-// 🎙 Live Transcript Button
+const revalidationCode = "revalidated123435355342";
+const userNoteForToday = data?.[userName]?.[today] || null;
+const isRevalidatedToday = userNoteForToday?.trim().toLowerCase() === revalidationCode;
+
+if (!userNoteForToday && !isRevalidatedToday) {
+    const revalidateCheckbox = document.createElement("input");
+
+  revalidateCheckbox.type = "checkbox";
+  revalidateCheckbox.id = "revalidate-checkbox";
+  const revalidateLabel = document.createElement("label");
+  revalidateLabel.setAttribute("for", "revalidate-checkbox");
+  revalidateLabel.textContent = " Revalidated";
+  revalidateLabel.style.marginLeft = "8px";
+
+  const checkboxWrapper = document.createElement("div");
+  checkboxWrapper.style.padding = "10px";
+  checkboxWrapper.style.borderTop = "1px dashed #ccc";
+  checkboxWrapper.style.display = "flex";
+  checkboxWrapper.style.alignItems = "center";
+
+
+
+
+  checkboxWrapper.appendChild(revalidateCheckbox);
+  checkboxWrapper.appendChild(revalidateLabel);
+  noteWrapper.appendChild(checkboxWrapper);
+
+  revalidateCheckbox.addEventListener("change", async () => {
+    if (revalidateCheckbox.checked) {
+      // Send the special code to mark today as revalidated
+      try {
+        await fetch(NOTE_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            uuid,
+            userName,
+            password: userPassword,
+            date: today,
+            note: revalidationCode
+          })
+        });
+
+        console.log(`[✅ Checkbox] Marked ${userName}'s note as revalidated for ${today}]`);
+
+ // Remove checkbox and clear editor
+checkboxWrapper.remove();
+editableDiv.innerText = "";
+
+// ✅ Add immediate Revalidated entry to the top of the read-only notes
+const newNoteEntry = document.createElement("div");
+newNoteEntry.innerHTML = `<strong>${escapeHtml(userName)}</strong> (${today}):<br>Revalidated`;
+newNoteEntry.style.marginBottom = "10px";
+
+if (readOnlyDiv.firstChild) {
+  readOnlyDiv.insertBefore(newNoteEntry, readOnlyDiv.firstChild);
+} else {
+  readOnlyDiv.innerHTML = "";
+  readOnlyDiv.appendChild(newNoteEntry);
+}
+
+      } catch (err) {
+        console.error("❌ Failed to mark as revalidated:", err);
+        alert("Could not save the revalidated status. Please try again.");
+        revalidateCheckbox.checked = false;
+      }
+    }
+  });
+}
+
 const liveTranscribeBtn = document.createElement("button");
 liveTranscribeBtn.textContent = "Start Transcribing";
 liveTranscribeBtn.style.padding = "6px 12px";
@@ -1611,7 +1987,9 @@ aiFormatBtn.style.flex = "1";
 // Add to DOM
 noteActionWrapper.appendChild(liveTranscribeBtn);
 noteActionWrapper.appendChild(aiFormatBtn);
-noteWrapper.appendChild(noteActionWrapper);
+noteWrapper.appendChild(noteActionWrapper); // <-- this might be missing
+
+
 aiFormatBtn.addEventListener("click", async () => {
   const rawNote = editableDiv.innerText.trim();
   if (!rawNote) {
@@ -1722,11 +2100,28 @@ dragBar.addEventListener("mousedown", (e) => {
   offsetY = e.clientY - noteWrapper.getBoundingClientRect().top;
   e.preventDefault();
 });
+// document.addEventListener("mousemove", (e) => {
+//   if (!isDragging) return;
+//   noteWrapper.style.left = `${e.clientX - offsetX}px`;
+//   noteWrapper.style.top = `${e.clientY - offsetY}px`;
+// });
 document.addEventListener("mousemove", (e) => {
   if (!isDragging) return;
-  noteWrapper.style.left = `${e.clientX - offsetX}px`;
-  noteWrapper.style.top = `${e.clientY - offsetY}px`;
+
+  const wrapperRect = noteWrapper.getBoundingClientRect();
+  const maxX = window.innerWidth - 40; // allow all but 20px offscreen right
+  const maxY = window.innerHeight - 40; // allow all but 20px offscreen bottom
+
+  const newX = Math.min(Math.max(100, e.clientX - offsetX), maxX);
+  const newY = Math.min(Math.max(0, e.clientY - offsetY), maxY);
+
+  noteWrapper.style.left = `${newX}px`;
+  noteWrapper.style.top = `${newY}px`;
+
+  localStorage.setItem("ggNotePosition", JSON.stringify({ left: newX, top: newY }));
 });
+
+
 document.addEventListener("mouseup", () => isDragging = false);
 document.body.appendChild(noteWrapper);
     }

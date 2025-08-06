@@ -298,6 +298,8 @@
   };
 
   return text.replace(/\b(su|mo|tu|we|th|fr|sa)-(su|mo|tu|we|th|fr|sa)\b/gi, (_, startAbbr, endAbbr) => {
+      console.log('[expandDayRange]', startAbbr, endAbbr);
+
     const start = startAbbr.toLowerCase();
     const end = endAbbr.toLowerCase();
     const startIdx = days.indexOf(start);
@@ -315,34 +317,36 @@
 }
 
 function formatTimeRange(text) {
-  return text.replace(/(\d{3,4}[ap]?)-(\d{3,4}[ap]?)/gi, (_, start, end) => {
-    const parse = (t, defaultPeriod) => {
-      let period = /[ap]/i.test(t) ? (t.includes('a') ? 'AM' : 'PM') : defaultPeriod;
-      t = t.replace(/[ap]/i, '');
-      let h = parseInt(t.slice(0, -2) || t) || 0;
-      let m = parseInt(t.slice(-2)) || 0;
-
-      if (h < 1 || h > 12) {
-        // Handle cases like 930 or 1230 → h = 9 or 12, m = 30
-        h = Math.floor(parseInt(t) / 100);
-        m = parseInt(t) % 100;
-      }
-
-      if (period === 'PM' && h !== 12) h += 12;
-      if (period === 'AM' && h === 12) h = 0;
-
-      return new Date(0, 0, 0, h, m);
+  return text.replace(/(\d{1,4}[ap])-(\d{1,4}[ap])/gi, (_, start, end) => {
+    const normalize = (t) => {
+      const match = t.match(/^(\d{1,2})(\d{2})?([ap])$/i);
+      if (!match) return t;
+      const [, h, m = '00', p] = match;
+      return `${h.padStart(2, '0')}${m}${p}`;
     };
 
-    // If both are missing AM/PM, assume 9xx-4xx means AM to PM
-    const bothLackPeriod = !/[ap]/i.test(start) && !/[ap]/i.test(end);
-    const s = parse(start, bothLackPeriod ? 'AM' : 'AM');
-    const e = parse(end, bothLackPeriod ? 'PM' : 'PM');
+    const parse = (t) => {
+      t = normalize(t); // Normalize things like "9p" → "0900p"
+      const period = t.includes('a') ? 'AM' : 'PM';
+      t = t.replace(/[ap]/i, '');
+      const h = parseInt(t.slice(0, -2)) || 0;
+      const m = parseInt(t.slice(-2)) || 0;
+
+      let hour = h;
+      if (period === 'PM' && hour !== 12) hour += 12;
+      if (period === 'AM' && hour === 12) hour = 0;
+
+      return new Date(0, 0, 0, hour, m);
+    };
+
+    const s = parse(start);
+    const e = parse(end);
 
     const nextDay = e < s ? '⁺¹' : '';
     return `${s.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} — ${e.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${nextDay}`;
   });
 }
+
 
   function formatAge(text) {
     return text.replace(/age\((.+?)\)/gi, (_, ages) => {
@@ -403,32 +407,41 @@ function formatTimeRange(text) {
     return output.join('');
   }
 
-  function processText(input) {
-    const normalized = input
-      .replace(/([^\n])\s*•\s+/g, '$1\n• ')
-      .replace(/^\s*•/gm, '•');
-    const lines = normalized.split('\n');
-    let output = [], lastWasEmpty = false;
-    lines.forEach((line, i) => {
-      let raw = line.trim();
-      if (!raw) {
-        lastWasEmpty = true;
-        return;
+function processText(input) {
+  const normalized = input
+    .replace(/([^\n])\s*•\s+/g, '$1\n• ')
+    .replace(/^\s*•/gm, '•');
+  const lines = normalized.split('\n');
+  let output = [], lastWasEmpty = false;
+
+  lines.forEach((line, i) => {
+    let raw = line.trim();
+    if (!raw) {
+      lastWasEmpty = true;
+      return;
+    }
+
+    const isFirst = i === 0;
+    const alreadyBullet = raw.startsWith('•') || raw.startsWith('<br>&emsp;—') || raw.startsWith('<br>');
+    
+    if (!alreadyBullet && !(isFirst && raw.endsWith(':'))) {
+      if (raw.startsWith('-')) {
+        raw = `<br>&emsp;— ${raw.slice(1).trim()}`;
+      } else if (lastWasEmpty) {
+        raw = `<br>${raw}`;
+      } else {
+        raw = `• ${raw}`;
       }
-      const isFirst = i === 0;
-      const alreadyBullet = raw.startsWith('•') || raw.startsWith('<br>&emsp;—') || raw.startsWith('<br>');
-      if (!alreadyBullet && !(isFirst && raw.endsWith(':'))) {
-        if (raw.startsWith('-')) {
-          raw = `<br>&emsp;— ${raw.slice(1).trim()}`;
-        } else if (lastWasEmpty) {
-          raw = `<br>${raw}`;
-        } else {
-          raw = `• ${raw}`;
-        }
-      }
-      lastWasEmpty = false;
-      output.push(safeHyperlink(formatAge(formatTimeRange(raw))));
-    });
-    return output.join('\n');
-  }
+    }
+
+    lastWasEmpty = false;
+
+    // 👇 Add weekday formatting here
+    const formatted = formatAge(formatTimeRange(expandDayRange(raw)));
+    output.push(safeHyperlink(formatted));
+  });
+
+  return output.join('\n');
+}
+
 })();

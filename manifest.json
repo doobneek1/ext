@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "doobneek feat YourPeer",
-  "version": "5.9.27",
+  "version": "5.9.41",
   "description": "Injects text formatting buttons and redirect logic.",
   "permissions": [
     "storage",
@@ -12,7 +12,8 @@
     "https://gogetta.nyc/*",
     "https://yourpeer.nyc/*",
     "https://mail.google.com/*",
-    "https://voice.google.com/*"
+    "https://voice.google.com/*",
+    "https://maps.googleapis.com/"
   ],
   "background": {
     "service_worker": "background.js"
@@ -35,8 +36,13 @@
       "js": [
         "injector.js",
         "listener.js",
+        "autocomplOrg.js",
+        "autocompladdy.js",
         "power.js",
+        "close.js",
+        "telpaste.js",
         "themeOverride.js",
+        "minimap.js",
         "recenter.js",
         "autoClicker.js",
         "gghost.js",
@@ -92,7 +98,10 @@
         "doobneekflyer.jpg",
         "yourpeerflyer.png",
         "doobneekflyerspan.jpg",
-        "tesseract.min.js"
+        "tesseract.min.js",
+        "leaflet/leaflet.js",
+        "leaflet/leaflet.css",
+        "leaflet/images/*"
       ],
       "matches": [
         "<all_urls>"
