@@ -7,22 +7,39 @@ document.addEventListener('click', (e) => {
 
   const currentUrl = window.location.href.replace(/\/$/, ''); // remove trailing slash if present
   localStorage.setItem('ypLastOkClickTime', Date.now().toString());
-  if (currentUrl.endsWith('closureInfo') ) {
-    console.log('[YP] ✅ OK clicked on /closureInfo — waiting for BACK TO THE MAP');
-  localStorage.setItem('ypLastOkClickTime', Date.now().toString());
-    console.log("ypLastOkClickTime done")
+if (/\/closureInfo\/?$/.test(currentUrl)) {
+  console.warn('[YP] ✅ OK clicked on /closureInfo — waiting for YES and BACK TO THE MAP');
 
-    setTimeout(() => {
-      const backToMapBtn = document.querySelector('button.Button.mt-4.Button-primary.Button-fluid');
-      if (backToMapBtn && backToMapBtn.textContent.trim().toUpperCase() === 'BACK TO THE MAP') {
-        backToMapBtn.click();
-        console.log('[YP] 🗺️ Clicked BACK TO THE MAP');
+  localStorage.setItem('ypLastOkClickTime', Date.now().toString());
+
+  // Wait for the YES button to appear before clicking again
+  waitForElement('button.Button-primary.Button-fluid', 3000)
+    .then((yesBtn) => {
+      if (yesBtn.textContent.trim().toUpperCase() === 'YES') {
+        console.warn('[YP] ✅ Clicking "YES" button');
+        yesBtn.click();
+
+        return waitForElement('button.Button.mt-4.Button-primary.Button-fluid');
       } else {
-        console.warn('[YP] ⚠️ BACK TO THE MAP button not found');
+        throw new Error('YES button text mismatch');
       }
-    }, 1000); // 1 second delay
-    return; // 🛑 Don't continue to the chevron logic
-  }
+    })
+    .then((backToMapBtn) => {
+      if (backToMapBtn.textContent.trim().toUpperCase() === 'BACK TO THE MAP') {
+        console.warn('[YP] 🗺️ Clicking "BACK TO THE MAP" button');
+        backToMapBtn.click();
+      } else {
+        throw new Error('BACK TO THE MAP button text mismatch');
+      }
+    })
+    .catch((err) => {
+      console.warn(`[YP] ⚠️ ${err.message}`);
+    });
+
+  return;
+}
+
+
 
   // 🛑 Skip action on /services or /location pages
 if (
@@ -174,7 +191,7 @@ if (cancelBtn && cancelBtn.textContent.trim().toUpperCase() === 'CANCEL') {
 //     const btn = document.querySelector('button.Button-primary.Button-fluid.Button-basic');
 
 //   // ✅ Only proceed if on /questions/website
-// if (/\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)||/\/closureinfo\/?$/.test(currentUrl)) {
+// if (/\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)||/\/closureInfo\/?$/.test(currentUrl)) {
  
 //   const lastOkClickTime = parseInt(localStorage.getItem('ypLastOkClickTime') || '0', 10);
 //     const now = Date.now();
@@ -197,17 +214,18 @@ if (cancelBtn && cancelBtn.textContent.trim().toUpperCase() === 'CANCEL') {
 
 function tryClickNoLetsEdit() {
   const currentUrl = window.location.pathname;
+
   const btn = document.querySelector('button.Button-primary.Button-fluid.Button-basic');
 
   const lastOkClickTime = parseInt(localStorage.getItem('ypLastOkClickTime') || '0', 10);
   const now = Date.now();
   const elapsed = now - lastOkClickTime;
 
-  const isClosureInfo = /\/closureinfo\/?$/.test(currentUrl);
+  const isclosureInfo = /\/closureInfo\/?$/.test(currentUrl);
   const isOtherMatch = /\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl);
 
   // ⏳ Skip if OK was clicked in the last 5s (for closureInfo)
-  if ((isClosureInfo || isOtherMatch) && elapsed < 5000) {
+  if ((isclosureInfo || isOtherMatch) && elapsed < 5000) {
     console.log(`[YP] ⏳ Skipping 'NO, LET'S EDIT IT' — recent OK click (${elapsed}ms ago)`);
     return;
   }
