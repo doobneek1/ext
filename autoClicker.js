@@ -11,34 +11,41 @@ if (/\/closureInfo\/?$/.test(currentUrl)) {
   console.warn('[YP] ✅ OK clicked on /closureInfo — waiting for YES and BACK TO THE MAP');
 
   localStorage.setItem('ypLastOkClickTime', Date.now().toString());
+  setTimeout(() => {
+okBtn.click()
+  }, 100); // Adjust delay as needed (e.g., 300–500ms)
 
-  // Wait for the YES button to appear before clicking again
-  waitForElement('button.Button-primary.Button-fluid', 3000)
-    .then((yesBtn) => {
-      if (yesBtn.textContent.trim().toUpperCase() === 'YES') {
-        console.warn('[YP] ✅ Clicking "YES" button');
-        yesBtn.click();
+  const yesButtonSelector = 'button.Button-primary.Button-fluid';
+  const backToMapButtonSelector = 'button.Button.mt-4.Button-primary.Button-fluid';
 
-        return waitForElement('button.Button.mt-4.Button-primary.Button-fluid');
-      } else {
-        throw new Error('YES button text mismatch');
-      }
-    })
-    .then((backToMapBtn) => {
-      if (backToMapBtn.textContent.trim().toUpperCase() === 'BACK TO THE MAP') {
-        console.warn('[YP] 🗺️ Clicking "BACK TO THE MAP" button');
-        backToMapBtn.click();
-      } else {
-        throw new Error('BACK TO THE MAP button text mismatch');
-      }
-    })
-    .catch((err) => {
-      console.warn(`[YP] ⚠️ ${err.message}`);
-    });
+  // ⏳ Add delay to allow DOM update
+  setTimeout(() => {
+    waitForElement(yesButtonSelector)
+      .then((yesBtn) => {
+        if (yesBtn.textContent.trim().toUpperCase() === 'YES') {
+          console.warn('[YP] ✅ Clicking "YES" button');
+          yesBtn.click();
+
+          return waitForElement(backToMapButtonSelector);
+        } else {
+          throw new Error('YES button found, but text did not match');
+        }
+      })
+      .then((backToMapBtn) => {
+        if (backToMapBtn.textContent.trim().toUpperCase() === 'BACK TO THE MAP') {
+          console.warn('[YP] 🗺️ Clicking "BACK TO THE MAP" button');
+          backToMapBtn.click();
+        } else {
+          throw new Error('BACK TO THE MAP button text mismatch');
+        }
+      })
+      .catch((err) => {
+        console.warn(`[YP] ⚠️ ${err.message}`);
+      });
+  }, 300); // Adjust delay as needed (e.g., 300–500ms)
 
   return;
 }
-
 
 
   // 🛑 Skip action on /services or /location pages
