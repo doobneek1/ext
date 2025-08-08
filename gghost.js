@@ -34,8 +34,7 @@ async function fetchLocationDetails(uuid) {
       services: Array.isArray(data.Services) ? data.Services.map(s => s.name).filter(Boolean) : []
     };
   } catch (err) {
-    console.warn("Failed to fetch location:", err);
-    return {
+        return {
       org: "",
       name: "",
       slug: "",
@@ -52,12 +51,12 @@ async function fetchLocationDetails(uuid) {
 let isInConnectionMode = false;
 
 async function toggleConnectionMode() {
-  console.log("[gghost.js] toggleConnectionMode called. Current isInConnectionMode:", isInConnectionMode); // Existing log
+   // Existing log
   const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
   const userPassword =  window.gghostPassword || await getUserPasswordSafely(); // 👈 Now you have access
 
   isInConnectionMode = !isInConnectionMode;
-  console.log("[gghost.js] isInConnectionMode toggled to:", isInConnectionMode); // Existing log
+   // Existing log
 
 const connectionButton =
   document.getElementById("connection-mode-button") ||
@@ -71,59 +70,36 @@ const connectionButton =
   let connectionsDiv = document.getElementById("connected-locations");
 
   // Log element states
-  console.log("[gghost.js] connectionButton:", connectionButton);
-  console.log("[gghost.js] readonlyNotesDiv:", readonlyNotesDiv);
-  console.log("[gghost.js] editableNoteDiv:", editableNoteDiv);
-  console.log("[gghost.js] liveBtn:", liveBtn);
-  console.log("[gghost.js] aiBtn:", aiBtn);
-  console.log("[gghost.js] connectionsDiv (initial):", connectionsDiv);
-
+            
   if (connectionButton) {
     if (isInConnectionMode) { // Switching TO connection (branches/groups) mode
-      console.log('[gghost.js] Switching to connection mode.');
-      connectionButton.innerText = "Notes";
-      if (readonlyNotesDiv) readonlyNotesDiv.style.display = "none"; else console.warn("[gghost.js] readonlyNotesDiv not found for hiding");
-      if (editableNoteDiv) editableNoteDiv.style.display = "none"; else console.warn("[gghost.js] editableNoteDiv not found for hiding");
-      if (liveBtn) liveBtn.style.display = "none"; else console.warn("[gghost.js] liveBtn not found for hiding");
-      if (aiBtn) aiBtn.style.display = "none"; else console.warn("[gghost.js] aiBtn not found for hiding");
-
+            connectionButton.innerText = "Notes";
+      if (readonlyNotesDiv) readonlyNotesDiv.style.display = "none"; else       if (editableNoteDiv) editableNoteDiv.style.display = "none"; else       if (liveBtn) liveBtn.style.display = "none"; else       if (aiBtn) aiBtn.style.display = "none"; else 
       if (connectionsDiv) {
-        console.log('[gghost.js] connectionsDiv exists. Ensuring it is in noteWrapper and visible.');
-        const noteWrapper = document.getElementById('gg-note-wrapper');
+                const noteWrapper = document.getElementById('gg-note-wrapper');
         if (noteWrapper && connectionsDiv.parentNode !== noteWrapper) {
-            console.log('[gghost.js] connectionsDiv is not a child of noteWrapper. Appending it.');
-            noteWrapper.appendChild(connectionsDiv); 
+                        noteWrapper.appendChild(connectionsDiv); 
         }
         connectionsDiv.style.display = "block";
       } else {
-        console.log('[gghost.js] connectionsDiv does not exist. Calling showConnectedLocations.');
-        await showConnectedLocations(NOTE_API, userPassword);
+                await showConnectedLocations(NOTE_API, userPassword);
         connectionsDiv = document.getElementById("connected-locations"); // Re-fetch
-        console.log('[gghost.js] connectionsDiv after showConnectedLocations:', connectionsDiv);
-        if (!connectionsDiv) {
+                if (!connectionsDiv) {
           console.error("[gghost.js] FAILED to get connectionsDiv after showConnectedLocations!");
         } else {
           connectionsDiv.style.display = "block"; // Ensure it's visible
         }
       }
     } else { // Exiting connection mode, switching back TO notes view
-      console.log('[gghost.js] Exiting connection mode.');
-      connectionButton.innerText = "Show Other Branches";
-      if (readonlyNotesDiv) readonlyNotesDiv.style.display = "block"; else console.warn("[gghost.js] readonlyNotesDiv not found for showing");
-      if (editableNoteDiv) editableNoteDiv.style.display = "block"; else console.warn("[gghost.js] editableNoteDiv not found for showing");
-      if (liveBtn) liveBtn.style.display = "inline-block"; else console.warn("[gghost.js] liveBtn not found for showing");
-      if (aiBtn) aiBtn.style.display = "inline-block"; else console.warn("[gghost.js] aiBtn not found for showing");
-
+            connectionButton.innerText = "Show Other Branches";
+      if (readonlyNotesDiv) readonlyNotesDiv.style.display = "block"; else       if (editableNoteDiv) editableNoteDiv.style.display = "block"; else       if (liveBtn) liveBtn.style.display = "inline-block"; else       if (aiBtn) aiBtn.style.display = "inline-block"; else 
       if (connectionsDiv) {
-        console.log('[gghost.js] Hiding connectionsDiv.');
-        connectionsDiv.style.display = "none"; 
+                connectionsDiv.style.display = "none"; 
       } else {
-        console.warn('[gghost.js] connectionsDiv not found when trying to hide in notes view.');
-      }
+              }
     }
   } else {
-    console.warn('[gghost.js] Connection mode button (ID: connection-mode-button) not found!');
-  }
+      }
 }
 
 
@@ -135,23 +111,18 @@ function toggleGroupVisibility(groupName) {
 const header = document.querySelector(`#${CSS.escape(groupName)}-group-container h4`);
 
   if (!content) {
-    console.warn(`[toggleGroupVisibility] Content element not found for group: ${groupName}-group-content`);
-    return;
+        return;
   }
   if (!header) {
-    console.warn(`[toggleGroupVisibility] Header element not found for group: ${groupName}-group-container h4`);
-  }
+      }
 
-  console.log(`[toggleGroupVisibility] Toggling group: ${groupName}. Current display: ${content.style.display}`);
-  if (content.style.display === "none" || content.style.display === "") { // Check for "" as it might be the initial state if not explicitly set
+    if (content.style.display === "none" || content.style.display === "") { // Check for "" as it might be the initial state if not explicitly set
     content.style.display = "block";
     if (header) header.innerText = `▼ ${groupName}`;
-    console.log(`[toggleGroupVisibility] Group ${groupName} expanded.`);
-  } else {
+      } else {
     content.style.display = "none";
     if (header) header.innerText = `▶ ${groupName}`;
-    console.log(`[toggleGroupVisibility] Group ${groupName} collapsed.`);
-  }
+      }
 }
 
 
@@ -230,27 +201,22 @@ async function doesSanitizedGroupNameExist(userInput) {
 }
 
 async function showConnectedLocations(NOTE_API, userPassword) {
-  console.log("[gghost.js] showConnectedLocations called with NOTE_API:", NOTE_API);
-  const fullServiceMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
+    const fullServiceMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
   const teamMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
   const findMatch = location.pathname.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
 
   const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
-  console.log("[gghost.js] showConnectedLocations: Extracted UUID:", uuid);
-
+  
   if (!uuid) {
-    console.warn("[gghost.js] showConnectedLocations: No UUID found, returning.");
-    return;
+        return;
   }
 
   // Fetch current page's organization details
   const currentPageLocationDetails = await fetchLocationDetails(uuid);
   const currentPageOrgName = currentPageLocationDetails.org;
-  console.log("[gghost.js] showConnectedLocations: Current page org name:", currentPageOrgName);
-
+  
   const firebaseURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/connections.json`;
-  console.log("[gghost.js] showConnectedLocations: Fetching connections from:", firebaseURL);
-  let allData;
+    let allData;
   try {
     const res = await fetch(firebaseURL);
     if (!res.ok) {
@@ -258,7 +224,6 @@ async function showConnectedLocations(NOTE_API, userPassword) {
       return;
     }
     allData = await res.json();
-    console.log("[gghost.js] showConnectedLocations: Fetched all connection data:", JSON.parse(JSON.stringify(allData))); // Deep copy for logging
   } catch (error) {
     console.error("[gghost.js] showConnectedLocations: Error fetching or parsing Firebase data:", error);
     return;
@@ -284,14 +249,12 @@ const relevantGroups = Object.entries(allGroups).filter(
     typeof entry === "object" &&
     entry[uuid] === true // only keep groups where this UUID is connected
 );
-  console.log("[gghost.js] showConnectedLocations: Relevant groups for UUID", uuid, ":", relevantGroups);
-
+  
 
   const connectionsDiv = document.createElement("div");
   connectionsDiv.id = "connected-locations";
   connectionsDiv.style.marginTop = "10px";
-  console.log("[gghost.js] showConnectedLocations: Created connectionsDiv:", connectionsDiv);
-
+  
   const addGroupDiv = document.createElement("div");
   addGroupDiv.style.marginBottom = "15px";
   addGroupDiv.style.padding = "10px";
@@ -421,8 +384,7 @@ for (const [groupName, entry] of relevantGroups) {
    for (const [connectedUuid, status] of Object.entries(entry)) {
   if (!status || status === "false") continue;
   if (!/^[a-f0-9-]{12,}$/.test(connectedUuid)) {
-    console.warn(`[showConnectedLocations] Invalid UUID format: ${connectedUuid}`);
-    continue;
+        continue;
   }
 
   // Create link element with UUID first
@@ -574,8 +536,7 @@ if (!isValidGoGettaLink&&!doesSanitizedGroupNameExist(groupName)) {
           newConnectedUuid = pathSegments[locationIndex + 1];
         }
       } catch (err) {
-        console.warn("Invalid URL format:", newLink, err);
-      }
+              }
 
       if ((!newConnectedUuid&&!doesSanitizedGroupNameExist(groupName)) || !/^[a-f0-9-]{12,}$/.test(newConnectedUuid)) {
         alert("Re-check the link.");
@@ -610,25 +571,21 @@ connectionsScrollWrapper.appendChild(groupContainer);
   const noteWrapper = document.getElementById("gg-note-wrapper");
   if (noteWrapper) {
     noteWrapper.appendChild(connectionsDiv);
-    console.log("[gghost.js] showConnectedLocations: Appended connectionsDiv to gg-note-wrapper.");
-  } else {
-    console.warn("[gghost.js] [showConnectedLocations] gg-note-wrapper not found. Appending connectionsDiv to body as fallback.");
-    document.body.appendChild(connectionsDiv);
+      } else {
+        document.body.appendChild(connectionsDiv);
   }
   // Final check
   if (!document.getElementById("connected-locations")) {
     console.error("[gghost.js] CRITICAL: connectionsDiv (id: connected-locations) was NOT found in the DOM after attempting to append it in showConnectedLocations!");
   } else {
-    console.log("[gghost.js] showConnectedLocations: Successfully created and appended connected-locations div.");
-  }
+      }
 }
 
 
 function hideConnectedLocations() {
   const connectionsDiv = document.getElementById("connected-locations");
   if (connectionsDiv) {
-    console.log('Hiding connected locations...');
-    connectionsDiv.remove();
+        connectionsDiv.remove();
   }
 }
 
@@ -729,8 +686,7 @@ const groupExists = await doesSanitizedGroupNameExist(groupNameFromInput);
 if (!groupExists) {
   const confirmMsg = `Create group "${groupNameFromInput}" and add the link: ${linkUrlFromInput}?`;
   if (!confirm(confirmMsg)) {
-    console.log("[addNewGroup] User cancelled group creation.");
-    return;
+        return;
   }
 }
 const urlsToSave = [];
@@ -764,8 +720,7 @@ try {
     )
   );
 
-  console.log(`[✅] Group "${groupNameFromInput}" saved with URLs:`, urlsToSave);
-} catch (err) {
+  } catch (err) {
   console.error("[Group Creation Error]", err);
   alert(`Failed to create group "${groupNameFromInput}". Error: ${err.message}`);
 }
@@ -776,8 +731,7 @@ try {
 
 async function addUuidToGroup(groupName, uuid, newConnectedUuid, NOTE_API, userPassword) {
   try {
-    console.log("[🛂 Password used for POST]", userPassword);
-
+    
     const payload = {
       uuid: "connections",
       userName: groupName,
@@ -794,8 +748,7 @@ async function addUuidToGroup(groupName, uuid, newConnectedUuid, NOTE_API, userP
     });
 
 await checkResponse(response, `Adding UUID ${newConnectedUuid} to group ${groupName}`);
-    console.log(`✅ Added UUID ${newConnectedUuid} to group ${groupName}`);
-  } catch (err) {
+      } catch (err) {
     console.error('[Add UUID Error]', err);
   }
 }
@@ -900,8 +853,7 @@ END:VCALENDAR`.trim();
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      console.log(`[📅 Downloaded reminder .ics for ${date}]`);
-    }
+          }
 
     overlay.remove();
   };
@@ -933,8 +885,7 @@ async function getUserPasswordSafely() {
         resolve(result?.userPassword || null);
       });
     } catch (err) {
-      console.warn("[🛑 Extension context lost while getting password]", err);
-      resolve(null);
+            resolve(null);
     }
   });
 }
@@ -946,8 +897,7 @@ async function getUserNameSafely() {
         resolve(result?.userName || null);
       });
     } catch (err) {
-      console.warn("[🛑 Extension context lost while getting username]", err);
-      resolve(null);
+            resolve(null);
     }
   });
 }
@@ -1143,8 +1093,7 @@ document.addEventListener("DOMContentLoaded", function() {
 function addMicrophoneButton() {
   const reminderNote = document.getElementById("reminder-note");
   if (!reminderNote) {
-    console.warn("🎤 reminder-note element not found.");
-    return null;  // Return null to indicate it didn't attach
+        return null;  // Return null to indicate it didn't attach
   }
 
   const micButton = document.createElement("button");
@@ -1180,13 +1129,11 @@ function initializeSpeechRecognition() {
 
   recognition.onstart = () => {
     isRecognizing = true;
-    console.log("Speech recognition started.");
-  };
+      };
 
   recognition.onend = () => {
     isRecognizing = false;
-    console.log("Speech recognition ended.");
-  };
+      };
 
   recognition.onerror = (event) => {
     console.error("Speech recognition error:", event.error);
@@ -1206,16 +1153,14 @@ function initializeSpeechRecognition() {
 function attachMicButtonHandler() {
   const micButton = addMicrophoneButton(); // This function already ensures reminder-note exists
   if (!micButton) {
-    console.warn("Mic button could not be added to the reminder modal.");
-    return;
+        return;
   }
 
   // Ensure recognition is initialized. If not, this handler shouldn't have been called
   // or initializeSpeechRecognition should be called first.
   // We rely on the DOMContentLoaded listener to call initializeSpeechRecognition then attachMicButtonHandler.
   if (!recognition) {
-    console.warn("Speech recognition not initialized. Mic button will not work.");
-    // Optionally, try to initialize it here if it's robust enough
+        // Optionally, try to initialize it here if it's robust enough
     // initializeSpeechRecognition();
     // if (!recognition) return; // If still not initialized, then exit.
     return;
@@ -1248,14 +1193,12 @@ function attachMicButtonHandler() {
       recognition.onstart = () => {
         isRecognizing = true;
         micButton.innerHTML = "🛑"; // Change button to stop icon/text
-        console.log("Reminder speech recognition started.");
-      };
+              };
 
       recognition.onend = () => {
         isRecognizing = false;
         micButton.innerHTML = "🎤"; // Reset button text/icon
-        console.log("Reminder speech recognition ended.");
-         // Important: Reset onstart and onend to their defaults or clear them
+                 // Important: Reset onstart and onend to their defaults or clear them
          // if they were specifically set for this interaction, to avoid conflicts
          // with the global note's speech recognition if it uses the same `recognition` instance.
          // However, the current code seems to re-assign onresult for the global note when it starts.
@@ -1327,8 +1270,7 @@ const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
 const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
 const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
 if (uuid === "connections") {
-  console.warn("[Notes] Skipping rendering for reserved UUID: connections");
-  return;
+    return;
 }
 
   if (uuid) {
@@ -1351,8 +1293,7 @@ if (uuid === "connections") {
       0 
     );
   createButton('Show on YP', async () => {
-  console.log(`[YPButton] 🔎 Attempting to fetch slug for UUID (Show on YP): ${uuid}`);
-  const path = location.pathname;
+    const path = location.pathname;
   const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
   if (fullServiceMatch) {
     const locationId = fullServiceMatch[1];
@@ -1363,13 +1304,11 @@ if (uuid === "connections") {
       const slug = data.slug;
       const serviceName = findServiceName(data, serviceId);
       if (!slug || !serviceName) {
-        console.warn("[YPButton] ❌ Missing slug or service name for service page. Will not redirect.");
-        return;
+                return;
       }
       const forbiddenChars = /[(){}\[\]"'“”‘’—–]/;
       if (forbiddenChars.test(serviceName)) {
-        console.warn("[YPButton] 🚫 Forbidden characters in service name. Will not redirect.");
-        return;
+                return;
       }
       sessionStorage.setItem('ypScrollTarget', serviceName);
       const safeServiceName = serviceName
@@ -1380,8 +1319,7 @@ if (uuid === "connections") {
         .replace(/^-|-$/g, '');
       const serviceHash = `#${safeServiceName}`;
       const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
-      console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
-      window.location.href = finalUrl;
+            window.location.href = finalUrl;
     } catch (err) {
       console.error("[YPButton] 🛑 Error fetching location/service data for service page:", err);
       return;
@@ -1403,8 +1341,7 @@ try {
     slug: slug
   };
 if (!Array.isArray(storedData)) {
-  console.warn("Stored data is not an array. Initializing as an empty array.");
-  storedData = [];
+    storedData = [];
 }
   // Check if the entry for the current UUID already exists
   const existingEntryIndex = storedData.findIndex(entry => entry.uuid === uuid);
@@ -1417,16 +1354,13 @@ if (!Array.isArray(storedData)) {
 
   // Save the updated array back to localStorage
   localStorage.setItem("ypLastViewedService", JSON.stringify(storedData));
-  console.log(`[YPButton] ✅ Successfully stored: ${data.Organization?.name} - ${data.name} for UUID: ${uuid}`);
-
+  
   // If slug is available, redirect to the location's page on YourPeer
   if (slug) {
     const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
-    console.log(`[YPButton] ✅ Redirecting to YourPeer (location level): ${ypUrl}`);
-    window.location.href = ypUrl;
+        window.location.href = ypUrl;
   } else {
-    console.warn('[YPButton] ❌ Slug not found for location-level redirect.');
-  }
+      }
 } catch (err) {
   console.error('[YPButton] 🛑 Error fetching slug for location-level redirect:', err);
 }
@@ -1445,8 +1379,7 @@ const ypMiniBtn = createButton('YP Mini', async () => {
         ypMiniBtn.style.display = "block"; // 👈 show when closed
       });
     } else {
-      console.warn('[YP Mini] ❌ Slug not found.');
-    }
+          }
   } catch (err) {
     console.error('[YP Mini] 🛑 Error fetching slug:', err);
   }
@@ -1460,8 +1393,7 @@ const userPassword =  window.gghostPassword || await getUserPasswordSafely(); //
 
     const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
 if (!userName && !location.pathname.startsWith('/find/')) {
-  console.warn("[📝 Notes] Username not set. Prompting user to click the extension icon.");
-  const banner = document.createElement("div");
+    const banner = document.createElement("div");
   banner.id = "gg-note-username-banner";
   banner.textContent = "Click the extension icon and type your name to enable notes";
   Object.assign(banner.style, {
@@ -1525,8 +1457,7 @@ noteBox.dataset.userName = userName || "";
     });
     noteBox.style.position = 'fixed';
     noteBox.style.zIndex = 999999; 
-    console.log('🧩 Note box added to DOM:', document.getElementById('gg-note-overlay'));
-noteBox.style.scrollPaddingBottom = '40px';
+    noteBox.style.scrollPaddingBottom = '40px';
     Object.assign(noteBox.style, {
         position: "fixed",
         top: "100px",
@@ -1592,8 +1523,7 @@ const currentUuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
 
 if (currentUuid) {
   try {
-    console.log(`[Notes Header] Attempting to fetch details for UUID: ${currentUuid}`);
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${currentUuid}`);
+        const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${currentUuid}`);
     if (!res.ok) {
       throw new Error(`API request failed with status ${res.status}`);
     }
@@ -1606,24 +1536,19 @@ if (currentUuid) {
         location: locationName,
         uuid: currentUuid
       }));
-      console.log(`[Notes Header] Successfully fetched and stored: Org='${orgName}', Location='${locationName}' for UUID='${currentUuid}'`);
-    } else {
-      console.warn(`[Notes Header] API returned data but orgName or locationName is missing for UUID: ${currentUuid}. Data:`, data);
-    }
+          } else {
+          }
   } catch (err) {
     console.error(`[Notes Header] 🛑 Failed to fetch details from API for UUID ${currentUuid}:`, err);
     const stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
     if (stored.uuid === currentUuid) { 
       orgName = stored.org || "";
       locationName = stored.location || "";
-      console.log(`[Notes Header] Used fallback localStorage data: Org='${orgName}', Location='${locationName}' for UUID='${currentUuid}'`);
-    } else {
-      console.warn(`[Notes Header] localStorage data is for a different UUID (stored: ${stored.uuid}, current: ${currentUuid}) or missing.`);
-    }
+          } else {
+          }
   }
 } else {
-  console.warn("[Notes Header] UUID is not available. Cannot fetch details.");
-  const stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
+    const stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
 }
 
 if (orgName || locationName) {
@@ -1816,8 +1741,7 @@ if (isEditable) {
 //   })
 //     .then(res => checkResponse(res, "Saving note"))  // <-- Check here
 //     .then(() => {
-//       console.log(`[📝 Saved ${userName}'s note for ${today}]`);
-//     })
+//       //     })
 //     .catch(err => {
 //       console.error("[❌ Failed to save note]", err);
 //       alert(err.message); // Optional: showErrorBanner(err.message);
@@ -1844,8 +1768,7 @@ if (isEditable) {
 //     })
 //       .then(res => checkResponse(res, "Saving note"))
 //       .then(() => {
-//         console.log(`[📝 Saved ${userName}'s note for ${today}]`);
-//       })
+//         //       })
 //       .catch(err => {
 //         console.error("[❌ Failed to save note]", err);
 //         alert(err.message);
@@ -1873,7 +1796,7 @@ editableDiv.addEventListener("input", () => {
       });
 
       await checkResponse(response, note ? "Saving note" : "Deleting note");
-      console.log(note ? `[📝 Saved ${userName}'s note for ${today}]` : `[🗑️ Deleted ${userName}'s note for ${today}]`);
+      
     } catch (err) {
       console.error("[❌ Failed to save/delete note]", err);
       alert(err.message);
@@ -1933,8 +1856,7 @@ if (!userNoteForToday && !isRevalidatedToday) {
           })
         });
 
-        console.log(`[✅ Checkbox] Marked ${userName}'s note as revalidated for ${today}]`);
-
+        
  // Remove checkbox and clear editor
 checkboxWrapper.remove();
 editableDiv.innerText = "";
@@ -1969,8 +1891,7 @@ liveTranscribeBtn.style.marginRight = "5px";
 //   const rec = new webkitSpeechRecognition();
 //   rec.continuous = false;
 //   rec.interimResults = false;
-//   rec.onresult = (e) => console.log("✅ Transcript:", e.results[0][0].transcript);
-//   rec.onerror = (e) => console.error("❌ Error:", e.error);
+//   rec.onresult = (e) => //   rec.onerror = (e) => console.error("❌ Error:", e.error);
 //   try {
 //     rec.start();
 //   } catch (err) {
@@ -2001,20 +1922,17 @@ aiFormatBtn.addEventListener("click", async () => {
   aiFormatBtn.textContent = "Formatting...";
 
   try {
-  console.log("[AI Button] Raw note:", rawNote);
-
+  
 const response = await fetch("https://convertnotetostructuredinfo-iygwucy2fa-uc.a.run.app", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ noteText: rawNote })
 });
 
-console.log("[AI Button] Received response:", response);
 
 
     const data = await response.json();
-    console.log("[AI Button] Parsed response JSON:", data);
-
+    
     if (data.structuredInfo) {
       editableDiv.innerText = data.structuredInfo;
     } else {
@@ -2053,14 +1971,12 @@ liveTranscribeBtn.addEventListener("click", () => {
   recognition.onstart = () => {
     isRecognizing = true;
     liveTranscribeBtn.textContent = "Stop Transcribing";
-    console.log("[Live Transcribe] Started.");
-  };
+      };
 
   recognition.onend = () => {
     isRecognizing = false;
     liveTranscribeBtn.textContent = "🎤 Start Transcribing";
-    console.log("[Live Transcribe] Stopped.");
-  };
+      };
 
   recognition.onerror = (event) => {
     isRecognizing = false;
@@ -2131,8 +2047,7 @@ document.body.appendChild(noteWrapper);
 }
     const pendingUuidSession = sessionStorage.getItem('ypPendingRedirect');
     if (pendingUuidSession && path.startsWith('/find/location/')) { 
-      console.log('[YPButton] 🧭 Landed on /find from team with YP intent (clearing pending)');
-      sessionStorage.removeItem('ypPendingRedirect');
+            sessionStorage.removeItem('ypPendingRedirect');
     }
     return; 
   }
@@ -2162,8 +2077,7 @@ document.addEventListener('visibilitychange', () => {
 
   chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (request.type === "userNameUpdated") {
-      console.log("[gghost.js] Received userNameUpdated message:", request.userName);
-      const existingOverlay = document.getElementById("gg-note-overlay");
+            const existingOverlay = document.getElementById("gg-note-overlay");
       if (existingOverlay) {
         existingOverlay.remove();
       }

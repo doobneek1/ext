@@ -224,16 +224,12 @@ chrome.storage.local.set({ userPassword: newPassword });
 
   chrome.tabs.sendMessage(tab.id, { type: "userNameUpdated", userName: newUserName }, (response) => {
     if (chrome.runtime.lastError) {
-      console.warn("[popup.js] ⚠️ Message failed:", chrome.runtime.lastError.message);
-    } else {
-      console.log("[popup.js] ✅ Message acknowledged:", response);
-    }
+          } else {
+          }
   });  chrome.tabs.sendMessage(tab.id, { type: "passwordUpdated", userPassword: newPassword }, (response) => {
     if (chrome.runtime.lastError) {
-      console.warn("[popup.js] ⚠️ Message failed:", chrome.runtime.lastError.message);
-    } else {
-      console.log("[popup.js] ✅ Message acknowledged:", response);
-    }
+          } else {
+          }
   });
 }
 

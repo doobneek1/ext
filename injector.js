@@ -8,8 +8,7 @@
 
   if (lastPath !== currentPath) {
     sessionStorage.setItem('formatterLastPath', currentPath);
-    console.log('[Formatter] Path changed, reloading page for injection...');
-    location.reload();
+        location.reload();
     return;
   }
 
@@ -298,8 +297,7 @@
   };
 
   return text.replace(/\b(su|mo|tu|we|th|fr|sa)-(su|mo|tu|we|th|fr|sa)\b/gi, (_, startAbbr, endAbbr) => {
-      console.log('[expandDayRange]', startAbbr, endAbbr);
-
+      
     const start = startAbbr.toLowerCase();
     const end = endAbbr.toLowerCase();
     const startIdx = days.indexOf(start);

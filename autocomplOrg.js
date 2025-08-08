@@ -82,8 +82,7 @@ async function loadOrgList() {
       });
 
     } catch (err) {
-      console.warn('[Org Autocomplete] Error:', err);
-    }
+          }
   }
 
   function monitorOrgPageRoute() {

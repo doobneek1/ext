@@ -136,14 +136,12 @@ document.querySelectorAll('div[id]').forEach(async section => {
     const metadataList = matchingService?.metadata?.service;
 
     if (!Array.isArray(metadataList)) {
-      console.warn(`[⚠️ Missing metadata.service for] ${service.name}`);
-      return;
+            return;
     }
 
     const lastDescriptionUpdate = metadataList.find(f => f.field_name === 'description')?.last_action_date;
     if (!lastDescriptionUpdate) {
-      console.warn(`[⚠️ Missing description update for] ${service.name}`);
-      return;
+            return;
     }
 
     const pTag = section.querySelector('p.text-sm.text-dark.mb-4.have-links');

@@ -14,8 +14,7 @@
     if (!isTargetPage(currentUrl)) return;
     if (document.getElementById(BUTTON_ID)) return;
 
-    console.log('[YP] 🆕 Injecting Re-center button');
-
+    
     const button = document.createElement('button');
     button.id = BUTTON_ID;
     button.textContent = 'Re-center';
@@ -35,13 +34,11 @@
     });
 
     button.addEventListener('click', () => {
-      console.log('[YP] 🔍 Triggering TEST FOR FEEDBACK');
-
+      
       try {
         const input = document.querySelector('input.form-control[placeholder*="organization name"]');
         if (!input) {
-          console.warn('[YP] ⚠️ Input field not found');
-          return;
+                    return;
         }
 
         input.focus();
@@ -58,21 +55,18 @@
 
           if (item) {
             item.click();
-            console.log('[YP] ✅ Clicked TEST FOR FEEDBACK item');
-            clearInterval(checkDropdown);
+                        clearInterval(checkDropdown);
 
             const checkCloseBtn = setInterval(() => {
               const closeBtn = document.querySelector('button.gm-ui-hover-effect[aria-label="Close"]');
               if (closeBtn && closeBtn.offsetParent !== null) {
                 closeBtn.click();
-                console.log('[YP] ✅ Close button clicked');
-                clearInterval(checkCloseBtn);
+                                clearInterval(checkCloseBtn);
               }
             }, 100);
 
           } else if (waited >= maxWaitTime) {
-            console.warn('[YP] ❌ Dropdown item not found within time limit');
-            clearInterval(checkDropdown);
+                        clearInterval(checkDropdown);
           } else {
             waited += interval;
           }
