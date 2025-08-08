@@ -11,9 +11,7 @@ if (/\/closureInfo\/?$/.test(currentUrl)) {
   console.warn('[YP] ✅ OK clicked on /closureInfo — waiting for YES and BACK TO THE MAP');
 
   localStorage.setItem('ypLastOkClickTime', Date.now().toString());
-  setTimeout(() => {
-okBtn.click()
-  }, 100); // Adjust delay as needed (e.g., 300–500ms)
+
 
   const yesButtonSelector = 'button.Button-primary.Button-fluid';
   const backToMapButtonSelector = 'button.Button.mt-4.Button-primary.Button-fluid';
@@ -232,7 +230,7 @@ function tryClickNoLetsEdit() {
   const isOtherMatch = /\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl);
 
   // ⏳ Skip if OK was clicked in the last 5s (for closureInfo)
-  if ((isclosureInfo || isOtherMatch) && elapsed < 5000) {
+  if ((isclosureInfo || isOtherMatch) && elapsed < 10000) {
     console.log(`[YP] ⏳ Skipping 'NO, LET'S EDIT IT' — recent OK click (${elapsed}ms ago)`);
     return;
   }
