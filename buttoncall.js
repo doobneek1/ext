@@ -37,14 +37,16 @@
         transition: `opacity ${bannerFadeTime / 1000}s ease-in-out`,
       });
       document.body.appendChild(banner);
-      
+      console.log('[ℹ️] Banner shown.');
+
       setTimeout(() => {
         banner.style.opacity = '0';
         setTimeout(() => {
           if (banner.parentElement) {
             banner.remove();
           }
-                    resolve(); // Resolve the promise when banner is gone.
+          console.log('[ℹ️] Banner removed.');
+          resolve(); // Resolve the promise when banner is gone.
         }, bannerFadeTime);
       }, bannerDisplayTime);
     });
@@ -55,23 +57,28 @@
     if (callButtonMutationObserver) {
       callButtonMutationObserver.disconnect();
       callButtonMutationObserver = null;
-          }
+      console.log('[ℹ️] Disconnected call button observer.');
+    }
   }
 
   function observeForCallButton() {
     if (callClicked) { // If call already processed or being processed
-                return;
+        console.log('[ℹ️] Call button action already initiated or completed. Observer not started.');
+        return;
     }
     
     disconnectCallButtonObserver(); // Ensure any old observer is gone
 
-        callButtonMutationObserver = new MutationObserver((mutations, observer) => {
+    console.log(`[ℹ️] Starting observer for button: ${BUTTON_SELECTOR}`);
+    callButtonMutationObserver = new MutationObserver((mutations, observer) => {
       if (!location.href.includes(TARGET_PAGE_IDENTIFIER)) {
-                disconnectCallButtonObserver(); // Self-disconnect if page context changes
+        console.log('[ℹ️] No longer on voice call page (checked in observer). Disconnecting call button observer.');
+        disconnectCallButtonObserver(); // Self-disconnect if page context changes
         return;
       }
 
       if (callClicked) { // Double check flag, in case of rapid mutations
+        // console.log('[ℹ️] Call already clicked (checked in observer). Disconnecting.'); // Can be noisy
         disconnectCallButtonObserver(); 
         return;
       }
@@ -79,16 +86,21 @@
       const button = document.querySelector(BUTTON_SELECTOR);
       if (button) {
         callClicked = true; // Set flag: we found it and will attempt to click.
-                
+        console.log('[✅] Found Call button. Waiting for banner removal if necessary, then clicking.');
+        
         // Ensure observer doesn't fire again for this found button
         disconnectCallButtonObserver(); 
 
         bannerRemovalPromise.then(() => {
-                    setTimeout(() => { // Grace period after banner removal
+          console.log('[ℹ️] Banner removal promise resolved. Proceeding to click.');
+          setTimeout(() => { // Grace period after banner removal
             if (document.body.contains(button) && !button.disabled) {
-                            button.click();
-                          } else {
-                            // Optionally reset callClicked = false; here if a retry is desired, but can lead to loops.
+              console.log(`[Attempting click on button: ${BUTTON_SELECTOR}]`);
+              button.click();
+              console.log('[✅] Clicked the Call button.');
+            } else {
+              console.log(`[❌] Button (${BUTTON_SELECTOR}) no longer valid or available for click.`);
+              // Optionally reset callClicked = false; here if a retry is desired, but can lead to loops.
               // For now, assume failure means this attempt is over.
             }
             // No need to disconnect observer here, already done after finding button.
@@ -102,7 +114,8 @@
     });
 
     callButtonMutationObserver.observe(document.body, { childList: true, subtree: true });
-      }
+    console.log('[ℹ️] Call button observer watching document.body.');
+  }
 
   function runOnVoiceCallPage() {
     const isVoiceCallPage = location.href.includes(TARGET_PAGE_IDENTIFIER);
@@ -110,7 +123,8 @@
     if (!isVoiceCallPage) {
       if (bannerShown || callClicked || callButtonMutationObserver) {
           // Only log reset if there was something to reset
-                }
+          console.log(`[ℹ️] Not on target page (${TARGET_PAGE_IDENTIFIER}). Resetting state.`);
+      }
       bannerShown = false; 
       callClicked = false; 
       disconnectCallButtonObserver();
@@ -118,21 +132,25 @@
       return;
     }
 
-        showLoadingBanner(); 
+    console.log(`[ℹ️] On target page (${TARGET_PAGE_IDENTIFIER}). Initializing script logic.`);
+    showLoadingBanner(); 
     observeForCallButton();
   }
 
   // Handle initial page load
-    runOnVoiceCallPage();
+  console.log('[ℹ️] Script starting. Initial check for voice call page.');
+  runOnVoiceCallPage();
 
   // Also handle SPA navigation
   let lastUrl = location.href;
   new MutationObserver(() => {
     const currentUrl = location.href;
     if (currentUrl !== lastUrl) {
-            lastUrl = currentUrl;
+      console.log(`[ℹ️] URL changed detected. From: ${lastUrl} To: ${currentUrl}`);
+      lastUrl = currentUrl;
       runOnVoiceCallPage(); // Re-evaluate state based on new URL
     }
   }).observe(document.body, { childList: true, subtree: true }); // Broad observer for URL change detection
 
-  })();
+  console.log('[ℹ️] Script initialized. Waiting for page changes or button.');
+})();

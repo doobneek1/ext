@@ -8,7 +8,8 @@ document.addEventListener('click', (e) => {
   const currentUrl = window.location.href.replace(/\/$/, ''); // remove trailing slash if present
   localStorage.setItem('ypLastOkClickTime', Date.now().toString());
 if (/\/closureInfo\/?$/.test(currentUrl)) {
-  
+  console.warn('[YP] ✅ OK clicked on /closureInfo — waiting for YES and BACK TO THE MAP');
+
   localStorage.setItem('ypLastOkClickTime', Date.now().toString());
 
 
@@ -20,7 +21,8 @@ if (/\/closureInfo\/?$/.test(currentUrl)) {
     waitForElement(yesButtonSelector)
       .then((yesBtn) => {
         if (yesBtn.textContent.trim().toUpperCase() === 'YES') {
-                    yesBtn.click();
+          console.warn('[YP] ✅ Clicking "YES" button');
+          yesBtn.click();
 
           return waitForElement(backToMapButtonSelector);
         } else {
@@ -29,13 +31,15 @@ if (/\/closureInfo\/?$/.test(currentUrl)) {
       })
       .then((backToMapBtn) => {
         if (backToMapBtn.textContent.trim().toUpperCase() === 'BACK TO THE MAP') {
-                    backToMapBtn.click();
+          console.warn('[YP] 🗺️ Clicking "BACK TO THE MAP" button');
+          backToMapBtn.click();
         } else {
           throw new Error('BACK TO THE MAP button text mismatch');
         }
       })
       .catch((err) => {
-              });
+        console.warn(`[YP] ⚠️ ${err.message}`);
+      });
   }, 300); // Adjust delay as needed (e.g., 300–500ms)
 
   return;
@@ -46,7 +50,8 @@ if (/\/closureInfo\/?$/.test(currentUrl)) {
 if (
   currentUrl.endsWith('location') ||
   currentUrl.endsWith('services')
-){        return;
+){    console.log('[YP] 🛑 OK click ignored on services or location page');
+    return;
   }
 
 // 🛑 Special case: /questions/website → replace with /services
@@ -74,16 +79,19 @@ if (/\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-i
 
   waitForElement(yesButtonSelector)
     .then((yesButton) => {
-            yesButton.click();
+      console.warn('[YP] ✅ Clicking "YES" button');
+      yesButton.click();
 
       // Wait for "GO TO NEXT SECTION" button after clicking YES
       return waitForElement(nextButtonSelector);
     })
     .then((nextButton) => {
-            nextButton.click();
+      console.warn('[YP] ✅ Clicking "GO TO NEXT SECTION" button after YES');
+      nextButton.click();
     })
     .catch((err) => {
-          });
+      console.warn(`[YP] ⚠️ ${err.message}`);
+    });
 
   return;
 }
@@ -92,10 +100,12 @@ if (/\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-i
 
   // Skip the first OK button with extra margin classes
   if (okBtn.classList.contains('mt-3') && okBtn.classList.contains('mb-3')) {
-        return;
+    console.log('[YP] 🖱️ First OK button clicked (mt-3 mb-3) — no redirect yet');
+    return;
   }
 
-  
+  console.log(`[YP] ✅ Final OK-type button clicked ("${btnText}") — will redirect if chevron is disabled`);
+
   setTimeout(() => {
     const arrowButton = document.querySelector('button.Button-compact svg.fa-chevron-down')?.closest('button');
 
@@ -111,10 +121,12 @@ document.addEventListener('click', (e) => {
 
   const text = dropdownItem.textContent.trim().toUpperCase();
   if (text === 'TEST FOR FEEDBACK') {
-        return;
+    console.log('[YP] ⏩ Skipped timestamp for TEST FOR FEEDBACK');
+    return;
   }
 
-    chrome.storage.local.set({ recentDropdownClick: Date.now() });
+  console.log('[YP] 🕒 Dropdown item clicked — storing timestamp');
+  chrome.storage.local.set({ recentDropdownClick: Date.now() });
 });
 
 
@@ -129,9 +141,11 @@ function tryClickYesButton() {
     const elapsed = now - lastClick;
 
     if (elapsed <= 10000) {
-            yesBtn.click();
+      console.log('[YP] ✅ YES button found & recent dropdown click detected — clicking YES');
+      yesBtn.click();
     } else {
-          }
+      console.log(`[YP] ⏳ Skipping YES click — no recent dropdown activity (Δ ${elapsed}ms)`);
+    }
   });
 }
 
@@ -143,10 +157,12 @@ function autoClickServiceTabs() {
   // Select all active service tab buttons
   const buttons = document.querySelectorAll('button.Item.w-100.Item-active');
   if (buttons.length === 0) {
-        return;
+    console.log('[YP] ℹ️ No active service tab buttons found.');
+    return;
   }
 
-    buttons.forEach(btn => btn.click());
+  console.log(`[YP] 🔘 Found ${buttons.length} active service tab buttons — clicking each...`);
+  buttons.forEach(btn => btn.click());
 }
 autoClickServiceTabs();
 
@@ -187,15 +203,18 @@ if (cancelBtn && cancelBtn.textContent.trim().toUpperCase() === 'CANCEL') {
 
 //     // ✅ Skip clicking "NO, LET'S EDIT IT" if "OK" was clicked within the last second
 //     if (now - lastOkClickTime < 5000) {
-//       //       return;
+//       console.log("[YP] Skipping 'NO, LET'S EDIT IT' — 'OK' clicked too recently.");
+//       return;
 //     }
 //   if (btn && btn.textContent.trim().toUpperCase().includes("NO, LET'S EDIT IT")) {
 //       btn.click();
-//       //     }
+//       console.log("[YP] Clicked 'NO, LET'S EDIT IT'");
+//     }
    
 //   } else if (btn && btn.textContent.trim().toUpperCase().includes("NO, LET'S EDIT IT")) {
 //       btn.click();
-//       //     }
+//       console.log("[YP] Clicked 'NO, LET'S EDIT IT'");
+//     }
 // }
 
 function tryClickNoLetsEdit() {
@@ -212,12 +231,14 @@ function tryClickNoLetsEdit() {
 
   // ⏳ Skip if OK was clicked in the last 5s (for closureInfo)
   if ((isclosureInfo || isOtherMatch) && elapsed < 10000) {
-        return;
+    console.log(`[YP] ⏳ Skipping 'NO, LET'S EDIT IT' — recent OK click (${elapsed}ms ago)`);
+    return;
   }
 
   if (btn && btn.textContent.trim().toUpperCase().includes("NO, LET'S EDIT IT")) {
     btn.click();
-      }
+    console.log("[YP] ✅ Clicked 'NO, LET'S EDIT IT'");
+  }
 }
 
 

@@ -2,7 +2,8 @@
   // === GMAIL SPECIFIC INJECTION LOGIC ===
  if (location.hostname.includes('mail.google.com')) {
     const ensureInjected = () => {
-            injectGmailComposerUI(); // ← Always inject, no conditions
+      console.log('[Formatter] Forcing Gmail UI injection...');
+      injectGmailComposerUI(); // ← Always inject, no conditions
     };
 
     // Inject immediately

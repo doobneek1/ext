@@ -8,7 +8,8 @@
 
   if (lastPath !== currentPath) {
     sessionStorage.setItem('formatterLastPath', currentPath);
-        location.reload();
+    console.log('[Formatter] Path changed, reloading page for injection...');
+    location.reload();
     return;
   }
 
@@ -297,7 +298,8 @@
   };
 
   return text.replace(/\b(su|mo|tu|we|th|fr|sa)-(su|mo|tu|we|th|fr|sa)\b/gi, (_, startAbbr, endAbbr) => {
-      
+      console.log('[expandDayRange]', startAbbr, endAbbr);
+
     const start = startAbbr.toLowerCase();
     const end = endAbbr.toLowerCase();
     const startIdx = days.indexOf(start);
@@ -380,23 +382,56 @@ function formatTimeRange(text) {
             return `<a href="mailto:${match}">${match}</a>`;
           }
           const labelMatch = match.match(/^((https?:\/\/)?[^\s<>()|]+\.[^\s<>()|]+)(?:\|\(([^)]+)\))?$/);
+          // if (labelMatch) {
+          //   let [, rawUrl, scheme, label] = labelMatch;
+          //   let trailing = '';
+          //   if (!label) {
+          //     const forbiddenEnd = /[.,;:!?]$/;
+          //     if (forbiddenEnd.test(rawUrl)) {
+          //       trailing = rawUrl.slice(-1);
+          //       rawUrl = rawUrl.slice(0, -1);
+          //     }
+          //   }
+          //   const urlWithScheme = scheme ? rawUrl : `https://${rawUrl}`;
+          //   const cleanedLabel = urlWithScheme.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+          //   const display = label || cleanedLabel;
+          //   const isYourPeer = urlWithScheme.includes('yourpeer.nyc');
+          //   const targetAttr = isYourPeer ? '' : 'target="_blank" rel="noopener noreferrer"';
+          //   return `<a href="${urlWithScheme}" ${targetAttr}>${display}</a>${trailing}`;
+          // }
           if (labelMatch) {
-            let [, rawUrl, scheme, label] = labelMatch;
-            let trailing = '';
-            if (!label) {
-              const forbiddenEnd = /[.,;:!?]$/;
-              if (forbiddenEnd.test(rawUrl)) {
-                trailing = rawUrl.slice(-1);
-                rawUrl = rawUrl.slice(0, -1);
-              }
-            }
-            const urlWithScheme = scheme ? rawUrl : `https://${rawUrl}`;
-            const cleanedLabel = urlWithScheme.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
-            const display = label || cleanedLabel;
-            const isYourPeer = urlWithScheme.includes('yourpeer.nyc');
-            const targetAttr = isYourPeer ? '' : 'target="_blank" rel="noopener noreferrer"';
-            return `<a href="${urlWithScheme}" ${targetAttr}>${display}</a>${trailing}`;
-          }
+  let [, rawUrl, scheme, label] = labelMatch;
+  let trailing = '';
+
+  // Check final TLD length from the last dot
+  const lastDotIndex = rawUrl.lastIndexOf('.');
+  const tld = rawUrl.slice(lastDotIndex + 1);
+  if (!/^[a-z]{2,4}$/i.test(tld)) {
+    return match; // skip hyperlink if not a valid TLD length
+  }
+
+  // Make sure the bit before the TLD isn't just 1–2 letters (prevents "St.")
+  const preTLD = rawUrl.slice(rawUrl.lastIndexOf('.', lastDotIndex - 1) + 1, lastDotIndex);
+  if (preTLD.length < 2) {
+    return match; // too short, probably an abbreviation
+  }
+
+  if (!label) {
+    const forbiddenEnd = /[.,;:!?]$/;
+    if (forbiddenEnd.test(rawUrl)) {
+      trailing = rawUrl.slice(-1);
+      rawUrl = rawUrl.slice(0, -1);
+    }
+  }
+
+  const urlWithScheme = scheme ? rawUrl : `https://${rawUrl}`;
+  const cleanedLabel = urlWithScheme.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+  const display = label || cleanedLabel;
+  const isYourPeer = urlWithScheme.includes('yourpeer.nyc');
+  const targetAttr = isYourPeer ? '' : 'target="_blank" rel="noopener noreferrer"';
+  return `<a href="${urlWithScheme}" ${targetAttr}>${display}</a>${trailing}`;
+}
+
           return match;
         }
       );

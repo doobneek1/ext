@@ -98,7 +98,8 @@
 
       const observerTimeout = setTimeout(() => {
         observer.disconnect();
-              }, timeout);
+        console.warn("⏳ Timeout: Did not find pagination element.");
+      }, timeout);
     };
 
     document.body.appendChild(btn);

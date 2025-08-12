@@ -7,9 +7,11 @@ function maybeRedirect(details) {
       let newUrl;
       if (redirectEnabled) {
         newUrl = `https://gogetta.nyc/team/location/${match[1]}/services/recap`;
-              } else {
+        console.log(`[Redirect] Redirecting to: ${newUrl}`);
+      } else {
         newUrl = `https://gogetta.nyc/team/location/${match[1]}`;
-              }
+        console.log(`[Redirect] Redirecting to: ${newUrl}`);
+      }
       chrome.tabs.update(details.tabId, { url: newUrl });
     }
   });
@@ -79,9 +81,11 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(maybeRedirect, {
 //     try {
 //       const res = await fetch(url);
 //       const data = await res.json();
-//       //       sendResponse({ predictions: data.predictions || [] });
+//       console.log('[YP] ✅ Responding with:', data.predictions);
+//       sendResponse({ predictions: data.predictions || [] });
 //     } catch (err) {
-//       //       sendResponse({ predictions: [] });
+//       console.warn('[YP] ❌ Fetch error:', err);
+//       sendResponse({ predictions: [] });
 //     }
 
 //     return true; // ✅ THIS LINE IS CRITICAL
@@ -144,10 +148,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     fetch(url)
       .then(res => res.json())
       .then(data => {
-                sendResponse({ predictions: data.predictions || [] });
+        console.log('[YP] ✅ Responding with:', data.predictions);
+        sendResponse({ predictions: data.predictions || [] });
       })
       .catch(err => {
-                sendResponse({ predictions: [] });
+        console.warn('[YP] ❌ Fetch error:', err);
+        sendResponse({ predictions: [] });
       });
     return true; // ✅ Keep port open for async
   }

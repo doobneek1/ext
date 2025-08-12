@@ -15,7 +15,8 @@ function groupOrgsByName(locations) {
   }
 
   const orgEntries = Array.from(orgMap.entries());
-  
+  console.log(`Loaded ${orgEntries.length} unique org IDs`);
+
   for (let i = 0; i < orgEntries.length; i++) {
     const [orgIdA, nameA] = orgEntries[i];
     if (usedOrgIds.has(orgIdA)) continue;
@@ -47,10 +48,12 @@ function groupOrgsByName(locations) {
     result[group.name] = group.ids;
   }
 
-    return result;
+  console.log(`✅ Grouped ${Object.keys(result).length} org name clusters.`);
+  return result;
 }
 
 const groupedOrgs = groupOrgsByName(locations);
 
 // 💾 Write to file
 fs.writeFileSync("grouped_orgs.json", JSON.stringify(groupedOrgs, null, 2));
+console.log("✅ grouped_orgs.json written.");

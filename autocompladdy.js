@@ -52,7 +52,8 @@
 //       { type: 'getAddressSuggestions', input },
 //       (response) => {
 //         if (chrome.runtime.lastError) {
-// //           return resolve([]);
+// console.warn('[YP] Message error:', chrome.runtime.lastError?.message);
+//           return resolve([]);
 //         }
 //         resolve(response.predictions);
 //       }
@@ -124,7 +125,8 @@
 //       }, 200);
 //     });
 //   } catch (err) {
-//     //   }
+//     console.warn('[YourPeer] Address autocomplete error:', err);
+//   }
 // })();
 (async function () {
   function formatAddress(fullAddress) {
@@ -169,7 +171,8 @@
         { type: 'getAddressSuggestions', input },
         (response) => {
           if (chrome.runtime.lastError) {
-                        return resolve([]);
+            console.warn('[YP] Message error:', chrome.runtime.lastError?.message);
+            return resolve([]);
           }
           resolve(response.predictions);
         }
@@ -237,7 +240,8 @@
         }, 200);
       });
     } catch (err) {
-          }
+      console.warn('[YourPeer] Address autocomplete error:', err);
+    }
   }
 
   // 🔁 Monitor SPA navigation changes
