@@ -357,88 +357,92 @@ function formatTimeRange(text) {
     });
   }
 
-  function safeHyperlink(text) {
-    const parts = text.split(/(<a .*?>.*?<\/a>)/g);
-    const output = [];
-    for (let part of parts) {
-      if (part.startsWith('<a ')) {
-        output.push(part);
-        continue;
-      }
-      part = part.replace(
-        /(?<!href=")(?<!<a[^>]*>)(\b([\w.-]+@[\w.-]+\.\w+|((https?:\/\/)?[^\s<>()|]+\.[^\s<>()|]+))(?:\|\(([^)]+)\))?|\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?:,\d+)?)(?![^<]*>)/g,
-        (match) => {
-          const phoneMatch = match.match(/^(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})(?:,(\d+))?$/);
-          if (phoneMatch) {
-            const clean = phoneMatch[1].replace(/\D/g, '');
-            const ext = phoneMatch[2];
-            const formatted = `(${clean.slice(0, 3)}) ${clean.slice(3, 6)}-${clean.slice(6)}`;
-            return ext
-              ? `<a href="tel:${clean},${ext}">${formatted} x${ext}</a>`
-              : `<a href="tel:${clean}">${formatted}</a>`;
-          }
-          const emailMatch = match.match(/^[\w.-]+@[\w.-]+\.\w+$/);
-          if (emailMatch) {
-            return `<a href="mailto:${match}">${match}</a>`;
-          }
-          const labelMatch = match.match(/^((https?:\/\/)?[^\s<>()|]+\.[^\s<>()|]+)(?:\|\(([^)]+)\))?$/);
-          // if (labelMatch) {
-          //   let [, rawUrl, scheme, label] = labelMatch;
-          //   let trailing = '';
-          //   if (!label) {
-          //     const forbiddenEnd = /[.,;:!?]$/;
-          //     if (forbiddenEnd.test(rawUrl)) {
-          //       trailing = rawUrl.slice(-1);
-          //       rawUrl = rawUrl.slice(0, -1);
-          //     }
-          //   }
-          //   const urlWithScheme = scheme ? rawUrl : `https://${rawUrl}`;
-          //   const cleanedLabel = urlWithScheme.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
-          //   const display = label || cleanedLabel;
-          //   const isYourPeer = urlWithScheme.includes('yourpeer.nyc');
-          //   const targetAttr = isYourPeer ? '' : 'target="_blank" rel="noopener noreferrer"';
-          //   return `<a href="${urlWithScheme}" ${targetAttr}>${display}</a>${trailing}`;
-          // }
-          if (labelMatch) {
-  let [, rawUrl, scheme, label] = labelMatch;
-  let trailing = '';
+function safeHyperlink(text) {
+  const parts = text.split(/(<a .*?>.*?<\/a>)/g);
+  const output = [];
 
-  // Check final TLD length from the last dot
-  const lastDotIndex = rawUrl.lastIndexOf('.');
-  const tld = rawUrl.slice(lastDotIndex + 1);
-  if (!/^[a-z]{2,4}$/i.test(tld)) {
-    return match; // skip hyperlink if not a valid TLD length
-  }
-
-  // Make sure the bit before the TLD isn't just 1–2 letters (prevents "St.")
-  const preTLD = rawUrl.slice(rawUrl.lastIndexOf('.', lastDotIndex - 1) + 1, lastDotIndex);
-  if (preTLD.length < 2) {
-    return match; // too short, probably an abbreviation
-  }
-
-  if (!label) {
-    const forbiddenEnd = /[.,;:!?]$/;
-    if (forbiddenEnd.test(rawUrl)) {
-      trailing = rawUrl.slice(-1);
-      rawUrl = rawUrl.slice(0, -1);
+  for (let part of parts) {
+    if (part.startsWith('<a ')) {
+      output.push(part);
+      continue;
     }
+
+    part = part.replace(
+      /(?<!href=")(?<!<a[^>]*>)(\b([\w.-]+@[\w.-]+\.\w+|((https?:\/\/)?[^\s<>()|]+\.[^\s<>()|]+(?:\/[^\s<>()|]*)?))(?:\|\(([^)]+)\))?|\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?:,\d+)?)(?![^<]*>)/g,
+      (match) => {
+        // Phone
+        const phoneMatch = match.match(/^(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})(?:,(\d+))?$/);
+        if (phoneMatch) {
+          const clean = phoneMatch[1].replace(/\D/g, '');
+          const ext = phoneMatch[2];
+          const formatted = `(${clean.slice(0, 3)}) ${clean.slice(3, 6)}-${clean.slice(6)}`;
+          return ext
+            ? `<a href="tel:${clean},${ext}">${formatted} x${ext}</a>`
+            : `<a href="tel:${clean}">${formatted}</a>`;
+        }
+
+        // Email
+        const emailMatch = match.match(/^[\w.-]+@[\w.-]+\.\w+$/);
+        if (emailMatch) {
+          return `<a href="mailto:${match}">${match}</a>`;
+        }
+
+        // URL (with optional label)
+        const labelMatch = match.match(/^((https?:\/\/)?[^\s<>()|]+\.[^\s<>()|]+(?:\/[^\s<>()|]*)?)(?:\|\(([^)]+)\))?$/);
+        if (labelMatch) {
+          let [, rawUrl, scheme, label] = labelMatch;
+          let trailing = '';
+
+          // If no label, peel off trailing punctuation like ".", ",", etc.
+          if (!label) {
+            const forbiddenEnd = /[.,;:!?]$/;
+            if (forbiddenEnd.test(rawUrl)) {
+              trailing = rawUrl.slice(-1);
+              rawUrl = rawUrl.slice(0, -1);
+            }
+          }
+
+          // Ensure scheme
+          const urlWithScheme = scheme ? rawUrl : `https://${rawUrl}`;
+
+          // Parse safely and validate using the hostname only
+          let u;
+          try {
+            u = new URL(urlWithScheme);
+          } catch {
+            return match; // not a parsable URL — leave as-is
+          }
+
+          const host = u.hostname;           // e.g., "yourpeer.nyc"
+          const parts = host.split('.');
+          if (parts.length < 2) return match; // needs at least sld.tld
+
+          const tld = parts[parts.length - 1];
+          const sld = parts[parts.length - 2];
+
+          // Basic sanity checks: TLD letters 2–24; SLD length >= 2
+          if (!/^[a-z]{2,24}$/i.test(tld)) return match;
+          if (!sld || sld.length < 2) return match;
+
+          // Display: use label if provided; else show host + path (no scheme)
+          const display = label || (u.host + u.pathname + u.search + u.hash).replace(/^www\./, '');
+
+          const isYourPeer = host.endsWith('yourpeer.nyc');
+          const targetAttr = isYourPeer ? '' : 'target="_blank" rel="noopener noreferrer"';
+
+          return `<a href="${u.href}" ${targetAttr}>${display}</a>${trailing}`;
+        }
+
+        return match;
+      }
+    );
+
+    output.push(part);
   }
 
-  const urlWithScheme = scheme ? rawUrl : `https://${rawUrl}`;
-  const cleanedLabel = urlWithScheme.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
-  const display = label || cleanedLabel;
-  const isYourPeer = urlWithScheme.includes('yourpeer.nyc');
-  const targetAttr = isYourPeer ? '' : 'target="_blank" rel="noopener noreferrer"';
-  return `<a href="${urlWithScheme}" ${targetAttr}>${display}</a>${trailing}`;
+  return output.join('');
 }
 
-          return match;
-        }
-      );
-      output.push(part);
-    }
-    return output.join('');
-  }
 
 function processText(input) {
   const normalized = input
