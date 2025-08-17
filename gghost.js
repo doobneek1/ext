@@ -4,6 +4,177 @@ function normalizeOrgName(name) {
     .replace(/[^a-z0-9]/gi, '') 
     .trim();
 }
+// ---- Site Visit helpers ----
+async function fetchSiteVisitRecord(uuid) {
+  const url = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/siteVisit/${uuid}.json`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`SiteVisit fetch failed: ${r.status}`);
+  return await r.json(); // null if not present
+}
+
+// Fire-and-forget delete/incinerate on your backend.
+// Recommended: POST JSON to a dedicated endpoint; fallback to GET with querystring if needed.
+async function incinerateSiteVisitRecord({ uuid, userName, userPassword }) {
+  try {
+    // Preferred (POST JSON; safer than putting secrets in URL)
+    await fetch(`https://doobneek.org/api/sitevisit/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uuid, name: userName, pw: userPassword }),
+      // You likely don't need credentials; CORS can be configured server-side
+    });
+  } catch (_) {
+    // Fallback: legacy GET (no-cors; you won't read the response)
+    try {
+      const u = `https://doobneek.org/${encodeURIComponent(uuid)}?name=${encodeURIComponent(userName)}&pw=${encodeURIComponent(userPassword)}&action=delete`;
+      await fetch(u, { mode: 'no-cors' });
+    } catch (_) { /* swallow */ }
+  }
+}
+
+// Simple overlay with an iframe to add a site-visit request on doobneek.org
+function showSiteVisitEmbed({ uuid, userName, userPassword, onClose = () => {} }) {
+  const overlay = document.createElement('div');
+  Object.assign(overlay.style, {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100000
+  });
+  const modal = document.createElement('div');
+  Object.assign(modal.style, {
+    position: 'fixed', top: '8%', left: '50%', transform: 'translateX(-50%)',
+    width: '860px', height: '70vh', background: '#fff', border: '2px solid #000',
+    borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column'
+  });
+
+  const bar = document.createElement('div');
+  Object.assign(bar.style, { padding: '8px 12px', background: '#eee', borderBottom: '1px solid #ccc', display: 'flex', justifyContent: 'space-between' });
+  bar.textContent = 'Add site visit';
+  const close = document.createElement('button');
+  close.textContent = 'Close';
+  close.onclick = () => { overlay.remove(); onClose(); };
+  bar.appendChild(close);
+
+  // Current convention (you can swap to your POST/tokenized flow later)
+  const src = `https://doobneek.org/${encodeURIComponent(uuid)}?name=${encodeURIComponent(userName)}&pw=${encodeURIComponent(userPassword)}`;
+
+  const iframe = document.createElement('iframe');
+  Object.assign(iframe, { src });
+  Object.assign(iframe.style, { border: '0', width: '100%', height: '100%' });
+
+  modal.appendChild(bar);
+  modal.appendChild(iframe);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+
+// Injects the Site Visit UI *inside* the read-only notes panel.
+async function injectSiteVisitUI({ parentEl /* readOnlyDiv */, uuid, userName, userPassword, NOTE_API, today }) {
+  try {
+    // Remove prior banner if re-rendered
+    parentEl.querySelector('#sitevisit-banner')?.remove();
+
+    const rec = await fetchSiteVisitRecord(uuid);
+    const banner = document.createElement('div');
+    banner.id = 'sitevisit-banner';
+    Object.assign(banner.style, {
+      border: '2px solid #FFB300', background: '#FFF8E1', padding: '8px 10px',
+      borderRadius: '6px', marginBottom: '10px', fontStyle: 'normal'
+    });
+
+    if (rec) {
+      // Show "Site visit needed"
+      const title = document.createElement('div');
+      title.style.fontWeight = '700';
+      title.textContent = 'Site visit needed';
+
+      const noteLabel = document.createElement('div');
+      noteLabel.style.marginTop = '6px';
+      noteLabel.textContent = 'Note for record (optional):';
+
+      const svNote = document.createElement('textarea');
+      svNote.style.width = '100%';
+      svNote.style.height = '80px';
+      svNote.style.marginTop = '4px';
+      svNote.value = typeof rec.notes === 'string' ? rec.notes : '';
+
+      const chkWrap = document.createElement('label');
+      chkWrap.style.display = 'inline-flex';
+      chkWrap.style.alignItems = 'center';
+      chkWrap.style.gap = '6px';
+      chkWrap.style.marginTop = '8px';
+
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      const chkText = document.createTextNode(' Done?');
+
+      chkWrap.appendChild(chk);
+      chkWrap.appendChild(chkText);
+
+      banner.appendChild(title);
+      banner.appendChild(noteLabel);
+      banner.appendChild(svNote);
+      banner.appendChild(chkWrap);
+
+      // Handle "Done?"
+      chk.addEventListener('change', async () => {
+        if (!chk.checked) return;
+        try {
+          // 1) Post a normal note for today
+          const finalNote = svNote.value
+            ? `[Site Visit] ${svNote.value}`
+            : `[Site Visit] Completed`;
+          const res = await fetch(NOTE_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              uuid, userName, password: userPassword, date: today, note: finalNote
+            })
+          });
+          await checkResponse(res, 'Saving site-visit completion');
+
+          // 2) Ask backend to delete the siteVisit record
+          await incinerateSiteVisitRecord({ uuid, userName, userPassword });
+
+          // 3) UI cleanup
+          chk.disabled = true;
+          svNote.disabled = true;
+          chkWrap.textContent = 'Thanks — recorded and cleared.';
+          setTimeout(() => banner.remove(), 1200);
+        } catch (err) {
+          console.error('[SiteVisit] Failed to mark done:', err);
+          alert('Failed to record completion.');
+          chk.checked = false;
+        }
+      });
+    } else {
+      // No record exists: show a button to open the embed where a request can be added
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.justifyContent = 'space-between';
+
+
+
+      const btn = document.createElement('button');
+      btn.textContent = 'Visit this site';
+      Object.assign(btn.style, { padding: '6px 10px', border: '1px solid #000', borderRadius: '4px', background: '#fff', cursor: 'pointer' });
+      btn.addEventListener('click', () => {
+        showSiteVisitEmbed({ uuid, userName, userPassword, onClose: () => {
+          // optional: recheck after closing
+          injectSiteVisitUI({ parentEl, uuid, userName, userPassword, NOTE_API, today });
+        }});
+      });
+
+      row.appendChild(btn);
+      banner.appendChild(row);
+    }
+
+    // Insert at the top of the read-only notes
+    parentEl.prepend(banner);
+  } catch (e) {
+    console.warn('[SiteVisit] Skipping banner due to error:', e);
+  }
+}
+
 const editableDiv = document.createElement("div");
 
 function sanitizeOrgNameForKey(name) {
@@ -55,7 +226,6 @@ async function transferFutureNoteToUUID({ orgKey, sourceUserName, sourceDate, no
     alert("Open a specific GoGetta location first.");
     return;
   }
-  // 1) Delete original (API treats falsy as delete; using null)
   await fetch(NOTE_API, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -89,8 +259,8 @@ async function openFutureOnlineModal() {
   const userPassword = window.gghostPassword || await getUserPasswordSafely();
   const userName = window.gghostUserName || await getUserNameSafely();
 
-  if (!userPassword) { alert("Please set your password in the extension popup first."); return; }
-  if (!userName)     { alert("Please set your username in the extension popup first."); return; }
+  // if (!userPassword) { alert("Please set your password in the extension popup first."); return; }
+  // if (!userName)     { alert("Please set your username in the extension popup first."); return; }
 
   // === helpers (scoped) ===
 
@@ -345,7 +515,6 @@ async function loadExisting() {
     const all = await r.json() || {};
 
     const cards = [];
-    const currentUuid = getCurrentLocationUuidFromPath();
 
     for (const [topKey, userMap] of Object.entries(all)) {
       if (!userMap || typeof userMap !== "object") continue;
@@ -368,7 +537,7 @@ async function loadExisting() {
           entries.push({
             topKey,
             userKey,
-            dateKey, // here this is org name, not date
+            dateKey, // org name
             note: noteText
           });
         }
@@ -376,34 +545,55 @@ async function loadExisting() {
 
       if (!entries.length) continue;
 
+      // === Card ===
       const card = document.createElement("div");
-      Object.assign(card.style, { border: "1px solid #ccc", borderRadius: "6px", background: "#fff", padding: "8px", marginBottom: "8px" });
+      Object.assign(card.style, {
+        border: "1px solid #ccc",
+        borderRadius: "6px",
+        background: "#fff",
+        padding: "8px",
+        marginBottom: "8px"
+      });
 
+      // Title
       const title = document.createElement("div");
       title.style.fontWeight = "700";
-title.textContent = decodeURIComponent(entries[0].dateKey || entries[0].userKey || topKey);
+      title.textContent = decodeURIComponent(entries[0].dateKey || entries[0].userKey || topKey);
       card.appendChild(title);
 
-      // If composite key, decode and show details
-      if (looksLikeCompositeKey(entries[0].userKey)) {
-        const decoded = decodeCompositeKey(entries[0].userKey);
-        const meta = document.createElement("div");
-        meta.style.fontSize = "12px";
-        meta.style.color = "#555";
-        meta.innerHTML = `
-          Website: ${escapeHtml(decoded.website) || "(none)"}<br>
-          Email: ${escapeHtml(decoded.email) || "(none)"}<br>
-          Phone: ${escapeHtml(decoded.phone) || "(none)"}
-Address: ${escapeHtml(
-  decodeURIComponent(
-    entries[0].topKey.replace(/-futurenote$/i, "")
-      .split("_").slice(1).join(" ")
-  ) || "(none)"
-)}
-`
-        card.appendChild(meta);
+      // Meta (phone/email/website/address) — always try to show
+      let website = "", email = "", phone = "", address = "";
+      try {
+        if (looksLikeCompositeKey(entries[0].userKey)) {
+          const decoded = decodeCompositeKey(entries[0].userKey) || {};
+          website = decoded.website || "";
+          email = decoded.email || "";
+          phone = decoded.phone || "";
+        }
+      } catch (err) {
+        console.warn("decodeCompositeKey failed:", err);
+      }
+      try {
+        address = decodeURIComponent(
+          entries[0].topKey.replace(/-futurenote$/i, "")
+            .split("_").slice(1).join(" ")
+        );
+      } catch (err) {
+        address = "";
       }
 
+      const meta = document.createElement("div");
+      meta.style.fontSize = "12px";
+      meta.style.color = "#555";
+      meta.innerHTML = `
+        Website: ${escapeHtml(website) || "(none)"}<br>
+        Email: ${escapeHtml(email) || "(none)"}<br>
+        Phone: ${escapeHtml(phone) || "(none)"}<br>
+        Address: ${escapeHtml(address) || "(none)"}
+      `;
+      card.appendChild(meta);
+
+      // === Entries list ===
       const list = document.createElement("div");
       list.style.marginTop = "6px";
 
@@ -415,86 +605,83 @@ Address: ${escapeHtml(
           <div style="white-space:pre-wrap;margin-top:4px">${escapeHtml(entry.note)}</div>
         `;
 
-// Inside entries.forEach(entry => { ... })
+        // Action buttons
+        const actions = document.createElement("div");
+        actions.style.marginTop = "6px";
+        actions.style.display = "flex";
+        actions.style.flexWrap = "wrap";
+        actions.style.gap = "8px";
 
-// Create action buttons container
-const actions = document.createElement("div");
-actions.style.marginTop = "6px";
-actions.style.display = "flex";
-actions.style.flexWrap = "wrap";
-actions.style.gap = "8px";
+        const currentUuid = getCurrentLocationUuidFromPath();
+        if (currentUuid) {
+          const moveHereBtn = document.createElement("button");
+          moveHereBtn.textContent = "Move to this location";
+          moveHereBtn.style.padding = "4px 6px";
+          moveHereBtn.addEventListener("click", async () => {
+            if (!confirm(`Move note to current location (${currentUuid})?`)) return;
+            try {
+              await transferFutureNoteToUUID({
+                orgKey: entry.topKey,
+                sourceUserName: entry.userKey,
+                sourceDate: entry.dateKey,
+                noteText: entry.note,
+                NOTE_API,
+                userName,
+                userPassword,
+                locationUuid: currentUuid
+              });
+              await loadExisting();
+            } catch (err) {
+              console.error(err);
+              alert("Failed to move note.");
+            }
+          });
+          actions.appendChild(moveHereBtn);
+        }
 
-// 1) Current location move
-const currentUuid = getCurrentLocationUuidFromPath();
-if (currentUuid) {
-  const moveHereBtn = document.createElement("button");
-  moveHereBtn.textContent = "Move to this location";
-  moveHereBtn.style.padding = "4px 6px";
-  moveHereBtn.addEventListener("click", async () => {
-    if (!confirm(`Move note to current location (${currentUuid})?`)) return;
-    try {
-      await transferFutureNoteToUUID({
-        orgKey: entry.topKey,
-        sourceUserName: entry.userKey,
-        sourceDate: entry.dateKey,
-        noteText: entry.note,
-        NOTE_API,
-        userName,
-        userPassword,
-        locationUuid: currentUuid
-      });
-      await loadExisting();
-    } catch (err) {
-      console.error(err);
-      alert("Failed to move note.");
-    }
-  });
-  actions.appendChild(moveHereBtn);
-}
+        const moveOtherWrapper = document.createElement("div");
+        moveOtherWrapper.style.display = "flex";
+        moveOtherWrapper.style.gap = "4px";
+        const linkInput = document.createElement("input");
+        linkInput.type = "url";
+        linkInput.placeholder = "Paste GoGetta link";
+        linkInput.style.flex = "1";
+        linkInput.style.minWidth = "140px";
 
-// 2) Move to another location
-const moveOtherWrapper = document.createElement("div");
-moveOtherWrapper.style.display = "flex";
-moveOtherWrapper.style.gap = "4px";
-const linkInput = document.createElement("input");
-linkInput.type = "url";
-linkInput.placeholder = "Paste GoGetta link";
-linkInput.style.flex = "1";
-linkInput.style.minWidth = "140px";
-const moveOtherBtn = document.createElement("button");
-moveOtherBtn.textContent = "Move to link";
-moveOtherBtn.addEventListener("click", async () => {
-  const val = linkInput.value.trim();
-  const match = val.match(/\/location\/([a-f0-9-]{12,})/);
-  if (!match) {
-    alert("Invalid GoGetta location link.");
-    return;
-  }
-  const targetUuid = match[1];
-  if (!confirm(`Move note to location: ${targetUuid}?`)) return;
-  try {
-    await transferFutureNoteToUUID({
-      orgKey: entry.topKey,
-      sourceUserName: entry.userKey,
-      sourceDate: entry.dateKey,
-      noteText: entry.note,
-      NOTE_API,
-      userName,
-      userPassword,
-      locationUuid: targetUuid
-    });
-    await loadExisting();
-  } catch (err) {
-    console.error(err);
-    alert("Failed to move note.");
-  }
-});
-moveOtherWrapper.appendChild(linkInput);
-moveOtherWrapper.appendChild(moveOtherBtn);
-actions.appendChild(moveOtherWrapper);
+        const moveOtherBtn = document.createElement("button");
+        moveOtherBtn.textContent = "Move to link";
+        moveOtherBtn.addEventListener("click", async () => {
+          const val = linkInput.value.trim();
+          const match = val.match(/\/location\/([a-f0-9-]{12,})/);
+          if (!match) {
+            alert("Invalid GoGetta location link.");
+            return;
+          }
+          const targetUuid = match[1];
+          if (!confirm(`Move note to location: ${targetUuid}?`)) return;
+          try {
+            await transferFutureNoteToUUID({
+              orgKey: entry.topKey,
+              sourceUserName: entry.userKey,
+              sourceDate: entry.dateKey,
+              noteText: entry.note,
+              NOTE_API,
+              userName,
+              userPassword,
+              locationUuid: targetUuid
+            });
+            await loadExisting();
+          } catch (err) {
+            console.error(err);
+            alert("Failed to move note.");
+          }
+        });
 
-row.appendChild(actions);
+        moveOtherWrapper.appendChild(linkInput);
+        moveOtherWrapper.appendChild(moveOtherBtn);
+        actions.appendChild(moveOtherWrapper);
 
+        row.appendChild(actions);
         list.appendChild(row);
       });
 
@@ -502,18 +689,17 @@ row.appendChild(actions);
       cards.push(card);
     }
 
-    if (!cards.length) {
-      existingDiv.innerHTML = "<i>No future/online leads found.</i>";
-      return;
-    }
-
-    existingDiv.innerHTML = "";
+    existingDiv.innerHTML = cards.length
+      ? ""
+      : "<i>No future/online leads found.</i>";
     cards.forEach(c => existingDiv.appendChild(c));
+
   } catch (e) {
     console.error(e);
     existingDiv.innerHTML = `<span style="color:#900">Failed to load.</span>`;
   }
 }
+
 
 
 
@@ -792,7 +978,7 @@ groupNameInput.addEventListener("input", async () => {
     addGroupButton.onclick = async () => {
       const newGroupName = groupNameInput.value.trim();
       const newGroupLink = groupLinkInput.value.trim();
-      const forbidden = ["doobneek", "Gavilan","liz","kiesha"];
+      const forbidden = ["doobneek", "gavilan","liz","kiesha", "adam"];
       const isExistingGroup = await doesSanitizedGroupNameExist(newGroupName);
       if (
         !newGroupName || forbidden.includes(newGroupName) ||
@@ -1940,6 +2126,16 @@ Object.assign(readOnlyDiv.style, {
   fontStyle: "italic"
 });
 noteWrapper.appendChild(readOnlyDiv);
+
+// ⬇️ Add this call
+await injectSiteVisitUI({
+  parentEl: readOnlyDiv,
+  uuid,                       // same uuid you already computed above
+  userName,                   // current user (already resolved earlier)
+  userPassword,               // current password (already resolved earlier)
+  NOTE_API,                   // "https://locationnote-iygwucy2fa-uc.a.run.app"
+  today                       // you already have const today = new Date().toISOString().slice(0, 10);
+});
 const reminderToggleWrapper = document.createElement("div");
 Object.assign(reminderToggleWrapper.style, {
   padding: "10px",
@@ -2388,472 +2584,7 @@ function buildFutureOrgKey({ phone, website, email }) {
 }
 
 (async function () {
-  // === Helpers for "future/online org" ===
-// function sanitizePhone(str) {
-//   return (str || "").replace(/\D+/g, ""); // digits only
-// }
-// function normalizeWebsiteHost(url) {
-//   if (!url) return "";
-//   try {
-//     const u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
-//     return u.hostname.toLowerCase();
-//   } catch {
-//     return url.trim().toLowerCase();
-//   }
-// }
-// function normalizeEmail(email) {
-//   return (email || "").trim().toLowerCase();
-//  }
 
-// function buildFutureOrgKey({ phone, website, email }) {
-//   const p = sanitizePhone(phone);
-//   const w = normalizeWebsiteHost(website);
-//   const e = normalizeEmail(email);
-//   return `${p || "x"}-${w || "x"}-${e || "x"}`; // keep structure stable
-// }
-// function todayISO() {
-//   return new Date().toISOString().slice(0, 10);
-// }
-// async function getCreds() {
-//   const [userName, userPassword] = await Promise.all([getUserNameSafely(), getUserPasswordSafely()]);
-//   return { userName, userPassword };
-// }
-// function getCurrentLocationUuidFromPath() {
-//   const path = location.pathname;
-//   const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
-//   const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
-//   const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
-//   return (fullServiceMatch || teamMatch || findMatch)?.[1] || null;
-// }
-// function saveAddressToHistory(addr) {
-//   const key = "ggAddressHistory";
-//   let arr = [];
-//   try { arr = JSON.parse(localStorage.getItem(key) || "[]"); } catch {}
-//   if (!Array.isArray(arr)) arr = [];
-//   if (addr && !arr.includes(addr)) {
-//     arr.unshift(addr);
-//     if (arr.length > 50) arr.pop();
-//     localStorage.setItem(key, JSON.stringify(arr));
-//   }
-// }
-// function getAddressHistory() {
-//   try {
-//     const arr = JSON.parse(localStorage.getItem("ggAddressHistory") || "[]");
-//     return Array.isArray(arr) ? arr : [];
-//   } catch { return []; }
-// }
-
-// === Fetch existing notes for a "future org key" ===
-// async function fetchFutureOrgNotes(orgKey) {
-//   if (!orgKey) return {};
-//   const url = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/${encodeURIComponent(orgKey)}.json`;
-//   try {
-//     const res = await fetch(url);
-//     if (!res.ok) return {};
-//     const data = await res.json();
-//     return (data && typeof data === "object") ? data : {};
-//   } catch {
-//     return {};
-//   }
-// }
-
-// === Transfer a note to current UUID and delete original from the future-key ===
-
-
-// // === UI: Future/Online Org modal ===
-// async function openFutureOnlineModal() {
-//   const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
-//   const { userName, userPassword } = await getCreds();
-//   if (!userPassword) {
-//     alert("Password not set. Click the extension icon and enter your password first.");
-//     return;
-//   }
-
-//   // Overlay
-//   const overlay = document.createElement("div");
-//   overlay.id = "future-org-overlay";
-//   Object.assign(overlay.style, {
-//     position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-//     zIndex: 100000, display: "flex", alignItems: "center", justifyContent: "center"
-//   });
-
-//   // Modal
-//   const modal = document.createElement("div");
-//   Object.assign(modal.style, {
-//     width: "540px", maxHeight: "80vh", overflow: "hidden",
-//     background: "#fff", border: "2px solid #000", borderRadius: "8px",
-//     display: "flex", flexDirection: "column", boxShadow: "0 6px 20px rgba(0,0,0,0.25)"
-//   });
-
-//   // Header
-//   const header = document.createElement("div");
-//   Object.assign(header.style, { padding: "10px 12px", background: "#eee", borderBottom: "1px solid #ccc", display: "flex", justifyContent: "space-between", alignItems: "center" });
-//   const title = document.createElement("div");
-//   title.textContent = "Add future/online org";
-//   const closeBtn = document.createElement("button");
-//   closeBtn.textContent = "✕";
-//   closeBtn.style.border = "1px solid #333";
-//   closeBtn.style.background = "#fff";
-//   closeBtn.style.cursor = "pointer";
-//   closeBtn.onclick = () => overlay.remove();
-//   header.appendChild(title); header.appendChild(closeBtn);
-
-//   // Body
-//   const body = document.createElement("div");
-//   Object.assign(body.style, { padding: "12px", overflowY: "auto", flex: "1" });
-
-//   // Step 1: Org + contact
-//   const orgNameInput = document.createElement("input");
-//   orgNameInput.type = "text";
-//   orgNameInput.placeholder = "Organization name";
-//   Object.assign(orgNameInput.style, { width: "100%", padding: "8px", marginBottom: "8px", border: "1px solid #ccc", borderRadius: "4px" });
-
-//   const row = document.createElement("div");
-//   Object.assign(row.style, { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" });
-
-//   const phoneInput = document.createElement("input");
-//   phoneInput.type = "tel";
-//   phoneInput.placeholder = "Phone (optional)";
-//   Object.assign(phoneInput.style, { padding: "8px", border: "1px solid #ccc", borderRadius: "4px" });
-
-//   const websiteInput = document.createElement("input");
-//   websiteInput.type = "url";
-//   websiteInput.placeholder = "Website (optional)";
-//   Object.assign(websiteInput.style, { padding: "8px", border: "1px solid #ccc", borderRadius: "4px" });
-
-//   const emailInput = document.createElement("input");
-//   emailInput.type = "email";
-//   emailInput.placeholder = "Email (optional)";
-//   Object.assign(emailInput.style, { padding: "8px", border: "1px solid #ccc", borderRadius: "4px" });
-
-//   const contactRow2 = document.createElement("div");
-//   Object.assign(contactRow2.style, { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" });
-//   contactRow2.appendChild(emailInput);
-//   // provide spacing symmetry
-//   const spacer = document.createElement("div");
-//   contactRow2.appendChild(spacer);
-
-//   row.appendChild(phoneInput);
-//   row.appendChild(websiteInput);
-
-//   const keyLine = document.createElement("div");
-//   keyLine.textContent = "Key: —";
-//   Object.assign(keyLine.style, { fontSize: "12px", color: "#555", marginBottom: "8px" });
-
-//   // Existing notes list
-//   const existingWrap = document.createElement("div");
-//   const existingTitle = document.createElement("div");
-//   existingTitle.textContent = "Existing notes for this org (if any):";
-//   existingTitle.style.fontWeight = "bold";
-//   existingTitle.style.margin = "8px 0 6px";
-//   const existingList = document.createElement("div");
-//   Object.assign(existingList.style, {
-//     maxHeight: "160px", overflowY: "auto",
-//     border: "1px solid #ddd", borderRadius: "4px",
-//     padding: "8px", fontSize: "13px"
-//   });
-//   existingWrap.appendChild(existingTitle);
-//   existingWrap.appendChild(existingList);
-
-//   // Step 2: Addresses (multiple + autocomplete)
-//   const addrTitle = document.createElement("div");
-//   addrTitle.textContent = "Address(es)";
-//   addrTitle.style.margin = "12px 0 6px";
-//   const addrInput = document.createElement("input");
-//   addrInput.type = "text";
-//   addrInput.setAttribute("list", "gg-address-datalist");
-//   addrInput.placeholder = "Start typing an address";
-//   Object.assign(addrInput.style, { width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "4px" });
-//   const datalist = document.createElement("datalist");
-//   datalist.id = "gg-address-datalist";
-//   getAddressHistory().forEach(a => {
-//     const o = document.createElement("option"); o.value = a; datalist.appendChild(o);
-//   });
-//   const addAddrBtn = document.createElement("button");
-//   addAddrBtn.textContent = "Add address";
-//   Object.assign(addAddrBtn.style, { marginTop: "6px", padding: "6px 10px", border: "1px solid #333", background: "#fff", cursor: "pointer" });
-//   const addrChips = document.createElement("div");
-//   Object.assign(addrChips.style, { marginTop: "8px", display: "flex", gap: "6px", flexWrap: "wrap" });
-//   const addresses = [];
-//   function renderChips() {
-//     addrChips.innerHTML = "";
-//     addresses.forEach((a, idx) => {
-//       const chip = document.createElement("span");
-//       chip.textContent = a;
-//       Object.assign(chip.style, { border: "1px solid #aaa", borderRadius: "16px", padding: "3px 8px", fontSize: "12px", background: "#f7f7f7" });
-//       const x = document.createElement("button");
-//       x.textContent = "×";
-//       Object.assign(x.style, { marginLeft: "6px", border: "none", background: "transparent", cursor: "pointer" });
-//       x.onclick = () => { addresses.splice(idx, 1); renderChips(); };
-//       chip.appendChild(x);
-//       addrChips.appendChild(chip);
-//     });
-//   }
-//   addAddrBtn.onclick = () => {
-//     const val = addrInput.value.trim();
-//     if (!val) return;
-//     addresses.push(val);
-//     saveAddressToHistory(val);
-//     // update datalist with newest
-//     datalist.innerHTML = "";
-//     getAddressHistory().forEach(a => {
-//       const o = document.createElement("option"); o.value = a; datalist.appendChild(o);
-//     });
-//     addrInput.value = "";
-//     renderChips();
-//   };
-
-//   // Step 3: Note text
-//   const noteTitle = document.createElement("div");
-//   noteTitle.textContent = "Describe the org / notes";
-//   noteTitle.style.margin = "12px 0 6px";
-//   const noteArea = document.createElement("textarea");
-//   Object.assign(noteArea.style, { width: "100%", minHeight: "110px", border: "1px solid #ccc", borderRadius: "4px", padding: "8px" });
-//   noteArea.placeholder = "What should we know about this org?";
-
-//   // Footer
-//   const footer = document.createElement("div");
-//   Object.assign(footer.style, { padding: "10px 12px", borderTop: "1px solid #ccc", display: "flex", justifyContent: "space-between", gap: "8px" });
-
-//   const cancel = document.createElement("button");
-//   cancel.textContent = "Cancel";
-//   Object.assign(cancel.style, { border: "1px solid #333", background: "#fff", cursor: "pointer", padding: "8px 12px" });
-//   cancel.onclick = () => overlay.remove();
-
-//   const save = document.createElement("button");
-//   save.textContent = "Save";
-//   Object.assign(save.style, { border: "1px solid #333", background: "#e6ffe6", cursor: "pointer", padding: "8px 12px", fontWeight: "bold" });
-
-//   footer.appendChild(cancel);
-//   footer.appendChild(save);
-
-//   // Assemble
-//   body.appendChild(orgNameInput);
-//   body.appendChild(row);
-//   body.appendChild(contactRow2);
-//   body.appendChild(keyLine);
-//   body.appendChild(existingWrap);
-//   body.appendChild(addrTitle);
-//   body.appendChild(addrInput);
-//   body.appendChild(datalist);
-//   body.appendChild(addAddrBtn);
-//   body.appendChild(addrChips);
-//   body.appendChild(noteTitle);
-//   body.appendChild(noteArea);
-
-//   modal.appendChild(header);
-//   modal.appendChild(body);
-//   modal.appendChild(footer);
-//   overlay.appendChild(modal);
-//   document.body.appendChild(overlay);
-
-//   // Compute key + load existing
-//   let currentKey = "";
-//   async function refreshExisting() {
-//     existingList.innerHTML = "(No notes yet)";
-//     if (!currentKey || currentKey.includes("-x-x-x")) return;
-//     const data = await fetchFutureOrgNotes(currentKey);
-//     const rows = [];
-//     // data shape: { userName: { date: note, ... }, ... }
-//     Object.keys(data).forEach(u => {
-//       const byDate = data[u];
-//       if (!byDate || typeof byDate !== "object") return;
-//       Object.keys(byDate).forEach(d => {
-//         const note = byDate[d];
-//         if (typeof note !== "string" || !note.trim()) return;
-//         rows.push({ u, d, note });
-//       });
-//     });
-//     if (!rows.length) {
-//       existingList.innerHTML = "(No notes yet)";
-//       return;
-//     }
-//     // render rows
-//     existingList.innerHTML = "";
-//     const uuid = getCurrentLocationUuidFromPath();
-//     rows
-//       .sort((a,b) => a.d.localeCompare(b.d))
-//       .forEach(({ u, d, note }) => {
-//         const item = document.createElement("div");
-//         Object.assign(item.style, { borderBottom: "1px dashed #eee", padding: "6px 0" });
-//         item.innerHTML = `<div><strong>${escapeHtml(u)}</strong> (${d})</div><div style="white-space:pre-wrap">${escapeHtml(note)}</div>`;
-//         const btn = document.createElement("button");
-//         btn.textContent = "Already on GG → Move to this location";
-//         Object.assign(btn.style, { marginTop: "6px", padding: "4px 8px", border: "1px solid #333", background: "#fff", cursor: "pointer", fontSize: "12px" });
-//         btn.onclick = async () => {
-//           try {
-//             await transferFutureNoteToUUID({
-//               orgKey: currentKey,
-//               sourceUserName: u,
-//               sourceDate: d,
-//               noteText: note,
-//               NOTE_API,
-//               userName: userName || "unknown",
-//               userPassword,
-//               locationUuid: uuid
-//             });
-//             await refreshExisting(); // refresh list (item should disappear)
-//             alert("Note moved to this GoGetta location.");
-//           } catch (err) {
-//             console.error(err);
-//             alert("Failed to move note. See console.");
-//           }
-//         };
-//         item.appendChild(btn);
-//         existingList.appendChild(item);
-//       });
-//   }
-//   function recomputeKeyAndLoad() {
-//     const key = buildFutureOrgKey({
-//       phone: phoneInput.value,
-//       website: websiteInput.value,
-//       email: emailInput.value
-//     });
-//     currentKey = key;
-//     keyLine.textContent = `Key: ${key}`;
-//     refreshExisting();
-//   }
-//   [phoneInput, websiteInput, emailInput].forEach(el => el.addEventListener("input", recomputeKeyAndLoad));
-//   recomputeKeyAndLoad();
-
-//   // Save handler
-// // save.onclick = async () => {
-// //   const orgName = (orgNameInput.value || "").trim();
-// //   const phone = sanitizePhone(phoneInput.value);
-// //   const websiteHost = normalizeWebsiteHost(websiteInput.value);
-// //   const email = normalizeEmail(emailInput.value);
-
-// //   if (!orgName) { alert("Organization name is required."); return; }
-// //   if (!phone && !websiteHost && !email) {
-// //     alert("Provide at least one: phone OR website OR email.");
-// //     return;
-// //   }
-// //   const orgKey = buildFutureOrgKey({ phone, website: websiteHost, email });
-// //   const addressConcat = addresses.join(" | ");
-// //   if (!addressConcat) {
-// //     if (!confirm("No address entered. Continue without an address?")) return;
-// //   }
-// //   const noteText = (noteArea.value || "").trim();
-// //   if (!noteText) { alert("Please enter a note."); return; }
-
-// //   const payload = {
-// //     uuid: orgKey,
-// //     userName: addressConcat || "(no address)",
-// //     date: `https://gogetta.nyc/team/location/${encodeURIComponent(orgName)}`,
-// //     password: userPassword,
-// //     note: noteText
-// //   };
-
-// //   try {
-// //     const res = await fetch(NOTE_API, {
-// //       method: "POST",
-// //       headers: { "Content-Type": "application/json" },
-// //       body: JSON.stringify(payload)
-// //     });
-// //     await checkResponse(res, "Saving future/online org note");
-
-// //     // Refresh existing list immediately
-// //     if (typeof loadExisting === "function") {
-// //       await loadExisting();
-// //     } else if (refreshBtn) {
-// //       refreshBtn.click();
-// //     }
-
-// //     // optional keep-open for more entries
-// //     if (confirm("Saved. Close this window?")) overlay.remove();
-
-// //   } catch (err) {
-// //     console.error(err);
-// //     alert("Failed to save. See console.");
-// //   }
-// // };
-// save.onclick = async () => {
-
-// const orgName = sanitizeOrgNameForKey(orgNameInput.value || "");
-//   const phoneRaw   = phoneInput.value;
-//   const websiteRaw = websiteInput.value;
-//   const emailRaw   = emailInput.value;
-//   const noteText   = (noteArea.value || "").trim();
-
-//   if (!orgName) { alert("Organization name is required."); return; }
-
-//   // Phone: keep LAST 10 digits
-//   const phoneLast10 = getLast10Digits(phoneRaw);
-
-//   // Website: allow schemeless, just needs to be feasible
-//   const websiteOK = isFeasibleLink(websiteRaw);
-//   // Email: keep your existing check or a simple one:
-//   const emailOK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(emailRaw || "").trim());
-
-//   // Require at least one of the 3
-//   if (!phoneLast10 && !websiteOK && !emailOK) {
-//     alert("Provide at least one: a phone (paste anything; we keep the last 10 digits), a feasible website (no http needed), or a valid email.");
-//     return;
-//   }
-
-//   // Sanitize/limit addresses you’ve collected already (keeps your chips UI)
-//   const cleanedAddrs = (addresses || [])
-//     .map(a => String(a || "").replace(/[\u0000-\u001F\u007F]/g, "").replace(/\s+/g, " ").trim())
-//     .filter(Boolean)
-//     .slice(0, 8);
-//   let addressConcat = cleanedAddrs.join(" | ");
-//   if (!addressConcat) {
-//     const proceed = confirm("No address entered. Continue without an address?");
-//     if (!proceed) return;
-//     addressConcat = "(no address)";
-//   }
-
-//   if (!noteText) {
-//     alert("Please enter a note.");
-//     return;
-//   }
-
-//   // Build composite key using last-10 digits + host + email
-//   const orgKey = buildFutureOrgKey({
-//     phone: phoneLast10,
-//     website: websiteRaw, // normalizeWebsiteHostLoose runs inside buildFutureOrgKey
-//     email: emailRaw
-//   });
-
-//   // Your existing 'date' field schema using the org name
-//   const dateField = `https://gogetta.nyc/team/location/${encodeURIComponent(orgName)}`;
-
-//   const payload = {
-//     uuid: orgKey,
-//     userName: addressConcat,
-//     date: dateField,
-//     password: userPassword,
-//     note: noteText
-//   };
-
-// try {
-//   const res = await fetch(NOTE_API, {
-//     method: "POST",
-//     headers: { "Content-Type": "application/json" },
-//     body: JSON.stringify(payload)
-//   });
-//   await checkResponse(res, "Saving future/online org note");
-
-//   if (typeof loadExisting === "function") {
-//     await loadExisting();
-//   } else if (refreshBtn) {
-//     refreshBtn.click();
-//   }
-
-//   if (confirm("Saved. Close this window?")) {
-//     overlay.remove();
-//   } else {
-//     resetForm();          // <<—— make the form fresh if staying open
-//   }
-// } catch (err) {
-//   console.error(err);
-//   alert("Failed to save. See console.");
-// }
-
-// };
-
-
-// }
 
   await initializeGoGettaEnhancements();
 document.addEventListener('visibilitychange', () => {

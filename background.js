@@ -141,28 +141,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // No async, so no need for return true
   }
 
-  if (msg.type === 'getAddressSuggestions') {
-    const input = msg.input;
-    const API_KEY = 'AIzaSyDZ56RnPItToFUoQugwXWO_3sLIcSX5508';
-    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=address&location=40.7128,-74.0060&radius=30000&key=${API_KEY}`;
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        console.log('[YP] ✅ Responding with:', data.predictions);
-        sendResponse({ predictions: data.predictions || [] });
-      })
-      .catch(err => {
-        console.warn('[YP] ❌ Fetch error:', err);
-        sendResponse({ predictions: [] });
-      });
-    return true; // ✅ Keep port open for async
-  }
+if (msg.type === 'getAddressSuggestions') {
+  const input = encodeURIComponent(msg.input);
+  const proxyUrl = `https://placesproxy-iygwucy2fa-uc.a.run.app?input=${input}`;
+
+  fetch(proxyUrl)
+    .then(res => res.json())
+    .then(data => {
+      console.log('[YP] ✅ Responding with:', data.predictions);
+      sendResponse({ predictions: data.predictions || [] });
+    })
+    .catch(err => {
+      console.warn('[YP] ❌ Proxy fetch error:', err);
+      sendResponse({ predictions: [] });
+    });
+
+  return true;
+}
+
 if (msg.type === 'getPlaceDetails') {
   const placeId = encodeURIComponent(msg.placeId);
-  const API_KEY = 'AIzaSyDZ56RnPItToFUoQugwXWO_3sLIcSX5508';
-  const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${API_KEY}`;
-  
-  fetch(url)
+  const proxyUrl = `https://placesproxy-iygwucy2fa-uc.a.run.app?placeId=${placeId}`;
+
+  fetch(proxyUrl)
     .then(res => res.json())
     .then(data => {
       const location = data.result?.geometry?.location;
@@ -176,8 +177,10 @@ if (msg.type === 'getPlaceDetails') {
       console.error('[Background] Place details fetch failed:', err);
       sendResponse({ success: false, error: err.toString() });
     });
+
   return true;
 }
+
 
   // Fallback — prevent "port closed" errors if no handler matched
   return false;
