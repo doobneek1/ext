@@ -1,9 +1,95 @@
+// ——— NOTE API URL from your global namespace ———
+function getNoteApiUrl() {
+  return window.gghost?.NOTE_API || null;
+
+}
+function refreshYourPeerEmbed1() {
+  return window.gghost?.refreshYourPeerEmbed || null;
+}
+
+// ——— Robust UUID extraction ———
+
+
+
+
+async function getUserNameSafely() {
+  // Use window override if present; else call your existing getter if defined
+  if (window.gghostUserName) return window.gghostUserName;
+  if (typeof window.getUserNameSafely === "function") return await window.getUserNameSafely();
+  return "unknown-user";
+}
+
+async function getUserPasswordSafely() {
+  if (window.gghostPassword) return window.gghostPassword;
+  if (typeof window.getUserPasswordSafely === "function") return await window.getUserPasswordSafely();
+  return "";
+}
+
+// ——— Prevent rapid duplicate posts (per OK click) ———
+function shouldPostOkNote() {
+  const now = Date.now();
+  const last = parseInt(localStorage.getItem("ypLastOkNotePostTime") || "0", 10);
+  const tooSoon = now - last < 800; // tweak if needed
+  if (tooSoon) return false;
+  localStorage.setItem("ypLastOkNotePostTime", String(now));
+  return true;
+}
+
+async function postOkClickNote() {
+  const NOTE_API_URL = getNoteApiUrl();
+  if (!NOTE_API_URL) {
+    console.warn("[YP] NOTE_API missing on window.gghost; skipping post.");
+    return;
+  }
+  if (!shouldPostOkNote()) return;
+
+
+
+  const [userName, password] = await Promise.all([
+    getUserNameSafely(),
+    getUserPasswordSafely()
+  ]);
+
+const today = new Date().toISOString().slice(0, 10);
+
+
+
+
+
+
+
+
+  const payload = {
+    uuid:encodeURIComponent(location.pathname),
+    userName,
+    date: today,
+    password,
+    note: "done"
+  };
+
+  try {
+    const res = await fetch(NOTE_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`NOTE_API error ${res.status}: ${t}`);
+    }
+    console.log("[YP] ✅ Posted OK-click note to NOTE_API", payload);
+  } catch (err) {
+    console.warn("[YP] ⚠️ Failed to post OK-click note:", err);
+  }
+}
+
 document.addEventListener('click', (e) => {
   const okBtn = e.target.closest('button.Button-primary');
   if (!okBtn) return;
 
   const btnText = okBtn.textContent.trim().toUpperCase();
   if (btnText !== 'OK' && btnText !== 'DONE EDITING') return;
+  (async () => { await postOkClickNote(); })();
 
   const currentUrl = window.location.href.replace(/\/$/, ''); // remove trailing slash if present
   localStorage.setItem('ypLastOkClickTime', Date.now().toString());

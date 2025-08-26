@@ -2,52 +2,43 @@ document.addEventListener("DOMContentLoaded", async () => {
   const FIREBASE_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes.json";
   const allReminders = [];
 
-async function fetchAndRenderReminders() {
-  const res = await fetch(FIREBASE_URL);
-  const data = await res.json();
-
-  allReminders.length = 0; // Clear if rerunning
-  for (const uuid in data) {
-    const locationData = data[uuid];
-    if (locationData.reminder) {
-      for (const date in locationData.reminder) {
-        allReminders.push({
-          uuid,
-          date,
-          note: locationData.reminder[date]
-        });
-      }
-    }
+  // 👇 helper to detect "done by <letters>" at end of note
+  function isDoneBy(note = "") {
+    return /\bDone by [a-zA-Z]+$/.test(note.trim());
   }
 
-  allReminders.sort((a, b) => a.date.localeCompare(b.date));
+  async function fetchAndRenderReminders() {
+    const res = await fetch(FIREBASE_URL);
+    const data = await res.json();
 
-  renderReminderList(allReminders);
-  updateExtensionBadge(allReminders);
+    allReminders.length = 0; // Clear if rerunning
+    for (const uuid in data) {
+      const locationData = data[uuid];
+      if (locationData.reminder) {
+        for (const date in locationData.reminder) {
+          const note = locationData.reminder[date];
+          // 🚫 skip if matches "done by username"
+          if (isDoneBy(note)) continue;
 
-  // ✅ NOW attach the clear button
-  const clearBtn = document.getElementById("clearReminderFilter");
-  clearBtn?.addEventListener("click", () => renderReminderList(allReminders));
-}
+          allReminders.push({
+            uuid,
+            date,
+            note
+          });
+        }
+      }
+    }
 
+    allReminders.sort((a, b) => a.date.localeCompare(b.date));
 
-// function renderReminderList(remindersToShow, filtered = false) {
-//   const list = document.getElementById("reminderList");
-//   const clearBtn = document.getElementById("clearReminderFilter");
+    renderReminderList(allReminders);
+    updateExtensionBadge(allReminders);
 
-//   list.innerHTML = "";
-//   const today = new Date().toISOString().split("T")[0];
+    // ✅ NOW attach the clear button
+    const clearBtn = document.getElementById("clearReminderFilter");
+    clearBtn?.addEventListener("click", () => renderReminderList(allReminders));
+  }
 
-//   for (const r of remindersToShow) {
-//     const dateText = r.date === today ? "Today" : r.date;
-//     const li = document.createElement("li");
-//     li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${dateText}</a>: ${r.note}`;
-//     list.appendChild(li);
-//   }
-
-//   // Toggle "Show All" button
-//   clearBtn.style.display = filtered ? "block" : "none";
-// }
 function renderReminderList(remindersToShow, filtered = false) {
   const list = document.getElementById("reminderList");
   const clearBtn = document.getElementById("clearReminderFilter");
@@ -163,6 +154,97 @@ if (calendarInput) {
     renderReminderList(filtered);
   });
 }
+// --- Build Site-Visit Loop (modal embed) ---
+// const buildLoopBtn = document.getElementById("buildSiteVisitLoopBtn");
+// if (buildLoopBtn) {
+//   buildLoopBtn.addEventListener("click", async () => {
+//     // Prefer current inputs; fall back to storage
+//     const typedUser = (userNameInput?.value || "").trim();
+//     const typedPw = (userPasswordInput?.value || "").trim();
+//     const { userName: storedUser } = await chrome.storage.local.get("userName");
+//     const { userPassword: storedPw } = await chrome.storage.local.get("userPassword");
+
+//     const userName = typedUser || storedUser || "";
+//     const userPassword = typedPw || storedPw || "";
+
+//     if (!userName) {
+//       alert("Please set a username first.");
+//       return;
+//     }
+//     // Password can be optional for your flows; change if you require it
+//     if (!userPassword) {
+//       const ok = confirm("No password saved. Continue anyway?");
+//       if (!ok) return;
+//     }
+
+//     showSiteVisitLoopEmbed({ userName, userPassword, onClose: () => {
+//       // Optional: refresh reminders or UI after closing
+//       // fetchAndRenderReminders().catch(console.warn);
+//     }});
+//   });
+// }
+// popup.js (only the relevant new bits)
+// Assumes you already have userNameInput/userPasswordInput and storage code.
+
+// document.getElementById("buildSiteVisitLoopBtn")?.addEventListener("click", async () => {
+//   // get creds same as you already do
+//   const typedUser = (document.getElementById("userNameInput")?.value || "").trim();
+//   const typedPw   = (document.getElementById("userPasswordInput")?.value || "").trim();
+//   const { userName: storedUser } = await chrome.storage.local.get("userName");
+//   const { userPassword: storedPw } = await chrome.storage.local.get("userPassword");
+//   const userName = typedUser || storedUser || "";
+//   const userPassword = typedPw || storedPw || "";
+//   if (!userName) { alert("Please set a username first."); return; }
+
+//   openEmbedInPopup({ userName, userPassword });
+// });
+let embedWindowId = null;
+
+const buildBtn = document.getElementById("buildSiteVisitLoopBtn");
+
+buildBtn?.addEventListener("click", async () => {
+  // ... your existing credential checks & storage ...
+
+  const nonce = crypto?.getRandomValues
+    ? Array.from(crypto.getRandomValues(new Uint32Array(2))).map(n => n.toString(36)).join("")
+    : String(Date.now());
+
+  const url = `chrome-extension://${chrome.runtime.id}/embed.html?mode=loop&nonce=${encodeURIComponent(nonce)}`;
+
+  if (embedWindowId) {
+    try {
+      const win = await chrome.windows.get(embedWindowId);
+      if (win) {
+        await chrome.windows.update(embedWindowId, { focused: true });
+        return; // don’t hide again if it was already open
+      }
+    } catch (_) {
+      embedWindowId = null;
+    }
+  }
+
+  const newWin = await chrome.windows.create({
+    url,
+    type: "popup",
+    width: 900,
+    height: 640,
+    focused: true,
+  });
+  embedWindowId = newWin.id;
+
+  // ✅ Hide the button once opened
+  buildBtn.style.display = "none";
+});
+
+// When the popup is closed, reset and show button again
+chrome.windows.onRemoved.addListener((id) => {
+  if (id === embedWindowId) {
+    embedWindowId = null;
+    buildBtn.style.display = ""; // show it back
+  }
+});
+
+
 
 
   greenMode.addEventListener("change", () => {
@@ -191,7 +273,7 @@ if (calendarInput) {
 if (userPassword) userPasswordInput.value = userPassword;
 userPasswordInput.addEventListener("keyup", () => {
   const newPassword = userPasswordInput.value.trim();
-  chrome.storage.local.set({ userPassword: newPassword });
+chrome.storage.local.set({ userPassword: newPassword, lastLoopUserPassword: newPassword });
 });
 
     let saveTimeout = null;
@@ -217,10 +299,10 @@ if (!newUserName) {
 }
  else {
   // ✅ Valid name
-  chrome.storage.local.set({ userName: newUserName });
+chrome.storage.local.set({ userName: newUserName, lastLoopUserName: newUserName });
   userNameStatus.textContent = "Username saved!";
   const newPassword = userPasswordInput.value.trim();
-chrome.storage.local.set({ userPassword: newPassword });
+chrome.storage.local.set({ userPassword: newPassword, lastLoopUserPassword: newPassword });
 
   chrome.tabs.sendMessage(tab.id, { type: "userNameUpdated", userName: newUserName }, (response) => {
     if (chrome.runtime.lastError) {
@@ -256,13 +338,13 @@ window.addEventListener("beforeunload", () => {
   const newUserName = userNameInput.value.trim();
   chrome.storage.local.get("userName", ({ userName: storedName }) => {
     if (storedName !== newUserName) {
-      chrome.storage.local.set({ userName: newUserName });
+chrome.storage.local.set({ userName: newUserName, lastLoopUserName: newUserName });
     }
   });
 });
 userPasswordInput.addEventListener("blur", () => {
   const newPassword = userPasswordInput.value.trim();
-  chrome.storage.local.set({ userPassword: newPassword });
+chrome.storage.local.set({ userPassword: newPassword, lastLoopUserPassword: newPassword });
 });
 
   });

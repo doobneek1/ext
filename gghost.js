@@ -1,73 +1,531 @@
+  const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
+window.gghost = window.gghost || {};
+window.gghost.NOTE_API = NOTE_API;
+const baseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes";
+window.gghost.baseURL = baseURL;
 function normalizeOrgName(name) {
   return (name || "")
     .toLowerCase()
     .replace(/[^a-z0-9]/gi, '') 
     .trim();
 }
-// ---- Site Visit helpers ----
+  const ns = "http://www.w3.org/2000/svg";
+
+  const label = document.createElementNS(ns, "text");
+
+        const today = new Date().toISOString().slice(0, 10); 
+async function fetchValidationStats(uuid) {
+  const url = `${baseURL}/${uuid}/stats.json`;
+  const r = await fetch(url);
+  if (!r.ok) return [];
+  const data = (await r.json()) || {};
+  // Allow either validatedAt or lastValidated
+  const dates = [];
+  for (const k in data) {
+    const v = data[k];
+    const iso = v?.validatedAt || v?.lastValidated || null;
+    if (!iso) continue;
+    const d = new Date(iso);
+    if (!isNaN(d)) dates.push(d);
+  }
+  return dates.sort((a, b) => a - b);
+}
+
+function monthKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function monthKeyFromParts(y, m) {
+  const mm = String(m + 1).padStart(2, "0");
+  return `${y}-${mm}`;
+}
+
+function parseMonthKey(k) {
+  const [y, m] = k.split("-").map(Number);
+  return { y, m: m - 1 }; // JS month 0..11
+}
+
+function incMonth(y, m, n = 1) {
+  const d = new Date(y, m + n, 1);
+  return { y: d.getFullYear(), m: d.getMonth() };
+}
+
+function monthsBetween(aKey, bKey) {
+  const a = parseMonthKey(aKey);
+  const b = parseMonthKey(bKey);
+  return (b.y - a.y) * 12 + (b.m - a.m);
+}
+
+function formatMonthShort(k) {
+  const { y, m } = parseMonthKey(k);
+  return new Date(y, m, 1).toLocaleDateString("en-US", {
+    month: "short",
+    year: "2-digit",
+  }); // e.g. "Apr 25"
+}
+function buildAdaptiveMonthBuckets(dates, limit = 12) {
+  if (!Array.isArray(dates) || dates.length === 0) return [];
+
+  const counts = new Map();
+  for (const d of dates) {
+    const k = monthKey(d); // assumes you already have monthKey(d)
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+
+  const keys = Array.from(counts.keys()).sort();
+  const firstKey = keys[0];
+  const lastKey = keys[keys.length - 1];
+
+  const span = monthsBetween(firstKey, lastKey) + 1;
+
+  let startKey, endKey;
+  if (span <= limit) {
+    startKey = firstKey;
+    endKey = lastKey;
+  } else {
+    const { y, m } = parseMonthKey(lastKey);
+    const start = incMonth(y, m, -(limit - 1));
+    startKey = monthKeyFromParts(start.y, start.m);
+    endKey = lastKey;
+  }
+
+  const ks = [];
+  let cur = parseMonthKey(startKey);
+  const end = parseMonthKey(endKey);
+  while (true) {
+    ks.push(monthKeyFromParts(cur.y, cur.m));
+    if (cur.y === end.y && cur.m === end.m) break;
+    cur = incMonth(cur.y, cur.m, 1);
+  }
+
+  return ks.map(k => ({ key: k, count: counts.get(k) || 0 }));
+}
+
+
+// Optional: cumulative transform (if you want the smooth rising line)
+function toCumulative(buckets) {
+  let run = 0;
+  return buckets.map(b => ({ key: b.key, count: (run += b.count) }));
+}
+
+function buildLast12MonthBuckets(dates) {
+  // Make a map counts per YYYY-MM
+  const counts = new Map();
+  for (const d of dates) {
+    const key = monthKey(d);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  // Build last 12 months ending this month
+  const now = new Date();
+  const keys = [];
+  const cursor = new Date(now.getFullYear(), now.getMonth(), 1);
+  for (let i = 11; i >= 0; i--) {
+    const k = new Date(cursor.getFullYear(), cursor.getMonth() - i, 1);
+    keys.push(monthKey(k));
+  }
+  return keys.map(k => ({ key: k, count: counts.get(k) || 0 }));
+}
+
+function renderValidationChartSVG(buckets, opts = {}) {
+  const w = opts.width || 320;
+  const h = opts.height || 120;
+  const pad = opts.pad || 24;
+
+  const max = Math.max(1, ...buckets.map(b => b.count));
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("width", w);
+  svg.setAttribute("height", h);
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+
+  // X axis
+  const axis = document.createElementNS(ns, "line");
+  axis.setAttribute("x1", pad);
+  axis.setAttribute("y1", h - pad);
+  axis.setAttribute("x2", w - pad);
+  axis.setAttribute("y2", h - pad);
+  axis.setAttribute("stroke", "#ddd");
+  axis.setAttribute("stroke-width", "1");
+  svg.appendChild(axis);
+
+  const bw = (w - pad * 2) / buckets.length;
+
+  // Build line points
+  const points = buckets.map((b, i) => {
+    const x = pad + i * bw + bw / 2;
+    const y = h - pad - Math.round(((h - pad * 2) * b.count) / max);
+    return [x, y];
+  });
+
+  // Line path
+  const path = document.createElementNS(ns, "path");
+  const d = points
+    .map((p, i) => (i === 0 ? `M ${p[0]} ${p[1]}` : `L ${p[0]} ${p[1]}`))
+    .join(" ");
+  path.setAttribute("d", d);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "#444");
+  path.setAttribute("stroke-width", "2");
+  svg.appendChild(path);
+
+  // Small circles on data points
+  // Small circles on data points with hover tooltips
+  for (let i = 0; i < points.length; i++) {
+    const [x, y] = points[i];
+    const bucket = buckets[i];
+
+    const c = document.createElementNS(ns, "circle");
+    c.setAttribute("cx", x);
+    c.setAttribute("cy", y);
+    c.setAttribute("r", "2.5");
+    c.setAttribute("fill", "#444");
+
+    // Tooltip shows on hover
+    const title = document.createElementNS(ns, "title");
+    title.textContent = `${bucket.key}: ${bucket.count}`;
+    c.appendChild(title);
+
+    svg.appendChild(c);
+  }
+
+
+  // Labels
+  const first = buckets[0]?.key || "";
+  const last = buckets[buckets.length - 1]?.key || "";
+const total = buckets[buckets.length - 1]?.count || 0;
+label.textContent = `Validations (last 12) — total ${total}`;
+
+  label.setAttribute("x", pad);
+  label.setAttribute("y", pad - 8);
+  label.setAttribute("font-size", "11");
+  label.setAttribute("fill", "#333");
+  svg.appendChild(label);
+
+  const leftLabel = document.createElementNS(ns, "text");
+  leftLabel.setAttribute("x", pad);
+  leftLabel.setAttribute("y", h - 6);
+  leftLabel.setAttribute("font-size", "10");
+  leftLabel.setAttribute("fill", "#666");
+  leftLabel.textContent = first;
+  svg.appendChild(leftLabel);
+
+  const rightLabel = document.createElementNS(ns, "text");
+  rightLabel.setAttribute("x", w - pad);
+  rightLabel.setAttribute("y", h - 6);
+  rightLabel.setAttribute("text-anchor", "end");
+  rightLabel.setAttribute("font-size", "10");
+  rightLabel.setAttribute("fill", "#666");
+  rightLabel.textContent = last;
+  svg.appendChild(rightLabel);
+
+  return svg;
+}
+
+
+async function addValidationHistoryBadge(readOnlyDiv, uuid) {
+  try {
+    const dates = await fetchValidationStats(uuid);
+    if (!Array.isArray(dates) || dates.length < 2) return;
+
+    const wrap = document.createElement("div");
+    Object.assign(wrap.style, {
+      position: "relative",
+      display: "inline-block",
+      float: "right",
+      margin: "-6px -6px 0 0",
+    });
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.title = "Show validation history";
+    btn.textContent = "ℹ️";
+    Object.assign(btn.style, {
+      border: "1px solid #aaa",
+      background: "#fff",
+      borderRadius: "50%",
+      width: "22px",
+      height: "22px",
+      lineHeight: "18px",
+      fontSize: "14px",
+      cursor: "pointer",
+    });
+
+    const pop = document.createElement("div");
+    pop.setAttribute("role", "dialog");
+    Object.assign(pop.style, {
+      position: "fixed",
+      top: "0px",
+      left: "0px",
+      width: "360px",
+      padding: "8px",
+      background: "#fff",
+      border: "1px solid #ccc",
+      borderRadius: "6px",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+      display: "none",
+      zIndex: 2147483647,
+    });
+
+    // ✅ use adaptive buckets
+    const buckets = buildAdaptiveMonthBuckets(dates, 12);
+    const shown = toCumulative(buckets); // if you want cumulative view
+
+    const svg = renderValidationChartSVG(shown, {
+      width: 340,
+      height: 140,
+      pad: 28
+    });
+    pop.appendChild(svg);
+
+    wrap.appendChild(btn);
+    readOnlyDiv.prepend(wrap);
+    document.body.appendChild(pop);
+
+    function positionPop() {
+      const r = btn.getBoundingClientRect();
+      const gap = 6;
+      const popW = 360;
+      const popH = 160;
+      let top = Math.min(window.innerHeight - popH - 10, Math.max(10, r.bottom + gap));
+      let left = Math.min(window.innerWidth - popW - 10, Math.max(10, r.right - popW));
+      pop.style.top = `${top}px`;
+      pop.style.left = `${left}px`;
+    }
+
+    let pinned = false;
+    function show() {
+      positionPop();
+      pop.style.display = "block";
+    }
+    function hide() {
+      if (!pinned) pop.style.display = "none";
+    }
+
+    btn.addEventListener("mouseenter", show);
+    btn.addEventListener("mouseleave", hide);
+    pop.addEventListener("mouseenter", () => { if (!pinned) pop.style.display = "block"; });
+    pop.addEventListener("mouseleave", hide);
+    btn.addEventListener("click", () => {
+      pinned = !pinned;
+      if (pinned) show(); else hide();
+    });
+    window.addEventListener("scroll", () => { if (pop.style.display === "block") positionPop(); }, { passive: true });
+    window.addEventListener("resize", () => { if (pop.style.display === "block") positionPop(); });
+
+  } catch (err) {
+    console.warn("[ValidationHistory] Failed to mount badge:", err);
+  }
+}
+
+
+async function recordLocationStat(uuid, lastValidated) {
+  if (!lastValidated) return;
+
+  const base = `${baseURL}/locationNotes/${uuid}/stats.json`;
+
+  // 1) Fetch current stats to check for duplicates
+  const existingRes = await fetch(base);
+  const existing = await existingRes.json() || {};
+
+  const alreadyExists = Object.values(existing).some(
+    entry => entry.lastValidated === lastValidated
+  );
+
+  if (alreadyExists) {
+    console.log("[YP] ℹ️ Stat already recorded, skipping");
+    return;
+  }
+
+  // 2) POST a new child (push style)
+  const body = JSON.stringify({
+    lastValidated,
+  });
+
+  const res = await fetch(`${base}.json`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body
+  });
+
+  if (!res.ok) {
+    console.warn("[YP] ❌ Failed to write stat:", await res.text());
+  } else {
+    console.log("[YP] ✅ Stat recorded");
+  }
+}
+
+async function maybeRecordValidation(uuid, data) {
+  try {
+    const lastValidated = data.last_validated_at || null;
+    if (lastValidated) {
+      await recordLocationStat(uuid, lastValidated); // same helper as before
+    }
+  } catch (e) {
+    console.warn("[YPButton] ⚠️ Could not record validation:", e);
+  }
+
+}
+function toCumulative(buckets) {
+  let run = 0;
+  return buckets.map(b => {
+    run += b.count || 0;
+    return { ...b, count: run };
+  });
+}
+
+// Posts a normal note from a site-visit record
+async function postNoteFromSiteVisit({ uuid, userName, userPassword, NOTE_API, rec }) {
+  if (!rec || !rec.meta) return;
+
+  const svNote = (typeof rec.notes === 'string' && rec.notes.trim()) ? rec.notes.trim() : "";
+  const finalNote = `${userName} competed this Site Visit, ${svNote} `;
+
+  const res = await fetch(NOTE_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      uuid,
+      userName,
+      password: userPassword,
+      date: today,   // past note
+      note: finalNote
+    })
+  });
+  await checkResponse(res, "Posting past site-visit note");
+}
+
 async function fetchSiteVisitRecord(uuid) {
-  const url = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/siteVisit/${uuid}.json`;
+  const url = `${baseURL}/${uuid}.json`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`SiteVisit fetch failed: ${r.status}`);
   return await r.json(); // null if not present
 }
 
-// Fire-and-forget delete/incinerate on your backend.
-// Recommended: POST JSON to a dedicated endpoint; fallback to GET with querystring if needed.
-async function incinerateSiteVisitRecord({ uuid, userName, userPassword }) {
-  try {
-    // Preferred (POST JSON; safer than putting secrets in URL)
-    await fetch(`https://doobneek.org/api/sitevisit/delete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uuid, name: userName, pw: userPassword }),
-      // You likely don't need credentials; CORS can be configured server-side
-    });
-  } catch (_) {
-    // Fallback: legacy GET (no-cors; you won't read the response)
-    try {
-      const u = `https://doobneek.org/${encodeURIComponent(uuid)}?name=${encodeURIComponent(userName)}&pw=${encodeURIComponent(userPassword)}&action=delete`;
-      await fetch(u, { mode: 'no-cors' });
-    } catch (_) { /* swallow */ }
-  }
-}
+
+
+// Usage:
 
 // Simple overlay with an iframe to add a site-visit request on doobneek.org
+// Replace your current showSiteVisitEmbed with this version
 function showSiteVisitEmbed({ uuid, userName, userPassword, onClose = () => {} }) {
   const overlay = document.createElement('div');
   Object.assign(overlay.style, {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100000
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100000,
+    // NEW: stop scroll chaining to the page
+    overscrollBehavior: 'contain',
   });
+
   const modal = document.createElement('div');
   Object.assign(modal.style, {
     position: 'fixed', top: '8%', left: '50%', transform: 'translateX(-50%)',
     width: '860px', height: '70vh', background: '#fff', border: '2px solid #000',
-    borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column'
+    borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+    // NEW: also contain overscroll at the modal level
+    overscrollBehavior: 'contain',
   });
 
   const bar = document.createElement('div');
-  Object.assign(bar.style, { padding: '8px 12px', background: '#eee', borderBottom: '1px solid #ccc', display: 'flex', justifyContent: 'space-between' });
+  Object.assign(bar.style, {
+    padding: '8px 12px', background: '#eee', borderBottom: '1px solid #ccc',
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+  });
   bar.textContent = 'Add site visit';
-  const close = document.createElement('button');
-  close.textContent = 'Close';
-  close.onclick = () => { overlay.remove(); onClose(); };
-  bar.appendChild(close);
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Close';
+  closeBtn.onclick = cleanup;
+  bar.appendChild(closeBtn);
 
-  // Current convention (you can swap to your POST/tokenized flow later)
-  const src = `https://doobneek.org/${encodeURIComponent(uuid)}?name=${encodeURIComponent(userName)}&pw=${encodeURIComponent(userPassword)}`;
+  const nonce = crypto?.getRandomValues
+    ? Array.from(crypto.getRandomValues(new Uint32Array(2))).map(n => n.toString(36)).join('')
+    : String(Date.now());
 
+  const src = `http://localhost:8888/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
   const iframe = document.createElement('iframe');
-  Object.assign(iframe, { src });
-  Object.assign(iframe.style, { border: '0', width: '100%', height: '100%' });
+  Object.assign(iframe, { src, allow: "clipboard-read; clipboard-write" });
+  Object.assign(iframe.style, {
+    border: '0', width: '100%', height: '100%',
+    // NEW: ensure the iframe itself can scroll and stops scroll chaining
+    overscrollBehavior: 'contain',
+    // NEW: allow programmatic focus for wheel/keyboard scroll
+    outline: 'none'
+  });
+  // NEW: make it focusable & focus it so PageUp/PageDown/space/arrow keys go here
+  iframe.tabIndex = 0;
+
+  const EMBED_ORIGIN = new URL(src).origin;
 
   modal.appendChild(bar);
   modal.appendChild(iframe);
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
+
+  // NEW: lock background scroll (both <html> and <body>)
+  const prevHtmlOverflow = document.documentElement.style.overflow;
+  const prevBodyOverflow = document.body.style.overflow;
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+
+  // NEW: focus the iframe after it’s in the DOM
+  setTimeout(() => {
+    try { iframe.focus(); } catch {}
+  }, 0);
+
+  // NEW: prevent wheel/touch from scrolling the underlying page when pointer is on overlay header
+  // (wheel events do not cross iframe boundaries, so this won’t block scrolling *inside* the iframe)
+  const blockScroll = (e) => {
+    // Allow scroll if the event target is inside the iframe element itself (the event won’t bubble from inside the iframe doc)
+    if (e.target === iframe) return;
+    e.preventDefault();
+  };
+  overlay.addEventListener('wheel', blockScroll, { passive: false });
+  overlay.addEventListener('touchmove', blockScroll, { passive: false });
+
+  function onMessage(e) {
+    if (e.source !== iframe.contentWindow) return;
+    if (e.origin !== EMBED_ORIGIN) return;
+    const { type, payload } = e.data || {};
+    if (type === "REQUEST_CREDS") {
+      const ok = !payload?.nonce || payload.nonce === nonce;
+      if (!ok) return;
+      iframe.contentWindow.postMessage(
+        { type: "CREDS", payload: { userName, userPassword, nonce } },
+        EMBED_ORIGIN
+      );
+    } else if (type === "CLOSE_EMBED") {
+      cleanup();
+    }
+  }
+
+  function onKey(e) {
+    if (e.key === "Escape") cleanup();
+  }
+
+  function cleanup() {
+    window.removeEventListener('message', onMessage);
+    window.removeEventListener('keydown', onKey);
+    overlay.removeEventListener('wheel', blockScroll);
+    overlay.removeEventListener('touchmove', blockScroll);
+    // restore scroll lock
+    document.documentElement.style.overflow = prevHtmlOverflow;
+    document.body.style.overflow = prevBodyOverflow;
+    overlay.remove();
+    onClose();
+  }
+
+  window.addEventListener('message', onMessage);
+  window.addEventListener('keydown', onKey);
 }
 
+
+
 // Injects the Site Visit UI *inside* the read-only notes panel.
-async function injectSiteVisitUI({ parentEl /* readOnlyDiv */, uuid, userName, userPassword, NOTE_API, today }) {
+async function injectSiteVisitUI({
+  parentEl, /* readOnlyDiv */
+  uuid,
+  userName,
+  userPassword,
+  NOTE_API,
+  today,
+  done
+}) {
   try {
     // Remove prior banner if re-rendered
     parentEl.querySelector('#sitevisit-banner')?.remove();
@@ -75,93 +533,224 @@ async function injectSiteVisitUI({ parentEl /* readOnlyDiv */, uuid, userName, u
     const rec = await fetchSiteVisitRecord(uuid);
     const banner = document.createElement('div');
     banner.id = 'sitevisit-banner';
-    Object.assign(banner.style, {
-      border: '2px solid #FFB300', background: '#FFF8E1', padding: '8px 10px',
-      borderRadius: '6px', marginBottom: '10px', fontStyle: 'normal'
-    });
 
-    if (rec) {
-      // Show "Site visit needed"
-      const title = document.createElement('div');
-      title.style.fontWeight = '700';
-      title.textContent = 'Site visit needed';
+    if (rec?.meta?.done === false) {
+      // Active site-visit request exists
 
-      const noteLabel = document.createElement('div');
-      noteLabel.style.marginTop = '6px';
-      noteLabel.textContent = 'Note for record (optional):';
-
-      const svNote = document.createElement('textarea');
-      svNote.style.width = '100%';
-      svNote.style.height = '80px';
-      svNote.style.marginTop = '4px';
-      svNote.value = typeof rec.notes === 'string' ? rec.notes : '';
-
-      const chkWrap = document.createElement('label');
-      chkWrap.style.display = 'inline-flex';
-      chkWrap.style.alignItems = 'center';
-      chkWrap.style.gap = '6px';
-      chkWrap.style.marginTop = '8px';
-
-      const chk = document.createElement('input');
-      chk.type = 'checkbox';
-      const chkText = document.createTextNode(' Done?');
-
-      chkWrap.appendChild(chk);
-      chkWrap.appendChild(chkText);
-
-      banner.appendChild(title);
-      banner.appendChild(noteLabel);
-      banner.appendChild(svNote);
-      banner.appendChild(chkWrap);
-
-      // Handle "Done?"
-      chk.addEventListener('change', async () => {
-        if (!chk.checked) return;
-        try {
-          // 1) Post a normal note for today
-          const finalNote = svNote.value
-            ? `[Site Visit] ${svNote.value}`
-            : `[Site Visit] Completed`;
-          const res = await fetch(NOTE_API, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              uuid, userName, password: userPassword, date: today, note: finalNote
-            })
-          });
-          await checkResponse(res, 'Saving site-visit completion');
-
-          // 2) Ask backend to delete the siteVisit record
-          await incinerateSiteVisitRecord({ uuid, userName, userPassword });
-
-          // 3) UI cleanup
-          chk.disabled = true;
-          svNote.disabled = true;
-          chkWrap.textContent = 'Thanks — recorded and cleared.';
-          setTimeout(() => banner.remove(), 1200);
-        } catch (err) {
-          console.error('[SiteVisit] Failed to mark done:', err);
-          alert('Failed to record completion.');
-          chk.checked = false;
-        }
+      // Title / info
+      const info = document.createElement('div');
+      info.style.marginTop = '4px';
+      const updated = new Date(rec.meta.updatedAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "2-digit"
       });
+      info.textContent = `Marked for site visit ${rec.meta.userName} on ${updated}`;
+      banner.appendChild(info);
+function getLatestNoteText(rec) {
+  if (!rec.notes || typeof rec.notes !== "object") return "";
+  const noteIds = Object.keys(rec.notes);
+  if (noteIds.length === 0) return "";
+  // pick the last by key order or sort by createdAt if you store that
+  const lastId = noteIds[noteIds.length - 1];
+  return rec.notes[lastId]?.text?.trim() || "";
+}
+
+const noteText = getLatestNoteText(rec);
+if (noteText) {
+  const prevNote = document.createElement("div");
+  prevNote.style.marginTop = "4px";
+  prevNote.style.fontStyle = "italic";
+  prevNote.textContent = `Previous note: ${noteText}`;
+  banner.appendChild(prevNote);
+}
+
+
+if (done !== true) {
+  // ========= OLD VERSION: Checkbox, no embedding =========
+
+  // Show existing note from DB (if any)
+  if (typeof rec.notes === 'string' && rec.notes.trim()) {
+    const svNote = document.createElement('div');
+    svNote.style.marginTop = '6px';
+    svNote.style.fontStyle = 'italic';
+    svNote.textContent = `Note: ${rec.notes}`;
+    banner.appendChild(svNote);
+  }
+
+  const chkWrap = document.createElement('label');
+  chkWrap.style.display = 'inline-flex';
+  chkWrap.style.alignItems = 'center';
+  chkWrap.style.gap = '6px';
+  chkWrap.style.marginTop = '8px';
+
+  const chk = document.createElement('input');
+  chk.type = 'checkbox';
+  const chkText = document.createTextNode(' Done?');
+
+  chkWrap.appendChild(chk);
+  chkWrap.appendChild(chkText);
+  banner.appendChild(chkWrap);
+
+chk.addEventListener('change', async () => {
+  if (!chk.checked) return;
+
+  try {
+    // --- 1) Flip the done flag directly in RTDB ---
+    async function flipDone(uuid, userName, userPassword) {
+      const url = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/siteVisits/${uuid}/meta/done.json`;
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(true)
+      });
+      if (!res.ok) throw new Error("Failed to flip done flag");
+    }
+
+    await flipDone(uuid, userName, userPassword);
+
+    // --- 2) Post a note to NOTE_API ---
+    const note = rec?.notes
+      ? `[Site Visit] ${rec.notes}`
+      : `[Site Visit] Completed`;
+
+    const res = await fetch(NOTE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uuid,
+        userName,
+        password: userPassword,
+        date: today,
+        note,
+      }),
+    });
+    await checkResponse(res, "Saving site-visit completion");
+
+    // --- 3) UI cleanup ---
+    chk.disabled = true;
+    chkWrap.textContent = "Thanks — recorded and cleared.";
+    setTimeout(() => banner.remove(), 1200);
+
+  } catch (err) {
+    console.error("[SiteVisit] Failed to mark done:", err);
+    alert("Failed to record completion.");
+    chk.checked = false;
+  }
+});
+
+  // ========= END OLD VERSION =========
+}
+else {
+        // ========= NEW VERSION: Inline editor via embed (when done === true) =========
+        const editorWrap = document.createElement('div');
+
+        const nonce = crypto?.getRandomValues
+          ? crypto.getRandomValues(new Uint32Array(1))[0].toString(36)
+          : String(Date.now());
+
+        const src = `http://localhost:8888/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
+        const iframe = document.createElement('iframe');
+        Object.assign(iframe.style, { width: '100%', height: '30px', display: 'block' });
+        iframe.src = src;
+        editorWrap.appendChild(iframe);
+
+        const EMBED_ORIGIN = new URL(src).origin;
+
+        async function onMessage(e) {
+          if (e.source !== iframe.contentWindow) return;
+          if (e.origin !== EMBED_ORIGIN) return;
+
+          const { type, payload } = e.data || {};
+
+          if (type === 'REQUEST_CREDS') {
+            const ok = !payload?.nonce || payload.nonce === nonce;
+            if (!ok) return;
+            iframe.contentWindow.postMessage(
+              { type: 'CREDS', payload: { userName, userPassword, nonce } },
+              EMBED_ORIGIN
+            );
+
+          } else if (type === 'CLOSE_EMBED') {
+            try {
+              const latest = await fetchSiteVisitRecord(uuid);
+              if (latest && latest.meta && latest.meta.done === true) {
+                await postNoteFromSiteVisit({
+                  uuid,
+                  userName,
+                  userPassword,
+                  NOTE_API,
+                  rec: latest
+                });
+              }
+            } catch (err) {
+              console.warn("[SiteVisit] Could not convert site-visit into past note:", err);
+            }
+
+            cleanupInline();
+            // Re-render with done:true
+            injectSiteVisitUI({
+              parentEl,
+              uuid,
+              userName,
+              userPassword,
+              NOTE_API,
+              today,
+              done: true
+            });
+          }
+        }
+
+        function onKey(e) {
+          if (e.key === 'Escape') cleanupInline();
+        }
+
+        function cleanupInline() {
+          window.removeEventListener('message', onMessage);
+          window.removeEventListener('keydown', onKey);
+          editorWrap.remove();
+        }
+
+        window.addEventListener('message', onMessage);
+        window.addEventListener('keydown', onKey);
+        banner.appendChild(editorWrap);
+        // ========= END NEW VERSION =========
+      }
+
     } else {
-      // No record exists: show a button to open the embed where a request can be added
+      // No active record: show action button
       const row = document.createElement('div');
       row.style.display = 'flex';
       row.style.alignItems = 'center';
       row.style.justifyContent = 'space-between';
 
-
-
       const btn = document.createElement('button');
-      btn.textContent = 'Visit this site';
-      Object.assign(btn.style, { padding: '6px 10px', border: '1px solid #000', borderRadius: '4px', background: '#fff', cursor: 'pointer' });
+      btn.textContent = done ? `Thanks, ${userName}` : "Visit this location";
+      Object.assign(btn.style, {
+        padding: '6px 10px',
+        border: '1px solid #000',
+        borderRadius: '4px',
+        background: '#fff',
+        cursor: 'pointer'
+      });
+
       btn.addEventListener('click', () => {
-        showSiteVisitEmbed({ uuid, userName, userPassword, onClose: () => {
-          // optional: recheck after closing
-          injectSiteVisitUI({ parentEl, uuid, userName, userPassword, NOTE_API, today });
-        }});
+        showSiteVisitEmbed({
+          uuid,
+          userName,
+          userPassword,
+          onClose: () => {
+            injectSiteVisitUI({
+              parentEl,
+              uuid,
+              userName,
+              userPassword,
+              NOTE_API,
+              today,
+              done: false
+            });
+          }
+        });
       });
 
       row.appendChild(btn);
@@ -219,7 +808,6 @@ function resetForm() {
   orgNameInput.focus();
 }
 
-        const today = new Date().toISOString().slice(0, 10); 
 
 async function transferFutureNoteToUUID({ orgKey, sourceUserName, sourceDate, noteText, NOTE_API, userName, userPassword, locationUuid }) {
   if (!locationUuid) {
@@ -255,7 +843,6 @@ note: `${noteText},${sanitizeOrgNameForKey(decodeURIComponent(sourceDate))},${fr
 
 }
 async function openFutureOnlineModal() {
-  const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
   const userPassword = window.gghostPassword || await getUserPasswordSafely();
   const userName = window.gghostUserName || await getUserNameSafely();
 
@@ -291,25 +878,6 @@ function buildCompositeUuid(website, email, phone) {
     // and exclude plain UUIDs like 8-4-4-4-12 hex.
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key);
     return !isUUID && (key.includes("@") || key.includes("."));
-  }
-  function extractOrgNameFromDateUrl(dateField) {
-    try {
-      if (typeof dateField !== "string") return "";
-      if (!dateField.startsWith("http")) return "";
-      const u = new URL(dateField);
-      const parts = u.pathname.split("/").filter(Boolean);
-      const idx = parts.findIndex(p => p === "location");
-      if (idx >= 0 && parts[idx + 1]) {
-        return decodeURIComponent(parts[idx + 1]);
-      }
-      // fallback: last path segment
-      return decodeURIComponent(parts[parts.length - 1] || "");
-    } catch { return ""; }
-  }
-  function parseUuidFromUrlOrInput(input) {
-    const s = String(input || "").trim();
-    const uuidMatch = s.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-    return uuidMatch ? uuidMatch[0] : null;
   }
   function getCurrentLocationUuidFromPath() {
     const path = location.pathname;
@@ -509,8 +1077,7 @@ function decodeCompositeKey(key) {
 async function loadExisting() {
   existingDiv.innerHTML = "Loading…";
   try {
-    const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes.json";
-    const r = await fetch(firebaseURL);
+    const r = await fetch(`${baseURL}.json`);
     if (!r.ok) throw new Error(`Fetch failed: ${r.status}`);
     const all = await r.json() || {};
 
@@ -732,22 +1299,30 @@ async function checkResponse(response, actionDescription) {
     throw new Error(`${actionDescription} failed. Status ${response.status}: ${errText}`);
   }
 }
+
+
 async function fetchLocationDetails(uuid) {
   try {
     const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
     if (!res.ok) throw new Error("Fetch failed");
     const data = await res.json();
-return {
-  org: data.Organization?.name || "",
-  name: data.name || "",
-  slug: data.slug || "",
-  address: data.address?.street || "",
-  city: data.address?.city || "",
-  state: data.address?.state || "",
-  zip: data.address?.postalCode || "",
-  services: Array.isArray(data.Services) ? data.Services.map(s => s.name).filter(Boolean) : [],
-  lastValidated: data.last_validated_at || null  
-};
+
+    const lastValidated = data.last_validated_at || null;
+    if (lastValidated) {
+      await recordLocationStat(uuid, lastValidated);
+    }
+
+    return {
+      org: data.Organization?.name || "",
+      name: data.name || "",
+      slug: data.slug || "",
+      address: data.address?.street || "",
+      city: data.address?.city || "",
+      state: data.address?.state || "",
+      zip: data.address?.postalCode || "",
+      services: Array.isArray(data.Services) ? data.Services.map(s => s.name).filter(Boolean) : [],
+      lastValidated
+    };
   } catch (err) {
     console.warn("Failed to fetch location:", err);
     return {
@@ -762,10 +1337,10 @@ return {
     };
   }
 }
+
 let isInConnectionMode = false;
 async function toggleConnectionMode() {
   console.log("[gghost.js] toggleConnectionMode called. Current isInConnectionMode:", isInConnectionMode); 
-  const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
   const userPassword =  window.gghostPassword || await getUserPasswordSafely(); 
   isInConnectionMode = !isInConnectionMode;
   console.log("[gghost.js] isInConnectionMode toggled to:", isInConnectionMode); 
@@ -864,7 +1439,7 @@ async function addConnectionModeButton() {
   document.body.appendChild(connectionButton);
 }
 async function doesSanitizedGroupNameExist(userInput) {
-  const firebaseURL = 'https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/connections.json';
+  const firebaseURL = `${baseURL}/connections.json`;
   if (!userInput || typeof userInput !== 'string') return false;
   const sanitize = str => str.replace(/\s+/g, '').toLowerCase(); 
   const sanitizedInput = sanitize(userInput);
@@ -896,7 +1471,7 @@ async function showConnectedLocations(NOTE_API, userPassword) {
   const currentPageLocationDetails = await fetchLocationDetails(uuid);
   const currentPageOrgName = currentPageLocationDetails.org;
   console.log("[gghost.js] showConnectedLocations: Current page org name:", currentPageOrgName);
-  const firebaseURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/connections.json`;
+  const firebaseURL = `${baseURL}/connections.json`;
   console.log("[gghost.js] showConnectedLocations: Fetching connections from:", firebaseURL);
   let allData;
   try {
@@ -917,13 +1492,26 @@ async function showConnectedLocations(NOTE_API, userPassword) {
   !['reminder'].includes(name) &&
   !/^\d{4}-\d{2}-\d{2}$/.test(name)
 );
+
+const suggestibleGroupNames = Object.keys(allGroups).filter(name => {
+  const entry = allGroups[name];
+  if (typeof entry !== "object") return false;
+  if (name === "reminder") return false;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(name)) return false;
+  // 👇 exclude groups that already have this uuid
+  return !(entry[uuid] === true || entry[uuid] === "true");
+});
 const groupListDatalist = document.createElement("datalist");
 groupListDatalist.id = "group-list-datalist";
-groupNames.forEach(name => {
+suggestibleGroupNames.forEach(name => {
   const option = document.createElement("option");
   option.value = name;
   groupListDatalist.appendChild(option);
 });
+const groupHasUuid = (groupName) => {
+  const entry = allGroups?.[groupName];
+  return !!(entry && (entry[uuid] === true || entry[uuid] === "true"));
+};
 const relevantGroups = Object.entries(allGroups).filter(
   ([groupName, entry]) =>
     typeof entry === "object" &&
@@ -954,8 +1542,46 @@ const relevantGroups = Object.entries(allGroups).filter(
   groupLinkInput.style.padding = "5px";
   const addGroupButton = document.createElement("button");
 addGroupButton.innerText = "+ New Grp/+ Loc2Grp";
+function sanitizeGroupName(rawName) {
+  if (!rawName) return "";
+
+  // Trim and collapse spaces
+  let name = rawName.trim().replace(/\s+/g, " ");
+
+  // Replace Firebase-forbidden characters with "_"
+  name = name.replace(/[.#$/\[\]/]/g, "_");
+
+  // Normalize apostrophes, commas, hyphens, periods into "_" as well
+  name = name.replace(/['.,-]/g, "_");
+
+  // Collapse multiple underscores
+  name = name.replace(/_+/g, "_");
+
+  // Remove leading/trailing underscores
+  name = name.replace(/^_+|_+$/g, "");
+
+  // Truncate to a safe max length (80 chars is plenty)
+  if (name.length > 80) {
+    name = name.substring(0, 80).trim();
+  }
+
+  return name;
+}
+
+
 groupNameInput.addEventListener("input", async () => {
-  const currentGroup = groupNameInput.value.trim();
+   const currentGroup = sanitizeGroupName(groupNameInput.value);
+
+  // If user typed an existing group that already includes this UUID, block action
+  if (groupHasUuid(currentGroup)) {
+    addGroupButton.innerText = "Already in this group";
+    addGroupButton.disabled = true;
+    groupLinkInput.disabled = true;
+    return;
+  } else {
+    addGroupButton.disabled = false;
+  }
+
   const isExisting = await doesSanitizedGroupNameExist(currentGroup);
   if (isExisting) {
     addGroupButton.innerText = "Add This Location to Group";
@@ -976,10 +1602,13 @@ groupNameInput.addEventListener("input", async () => {
     groupLinkInput.disabled = false;
     groupLinkInput.value = "";
     addGroupButton.onclick = async () => {
-      const newGroupName = groupNameInput.value.trim();
-      const newGroupLink = groupLinkInput.value.trim();
-      const forbidden = ["doobneek", "gavilan","liz","kiesha", "adam"];
-      const isExistingGroup = await doesSanitizedGroupNameExist(newGroupName);
+const rawGroupName = groupNameInput.value.trim();
+const newGroupName = sanitizeGroupName(rawGroupName);
+const newGroupLink = groupLinkInput.value.trim();
+const forbidden = ["doobneek", "gavilan","liz","kiesha", "adam"];
+const isExistingGroup = await doesSanitizedGroupNameExist(newGroupName);
+
+      // Guard: block invalid/forbidden names and require a valid link for a new group
       if (
         !newGroupName || forbidden.includes(newGroupName) ||
         (!newGroupLink.includes("/location/") && !isExistingGroup)
@@ -987,12 +1616,14 @@ groupNameInput.addEventListener("input", async () => {
         alert("Please enter a valid group name and link.");
         return;
       }
+
       await addNewGroup(newGroupName, newGroupLink, NOTE_API, userPassword);
       hideConnectedLocations();
       await showConnectedLocations(NOTE_API, userPassword);
     };
   }
 });
+
 connectionsDiv.appendChild(groupListDatalist);
   addGroupDiv.appendChild(groupNameInput);
   addGroupDiv.appendChild(groupLinkInput);
@@ -1244,7 +1875,7 @@ if (!allowBecauseLinkIsBlank && !allowBecauseValidUuid && !allowBecauseGroupExis
   alert("Please enter a valid GoGetta location link or an existing group name.");
   return;
 }
-  const locationNotesURL = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes/${currentPageUuid}.json`;
+  const locationNotesURL = `${baseURL}/${currentPageUuid}.json`;
   try {
     const res = await fetch(locationNotesURL);
     const existingLocationNotes = await res.json();
@@ -1502,19 +2133,229 @@ function findServiceName(obj, serviceId) {
   recurse(obj);
   return foundName;
 }
-function createYourPeerEmbedWindow(slug, onClose = () => {}) {
+// --- Position helpers ---
+function getSavedYPPos() {
+  try { return JSON.parse(localStorage.getItem("ypMiniPosition") || "{}"); } catch { return {}; }
+}
+function saveYPPos(pos) {
+  localStorage.setItem("ypMiniPosition", JSON.stringify(pos || {}));
+}
+function getCurrentYPPos(wrapper) {
+  if (!wrapper) return null;
+  const rect = wrapper.getBoundingClientRect();
+  return { left: Math.max(0, Math.round(rect.left)), top: Math.max(0, Math.round(rect.top)) };
+}
+
+// --- Refresh (kept as-is) ---
+function refreshYourPeerEmbed() {
+  const wrapper = document.getElementById("yp-embed-wrapper");
+  if (!wrapper) return false; // Not open
+  const iframe = wrapper.querySelector("iframe");
+  if (iframe) {
+    const currentSrc = iframe.src;
+    iframe.src = currentSrc;
+    return true;
+  }
+  return false;
+}
+function slugifyName(name) {
+  // Check if only letters, numbers, and spaces
+  if (/^[A-Za-z0-9 ]+$/.test(name)) {
+    return "#" + name.trim().replace(/\s+/g, "-");
+  }
+  return "";
+}
+function getServiceIdFromPath(url = location.href) {
+  const m = url.match(/\/services\/([0-9a-fA-F-]{36})(?:\/|$)/);
+  return m?.[1] || null;
+}
+
+function coerceServicesArray(services) {
+  if (Array.isArray(services)) return services;
+  // also handle object map form: { "<id>": {id, name}, ... }
+  if (services && typeof services === "object") {
+    return Object.values(services);
+  }
+  return [];
+}
+
+function serviceNameToHash(name) {
+  // only letters, numbers, spaces -> "#Name-With-Dashes"
+  if (typeof name === "string" && /^[A-Za-z0-9 ]+$/.test(name)) {
+    return "#" + name.trim().replace(/\s+/g, "-");
+  }
+  return "";
+}
+
+function pickServiceHash(services, preferredId = null) {
+  const arr = coerceServicesArray(services);
+  if (!arr.length) return "";
+
+  let chosen = null;
+  if (preferredId) {
+    chosen = arr.find(s => s?.id === preferredId) || null;
+  }
+  if (!chosen) {
+    chosen = arr[0]; // fallback to first
+  }
+  return serviceNameToHash(chosen?.name);
+}
+
+/* =========================
+   Helpers: service hash
+   ========================= */
+function getServiceIdFromPath(){
+  // e.g. .../services/9e3f.../languages
+  const m = location.pathname.match(/\/services\/([0-9a-f-]{8,})\b/i);
+  return m ? m[1] : null;
+}
+function pickServiceHash(services, preferId){
+  if (!Array.isArray(services) || services.length === 0) return "";
+  let svc = null;
+  if (preferId) svc = services.find(s => s.id === preferId);
+  if (!svc) svc = services[0];
+  if (!svc?.name) return "";
+  // Only use a hash if the name is letters/numbers/spaces
+  if (!/^[A-Za-z0-9 ]+$/.test(svc.name)) return "";
+  return "#" + svc.name.trim().replace(/\s+/g, "-");
+}
+
+/* ==========================================
+   Helpers: Google Voice / Gmail link builders
+   ========================================== */
+function digitsOnly(s){ return (s||"").replace(/\D/g, ""); }
+function buildGVUrl(raw){
+  // Allow formats like (212) 941-9090 x123, +1 212-941-9090 ext 55, etc.
+  const m = String(raw).match(/^\s*(.+?)(?:\s*(?:x|ext\.?|extension|#)\s*(\d+))?\s*$/i);
+  let main = m ? m[1] : String(raw);
+  const ext  = m && m[2] ? m[2] : "";
+  let digits = digitsOnly(main);
+  // Use last 10 digits for US numbers; adjust if you need intl routing
+  if (digits.length > 10) digits = digits.slice(-10);
+  if (digits.length !== 10) return null;
+  const extSuffix = ext ? `,${ext}` : "";
+  return `https://voice.google.com/u/0/calls?a=nc,%2B1${digits}${extSuffix}`;
+}
+function buildGmailUrl(email){
+  return `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(email.trim())}`;
+}
+
+/* =======================================================
+   Linkify plain text + rewrite existing tel:/mailto: links
+   ======================================================= */
+function linkifyPhonesAndEmails(rootDoc){
+  const root = rootDoc || document;
+
+  // 1) Rewrite existing <a href="tel:"> and <a href="mailto:">
+  root.querySelectorAll('a[href^="tel:"], a[href^="mailto:"]').forEach(a => {
+    const href = a.getAttribute('href') || "";
+    if (href.startsWith("tel:")) {
+      const url = buildGVUrl(href.slice(4));
+      if (url) a.setAttribute('href', url);
+    } else {
+      const email = href.replace(/^mailto:/, "");
+      a.setAttribute('href', buildGmailUrl(email));
+    }
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener noreferrer');
+  });
+
+  // 2) Linkify plain text occurrences
+  const walker = document.createTreeWalker(
+    root.body || root,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node){
+        if (!node.nodeValue || !/[A-Za-z0-9@]/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+        // skip inside these
+        if (node.parentElement?.closest('a,script,style,textarea,select,code,pre,svg,#yp-embed-wrapper')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    }
+  );
+
+  const emailRe = /[\w.+-]+@[\w.-]+\.\w{2,}/g;
+  const phoneRe = /(?:(?:\+?1[\s.\-]*)?)\(?\d{3}\)?[\s.\-]*\d{3}[\s.\-]*\d{4}(?:\s*(?:x|ext\.?|extension|#)\s*\d+)?/gi;
+  const combo = new RegExp(`${phoneRe.source}|${emailRe.source}`, 'gi');
+
+  const textNodes = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) textNodes.push(n);
+
+  textNodes.forEach(tn => {
+    const text = tn.nodeValue;
+    let match, last = 0, changed = false;
+    const frag = document.createDocumentFragment();
+
+    while ((match = combo.exec(text))) {
+      changed = true;
+      const part = text.slice(last, match.index);
+      if (part) frag.appendChild(document.createTextNode(part));
+
+      const found = match[0];
+      const a = document.createElement('a');
+      if (found.includes('@')) {
+        a.href = buildGmailUrl(found);
+      } else {
+        const gv = buildGVUrl(found);
+        if (!gv) {
+          frag.appendChild(document.createTextNode(found));
+          last = combo.lastIndex;
+          continue;
+        }
+        a.href = gv;
+      }
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = found.trim();
+      frag.appendChild(a);
+
+      last = combo.lastIndex;
+    }
+
+    if (!changed) return;
+    const tail = text.slice(last);
+    if (tail) frag.appendChild(document.createTextNode(tail));
+    tn.parentNode.replaceChild(frag, tn);
+  });
+}
+
+// Re-run linkification on DOM changes (SPA-friendly)
+function installLinkObservers(){
+  linkifyPhonesAndEmails(document);
+  const mo = new MutationObserver(() => linkifyPhonesAndEmails(document));
+  mo.observe(document.body, { childList: true, subtree: true });
+}
+
+/* =====================================
+   YourPeer embed create/remount function
+   ===================================== */
+function createYourPeerEmbedWindow(slug, services, onClose = () => {}, positionOverride = null) {
   if (!slug) return;
+
   const wrapperId = "yp-embed-wrapper";
-  document.getElementById(wrapperId)?.remove();
-  const savedPos = JSON.parse(localStorage.getItem("ypMiniPosition") || "{}");
+  const existing = document.getElementById(wrapperId);
+  let pos = positionOverride || getCurrentYPPos(existing) || getSavedYPPos();
+  existing?.remove();
+
   const defaultTop = 120;
   const defaultLeft = 360;
+  const top = Number.isFinite(pos?.top) ? pos.top : defaultTop;
+  const left = Number.isFinite(pos?.left) ? pos.left : defaultLeft;
+
+  // Prefer a service hash if current URL has /services/<id>..., else first service
+  const serviceIdFromUrl = getServiceIdFromPath();
+  const hash = pickServiceHash(services, serviceIdFromUrl);
+
   const wrapper = document.createElement("div");
   wrapper.id = wrapperId;
+  wrapper.dataset.slug = slug;
+  wrapper.dataset.hash = hash || ""; // used by remount
   Object.assign(wrapper.style, {
     position: "fixed",
-    top: `${savedPos.top || defaultTop}px`,
-    left: `${savedPos.left || defaultLeft}px`,
+    top: `${top}px`,
+    left: `${left}px`,
     width: "400px",
     height: "500px",
     background: "#fff",
@@ -1526,6 +2367,8 @@ function createYourPeerEmbedWindow(slug, onClose = () => {}) {
     display: "flex",
     flexDirection: "column"
   });
+
+  // Drag bar
   const dragBar = document.createElement("div");
   Object.assign(dragBar.style, {
     background: "#eee",
@@ -1537,55 +2380,54 @@ function createYourPeerEmbedWindow(slug, onClose = () => {}) {
     justifyContent: "space-between",
     alignItems: "center"
   });
-const title = document.createElement("button");
-title.textContent = "Copy YP Link";
-Object.assign(title.style, {
-  fontSize: "12px",
-  padding: "4px 8px",
-  cursor: "pointer",
-  backgroundColor: "#f0f0f0",
-  border: "1px solid #ccc",
-  borderRadius: "4px"
-});
-title.onclick = () => {
-  navigator.clipboard.writeText(`https://yourpeer.nyc/locations/${slug}`)
-    .then(() => {
-      title.textContent = "Copied!";
-      setTimeout(() => { title.textContent = "Copy YP Link"; }, 1200);
-    })
-    .catch(() => {
-      title.textContent = "Failed to copy";
-      setTimeout(() => { title.textContent = "Copy YP Link"; }, 1200);
-    });
-};
+
+  // Copy link button
+  const copyBtn = document.createElement("button");
+  copyBtn.textContent = "Copy YP Link";
+  Object.assign(copyBtn.style, {
+    fontSize: "12px",
+    padding: "4px 8px",
+    cursor: "pointer",
+    backgroundColor: "#f0f0f0",
+    border: "1px solid #ccc",
+    borderRadius: "4px"
+  });
+  copyBtn.onclick = () => {
+    const url = `https://yourpeer.nyc/locations/${slug}${hash}`;
+    navigator.clipboard.writeText(url)
+      .then(() => { copyBtn.textContent = "Copied!"; setTimeout(() => { copyBtn.textContent = "Copy YP Link"; }, 1200); })
+      .catch(() => { copyBtn.textContent = "Failed to copy"; setTimeout(() => { copyBtn.textContent = "Copy YP Link"; }, 1200); });
+  };
+
   const closeBtn = document.createElement("span");
   closeBtn.innerHTML = "&times;";
-  Object.assign(closeBtn.style, {
-    cursor: "pointer",
-    fontSize: "18px",
-    padding: "0 6px"
-  });
+  Object.assign(closeBtn.style, { cursor: "pointer", fontSize: "18px", padding: "0 6px" });
   closeBtn.onclick = () => {
+    saveYPPos(getCurrentYPPos(wrapper));
     wrapper.remove();
     onClose();
   };
-  dragBar.appendChild(title);
+
+  dragBar.appendChild(copyBtn);
   dragBar.appendChild(closeBtn);
   wrapper.appendChild(dragBar);
+
+  // Iframe
   const iframe = document.createElement("iframe");
-  iframe.src = `https://yourpeer.nyc/locations/${slug}`;
-  Object.assign(iframe.style, {
-    border: "none",
-    width: "100%",
-    height: "100%"
-  });
+  iframe.src = `https://yourpeer.nyc/locations/${slug}${hash}`;
+  Object.assign(iframe.style, { border: "none", width: "100%", height: "100%" });
   wrapper.appendChild(iframe);
+
   document.body.appendChild(wrapper);
+
+  // Drag handling (live save)
   let isDragging = false, offsetX = 0, offsetY = 0;
   dragBar.addEventListener("mousedown", (e) => {
     isDragging = true;
-    offsetX = e.clientX - wrapper.getBoundingClientRect().left;
-    offsetY = e.clientY - wrapper.getBoundingClientRect().top;
+    const rect = wrapper.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+    dragBar.style.cursor = "grabbing";
     e.preventDefault();
   });
   document.addEventListener("mousemove", (e) => {
@@ -1596,12 +2438,53 @@ title.onclick = () => {
     const newY = Math.min(Math.max(0, e.clientY - offsetY), maxY);
     wrapper.style.left = `${newX}px`;
     wrapper.style.top = `${newY}px`;
-    localStorage.setItem("ypMiniPosition", JSON.stringify({ left: newX, top: newY }));
+    saveYPPos({ left: newX, top: newY });
   });
   document.addEventListener("mouseup", () => {
     isDragging = false;
+    dragBar.style.cursor = "grab";
+  });
+
+  // Remount after OK / DONE EDITING (fix setTimeout)
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("button.Button-primary");
+    if (!btn) return;
+    const txt = (btn.textContent || "").trim().toUpperCase();
+    if (txt === "OK" || txt === "DONE EDITING") {
+      setTimeout(() => remountYourPeerEmbed(), 1000);
+    }
   });
 }
+
+// Use the stored slug/hash to refresh the iframe src
+function remountYourPeerEmbed() {
+  const wrapper = document.getElementById("yp-embed-wrapper");
+  if (!wrapper) return;
+  const slug = wrapper.dataset.slug || "";
+  const hash = wrapper.dataset.hash || "";
+  const iframe = wrapper.querySelector("iframe");
+  if (!iframe || !slug) return;
+  const url = `https://yourpeer.nyc/locations/${slug}${hash}`;
+  // Force refresh even if same URL
+  iframe.src = url;
+}
+
+/* Kick off linkifying for host page */
+installLinkObservers();
+
+// --- Remount (preserving coords) ---
+function remountYourPeerEmbed(slug) {
+  // Prefer current live coords if window exists; else saved; else defaults inside create
+  const existing = document.getElementById("yp-embed-wrapper");
+  const pos = getCurrentYPPos(existing) || getSavedYPPos() || null;
+  createYourPeerEmbedWindow(slug, services, () => {}, pos);
+}
+
+
+
+// Example
+
+
 document.addEventListener("DOMContentLoaded", function() {
   const signInHeader = document.querySelector('.sign-in-header');
   if (signInHeader) {
@@ -1784,73 +2667,84 @@ if (uuid === "connections") {
   console.log(`[YPButton] 🔎 Attempting to fetch slug for UUID (Show on YP): ${uuid}`);
   const path = location.pathname;
   const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
-  if (fullServiceMatch) {
-    const locationId = fullServiceMatch[1];
-    const serviceId = fullServiceMatch[2];
-    try {
-      const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`);
-      const data = await res.json();
-      const slug = data.slug;
-      const serviceName = findServiceName(data, serviceId);
-      if (!slug || !serviceName) {
-        console.warn("[YPButton] ❌ Missing slug or service name for service page. Will not redirect.");
-        return;
-      }
-      const forbiddenChars = /[(){}\[\]"'“”‘’—–]/;
-      if (forbiddenChars.test(serviceName)) {
-        console.warn("[YPButton] 🚫 Forbidden characters in service name. Will not redirect.");
-        return;
-      }
-      sessionStorage.setItem('ypScrollTarget', serviceName);
-      const safeServiceName = serviceName
-        .trim()
-        .replace(/\s+/g, '-')
-        .replace(/[^\w\-+]/g, '')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
-      const serviceHash = `#${safeServiceName}`;
-      const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
-      console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
-      window.location.href = finalUrl;
-    } catch (err) {
-      console.error("[YPButton] 🛑 Error fetching location/service data for service page:", err);
+
+
+if (fullServiceMatch) {
+  const locationId = fullServiceMatch[1];
+  const serviceId = fullServiceMatch[2];
+  try {
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`);
+    const data = await res.json();
+
+    // 🟢 record validation timestamp
+    await maybeRecordValidation(locationId, data);
+
+    const slug = data.slug;
+    const serviceName = findServiceName(data, serviceId);
+    if (!slug || !serviceName) {
+      console.warn("[YPButton] ❌ Missing slug or service name for service page. Will not redirect.");
       return;
     }
-  } else {
-try {
-  const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
-  const data = await res.json();
-  const slug = data.slug;
-  let storedData = JSON.parse(localStorage.getItem("ypLastViewedService")) || [];
-  const newEntry = {
-    name: data.Organization?.name,
-    location: data.name,
-    uuid: uuid,
-    slug: slug
-  };
-if (!Array.isArray(storedData)) {
-  console.warn("Stored data is not an array. Initializing as an empty array.");
-  storedData = [];
+    const forbiddenChars = /[(){}\[\]"'“”‘’—–]/;
+    if (forbiddenChars.test(serviceName)) {
+      console.warn("[YPButton] 🚫 Forbidden characters in service name. Will not redirect.");
+      return;
+    }
+    sessionStorage.setItem('ypScrollTarget', serviceName);
+    const safeServiceName = serviceName
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^\w\-+]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    const serviceHash = `#${safeServiceName}`;
+    const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
+    console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
+    window.location.href = finalUrl;
+  } catch (err) {
+    console.error("[YPButton] 🛑 Error fetching location/service data for service page:", err);
+    return;
+  }
+} else {
+  try {
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+    const data = await res.json();
+
+    // 🟢 record validation timestamp
+    await maybeRecordValidation(uuid, data);
+
+    const slug = data.slug;
+    let storedData = JSON.parse(localStorage.getItem("ypLastViewedService")) || [];
+    const newEntry = {
+      name: data.Organization?.name,
+      location: data.name,
+      uuid: uuid,
+      slug: slug
+    };
+    if (!Array.isArray(storedData)) {
+      console.warn("Stored data is not an array. Initializing as an empty array.");
+      storedData = [];
+    }
+    const existingEntryIndex = storedData.findIndex(entry => entry.uuid === uuid);
+    if (existingEntryIndex === -1) {
+      storedData.push(newEntry);
+    } else {
+      storedData[existingEntryIndex] = newEntry;
+    }
+    localStorage.setItem("ypLastViewedService", JSON.stringify(storedData));
+    console.log(`[YPButton] ✅ Successfully stored: ${data.Organization?.name} - ${data.name} for UUID: ${uuid}`);
+    if (slug) {
+      const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
+      console.log(`[YPButton] ✅ Redirecting to YourPeer (location level): ${ypUrl}`);
+      window.location.href = ypUrl;
+    } else {
+      console.warn('[YPButton] ❌ Slug not found for location-level redirect.');
+    }
+  } catch (err) {
+    console.error('[YPButton] 🛑 Error fetching slug for location-level redirect:', err);
+  }
 }
-  const existingEntryIndex = storedData.findIndex(entry => entry.uuid === uuid);
-  if (existingEntryIndex === -1) {
-    storedData.push(newEntry);
-  } else {
-    storedData[existingEntryIndex] = newEntry;
-  }
-  localStorage.setItem("ypLastViewedService", JSON.stringify(storedData));
-  console.log(`[YPButton] ✅ Successfully stored: ${data.Organization?.name} - ${data.name} for UUID: ${uuid}`);
-  if (slug) {
-    const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
-    console.log(`[YPButton] ✅ Redirecting to YourPeer (location level): ${ypUrl}`);
-    window.location.href = ypUrl;
-  } else {
-    console.warn('[YPButton] ❌ Slug not found for location-level redirect.');
-  }
-} catch (err) {
-  console.error('[YPButton] 🛑 Error fetching slug for location-level redirect:', err);
-}
-  }
+
 }, 60); 
 const futureBtn = createButton(
   'Add future/online org',
@@ -1862,27 +2756,33 @@ const futureBtn = createButton(
 
 
 const ypMiniBtn = createButton('YP Mini', async () => {
-  try {
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
-    const data = await res.json();
-    const slug = data.slug;
-    if (slug) {
-      ypMiniBtn.style.display = "none"; 
-      createYourPeerEmbedWindow(slug, () => {
-        ypMiniBtn.style.display = "block"; 
-      });
-    } else {
-      console.warn('[YP Mini] ❌ Slug not found.');
-    }
-  } catch (err) {
-    console.error('[YP Mini] 🛑 Error fetching slug:', err);
+try {
+  const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+  const data = await res.json();
+
+  // 🟢 record validation timestamp
+  await maybeRecordValidation(uuid, data);
+
+  const slug = data.slug;
+  const services = data.Services || [];
+
+  if (slug) {
+    ypMiniBtn.style.display = "none"; 
+    createYourPeerEmbedWindow(slug, services, () => {
+      ypMiniBtn.style.display = "block"; 
+    });
+  } else {
+    console.warn('[YP Mini] ❌ Slug not found.');
   }
+} catch (err) {
+  console.error('[YP Mini] 🛑 Error fetching slug:', err);
+}
+
 }, 120);
 if (!document.getElementById("gg-note-overlay")) {
   try {
 const userName = window.gghostUserName || await getUserNameSafely();
 const userPassword =  window.gghostPassword || await getUserPasswordSafely(); 
-    const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
 if (!userName && !location.pathname.startsWith('/find/')) {
   console.warn("[📝 Notes] Username not set. Prompting user to click the extension icon.");
   const banner = document.createElement("div");
@@ -1905,8 +2805,7 @@ if (!userName && !location.pathname.startsWith('/find/')) {
   setTimeout(() => banner.remove(), 10000);
   return;
 }
-    const firebaseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes.json";
-const res = await fetch(firebaseURL);
+const res = await fetch(`${baseURL}.json`);
 const allData = await res.json();
 const data = allData?.[uuid] || {};
             const notesArray = [];
@@ -2038,14 +2937,39 @@ if (currentUuid) {
 } else {
   console.warn("[Notes Header] UUID is not available. Cannot fetch details.");
   const stored = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
-}
+}let headerSpan = document.createElement("span");
 if (orgName || locationName) {
-  dragBar.textContent = `⋮ ${orgName}${locationName ? ' - ' + locationName : ''}`;
+  headerSpan.textContent = `⋮ ${orgName}${locationName ? ' - ' + locationName : ''}`;
 } else {
-  dragBar.textContent = `⋮ notes`;
+  headerSpan.textContent = `⋮ notes`;
 }
+headerSpan.style.userSelect = "none";
+headerSpan.style.webkitUserSelect = "none";
+
+dragBar.textContent = ""; // clear before appending
+dragBar.style.cursor = "grab";
+dragBar.appendChild(headerSpan);
+
+// double-click copy only the header text (not buttons)
+headerSpan.addEventListener("dblclick", async (e) => {
+  e.stopPropagation();
+  e.preventDefault();
+
+  const text = headerSpan.textContent.replace(/^⋮\s*/, "");
+  try {
+    await navigator.clipboard.writeText(text);
+    console.log(`[Notes Header] Copied to clipboard: "${text}"`);
+    // Optional feedback
+    headerSpan.style.backgroundColor = "#e0ffe0";
+    setTimeout(() => headerSpan.style.backgroundColor = "", 300);
+  } catch (err) {
+    console.error("Clipboard copy failed:", err);
+  }
+});
+
+// Now append your button separately
 const toggleButton = document.createElement("button");
-toggleButton.id = "notes-toggle-button"; 
+toggleButton.id = "notes-toggle-button";
 toggleButton.innerText = "Show Other Branches";
 toggleButton.style.marginLeft = "10px";
 toggleButton.style.fontSize = "14px";
@@ -2055,6 +2979,7 @@ toggleButton.style.borderRadius = "4px";
 toggleButton.style.cursor = "pointer";
 toggleButton.addEventListener("click", toggleConnectionMode);
 dragBar.appendChild(toggleButton);
+
 Object.assign(dragBar.style, {
   background: "#eee",
   padding: "6px 10px",
@@ -2065,57 +2990,6 @@ Object.assign(dragBar.style, {
 noteWrapper.appendChild(dragBar);
 const readOnlyDiv = document.createElement("div");
 readOnlyDiv.id = "readonly-notes";
-readOnlyDiv.innerHTML =
-notesArray
-  .filter(n => !(n.user === userName && n.date === today && n.note.trim().toLowerCase() !== "revalidated123435355342"))
-  .map(n => {
-    const safeUser = n.user === 'doobneek'
-      ? `<a href="https://doobneek.org" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
-      : `<strong>${escapeHtml(n.user)}</strong>`;
-    const isReminder = n.user === "reminder";
-    const today = new Date().toISOString().slice(0, 10);
-    const isDue = n.date <= today;
-const isDone = /\n?\s*Done by .+$/i.test(n.note.trim());
-    const noteId = `done-btn-${n.date}-${n.uuid || 'x'}`; 
-    const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"
-      ? "Revalidated"
-      : escapeHtml(n.note);
-    let html = `<div style="margin-bottom:10px;">${safeUser} (${n.date}):<br>${displayNote}`;
-    if (isReminder && isDue && !isDone) {
-      html += `<br><button id="${noteId}" style="margin-top:5px;">Done?</button>`;
-      setTimeout(() => {
-        const btn = document.getElementById(noteId);
-        if (btn) {
-          btn.addEventListener("click", async () => {
-            const updatedNote = `${n.note.trim()}\n\nDone by ${userName}`;
-            try {
-              const response = await fetch(NOTE_API, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  uuid,
-                  userName: "reminder",
-                  password: userPassword,
-                  date: n.date,
-                  note: updatedNote
-                })
-              });
-await checkResponse(response, "Marking reminder done");
-btn.textContent = "Thanks!";
-btn.disabled = true;
-btn.style.backgroundColor = "#ccc";
-            } catch (err) {
-              console.error("❌ Failed to mark done", err);
-              alert("Failed to update reminder.");
-            }
-          });
-        }
-      }, 0);
-    }
-    html += `</div>`;
-    return html;
-  })
-  .join("") || "<i>(No past notes available)</i>";
 Object.assign(readOnlyDiv.style, {
   background: "#f9f9f9",
   padding: "10px",
@@ -2125,7 +2999,72 @@ Object.assign(readOnlyDiv.style, {
   fontSize: "13px",
   fontStyle: "italic"
 });
+
+if (notesArray.length > 0) {
+  notesArray
+    .filter(n => !(n.user === userName && n.date === today && n.note.trim().toLowerCase() !== "revalidated123435355342"))
+    .forEach(n => {
+      const container = document.createElement("div");
+      container.style.marginBottom = "10px";
+
+      const safeUser = n.user === 'doobneek'
+        ? `<a href="http://localhost:8888" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
+        : `<strong>${escapeHtml(n.user)}</strong>`;
+
+      const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"
+        ? "Revalidated"
+        : escapeHtml(n.note);
+
+      container.innerHTML = `${safeUser} (${n.date}):<br>${displayNote}`;
+
+      const isReminder = n.user === "reminder";
+      const today = new Date().toISOString().slice(0, 10);
+      const isDue = n.date <= today;
+      const isDone = /\n?\s*Done by .+$/i.test(n.note.trim());
+
+      if (isReminder && isDue && !isDone) {
+        const btn = document.createElement("button");
+        btn.textContent = "Done?";
+        btn.style.marginTop = "5px";
+
+        btn.addEventListener("click", async () => {
+          const updatedNote = `${n.note.trim()}\n\nDone by ${userName}`;
+          try {
+            const response = await fetch(NOTE_API, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                uuid,
+                userName: "reminder",
+                password: userPassword,
+                date: n.date,
+                note: updatedNote
+              })
+            });
+            await checkResponse(response, "Marking reminder done");
+            btn.textContent = "Thanks!";
+            btn.disabled = true;
+            btn.style.backgroundColor = "#ccc";
+          } catch (err) {
+            console.error("❌ Failed to mark done", err);
+            alert("Failed to update reminder.");
+          }
+        });
+
+        container.appendChild(document.createElement("br"));
+        container.appendChild(btn);
+      }
+
+      readOnlyDiv.appendChild(container);
+    });
+} else {
+  readOnlyDiv.innerHTML = "<i>(No past notes available)</i>";
+}
+
 noteWrapper.appendChild(readOnlyDiv);
+
+// After readOnlyDiv is populated:
+await addValidationHistoryBadge(readOnlyDiv, uuid);
 
 // ⬇️ Add this call
 await injectSiteVisitUI({
@@ -2134,7 +3073,8 @@ await injectSiteVisitUI({
   userName,                   // current user (already resolved earlier)
   userPassword,               // current password (already resolved earlier)
   NOTE_API,                   // "https://locationnote-iygwucy2fa-uc.a.run.app"
-  today                       // you already have const today = new Date().toISOString().slice(0, 10);
+  today,                       // you already have const today = new Date().toISOString().slice(0, 10);
+  done:false
 });
 const reminderToggleWrapper = document.createElement("div");
 Object.assign(reminderToggleWrapper.style, {
@@ -2271,8 +3211,10 @@ revalidateCheckbox.addEventListener("change", async () => {
                     note: revalidationCode
                 })
             });
-            checkboxWrapper.style.display = "none";
-            editableDiv.innerText = "";
+ revalidateLabel.textContent = ` Thanks, ${userName}`;
+
+    revalidateCheckbox.style.display = "none";
+                editableDiv.innerText = "";
             // update read-only notes...
         } catch (err) {
             console.error("❌ Failed to mark as revalidated:", err);

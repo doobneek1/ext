@@ -1,0 +1,260 @@
+{
+  "id": "04271866-060a-42dc-a988-d6dcd6cd391c",
+  "name": "Judith P. Vladeck Center for Women",
+  "description": null,
+  "transportation": null,
+  "position": {
+    "type": "Point",
+    "coordinates": [-73.9987276, 40.7431437]
+  },
+  "slug": "nontraditional-employment-for-women-new",
+  "last_validated_at": "2025-03-26T18:38:18.106Z",
+  "name_vector": "'center':4 'judith':1 'p':2 'vladeck':3 'women':6",
+  "createdAt": "2018-03-23T15:12:13.980Z",
+  "updatedAt": "2018-03-23T15:12:13.980Z",
+  "organization_id": "48d13627-2f17-4717-a463-3b4addb39642",
+  "neighborhood": "Chelsea",
+  "Organization": {
+    "id": "48d13627-2f17-4717-a463-3b4addb39642",
+    "name": "Nontraditional Employment for Women (NEW)",
+    "description": "Nontraditional Employment for Women (NEW) is an employment and training program for women interested in nontraditional blue-collar and construction jobs, training, and apprenticeships. Must have a high school diploma or HSE and 18 years or older. Lastly, you must attend an Information Session to register. ",
+    "email": null,
+    "url": "https://www.new-nyc.org/enroll",
+    "partners": false,
+    "name_vector": "'employ':2 'new':5 'nontradit':1 'women':4",
+    "createdAt": "2018-03-23T15:12:13.239Z",
+    "updatedAt": "2024-08-24T18:08:58.345Z",
+    "Phones": []
+  },
+  "Phones": [
+    {
+      "id": "3c6de3c1-2d0b-462a-88df-1c586a7e0166",
+      "number": "212.627.6252",
+      "extension": null,
+      "type": null,
+      "language": null,
+      "description": null,
+      "createdAt": "2018-03-23T15:12:14.047Z",
+      "updatedAt": "2018-03-23T15:12:14.047Z",
+      "location_id": "04271866-060a-42dc-a988-d6dcd6cd391c",
+      "organization_id": null,
+      "service_id": null,
+      "service_at_location_id": null
+    }
+  ],
+  "AccessibilityForDisabilities": [],
+  "EventRelatedInfos": [],
+  "additionalInfo": null,
+  "address": {
+    "street": "243 W 20th St",
+    "city": "New York",
+    "region": null,
+    "state": "NY",
+    "postalCode": "10011",
+    "country": "US"
+  },
+  "Services": [
+    {
+      "id": "c814b699-7bde-48f7-b862-b4d2e46ae7de",
+      "name": "Enrollment for Employment Services",
+      "description": "Any adult eligible to work in the US identifying as a woman or non-binary with a high school diploma can enroll online to start an intake application. You will have to undergo a math test and interview to determine your fitness for the program and enroll in a training program upon acceptance. After union enrollment and job placement, NEW can help you obtain the necessary clothes and gear",
+      "url": null,
+      "email": null,
+      "interpretation_services": null,
+      "fees": null,
+      "additional_info": null,
+      "name_vector": "'employ':3 'enrol':1 'servic':4",
+      "description_vector": "'accept':54 'adult':2 'applic':29 'binari':16 'cloth':68 'determin':41 'diploma':21 'elig':3 'enrol':23,48,57 'fit':43 'gear':70 'help':63 'high':19 'identifi':9 'intak':28 'interview':39 'job':59 'math':36 'necessari':67 'new':61 'non':15 'non-binari':14 'obtain':65 'onlin':24 'placement':60 'program':46,52 'school':20 'start':26 'test':37 'train':51 'undergo':34 'union':56 'upon':53 'us':8 'woman':12 'work':5",
+      "createdAt": "2018-03-23T15:12:14.082Z",
+      "updatedAt": "2025-03-26T18:38:13.279Z",
+      "organization_id": "48d13627-2f17-4717-a463-3b4addb39642",
+      "ServiceAtLocation": {
+        "id": "94bf1a24-1443-48e4-b93c-f853645ecbf2",
+        "description": null,
+        "createdAt": "2018-03-23T15:12:14.228Z",
+        "updatedAt": "2018-03-23T15:12:14.228Z",
+        "location_id": "04271866-060a-42dc-a988-d6dcd6cd391c",
+        "service_id": "c814b699-7bde-48f7-b862-b4d2e46ae7de"
+      },
+      "Eligibilities": [],
+      "ServiceTaxonomySpecificAttributes": [],
+      "Taxonomies": [
+        {
+          "id": "1fad2545-15d0-4613-b34c-1407b8b7e74e",
+          "name": "Other service",
+          "parent_name": null,
+          "name_vector": "'servic':2",
+          "createdAt": "2018-06-27T05:59:33.361Z",
+          "updatedAt": "2018-06-27T05:59:33.361Z",
+          "parent_id": null,
+          "ServiceTaxonomy": {
+            "id": "eded9756-1043-4929-864c-9337e3a00616",
+            "createdAt": "2020-03-28T16:57:56.785Z",
+            "updatedAt": "2020-03-28T16:57:56.785Z",
+            "service_id": "c814b699-7bde-48f7-b862-b4d2e46ae7de",
+            "taxonomy_id": "1fad2545-15d0-4613-b34c-1407b8b7e74e"
+          }
+        }
+      ],
+      "RegularSchedules": [],
+      "HolidaySchedules": [
+        {
+          "id": "11158d53-52c3-4e87-a75e-097c0aec916c",
+          "closed": true,
+          "opens_at": null,
+          "closes_at": null,
+          "start_date": null,
+          "end_date": null,
+          "weekday": null,
+          "occasion": "COVID19",
+          "createdAt": "2025-03-26T18:38:18.119Z",
+          "updatedAt": "2025-03-26T18:38:18.119Z",
+          "location_id": null,
+          "service_id": "c814b699-7bde-48f7-b862-b4d2e46ae7de",
+          "service_at_location_id": null
+        },
+        {
+          "id": "af821d82-42c5-4ff9-9cc9-4060bf2c1a3f",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "18:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2025-03-26T18:38:18.119Z",
+          "updatedAt": "2025-03-26T18:38:18.119Z",
+          "location_id": null,
+          "service_id": "c814b699-7bde-48f7-b862-b4d2e46ae7de",
+          "service_at_location_id": null
+        },
+        {
+          "id": "51089f95-3e0b-484a-a51b-237ba21f5b16",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "18:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2025-03-26T18:38:18.118Z",
+          "updatedAt": "2025-03-26T18:38:18.118Z",
+          "location_id": null,
+          "service_id": "c814b699-7bde-48f7-b862-b4d2e46ae7de",
+          "service_at_location_id": null
+        },
+        {
+          "id": "bc076e1b-4d65-4ba0-98a5-02520ec731be",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "18:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2025-03-26T18:38:18.118Z",
+          "updatedAt": "2025-03-26T18:38:18.118Z",
+          "location_id": null,
+          "service_id": "c814b699-7bde-48f7-b862-b4d2e46ae7de",
+          "service_at_location_id": null
+        },
+        {
+          "id": "f13031da-3fbb-401a-996c-a35f25e89932",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "18:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2025-03-26T18:38:18.118Z",
+          "updatedAt": "2025-03-26T18:38:18.118Z",
+          "location_id": null,
+          "service_id": "c814b699-7bde-48f7-b862-b4d2e46ae7de",
+          "service_at_location_id": null
+        },
+        {
+          "id": "8736690b-90d0-4455-8623-21ec7a0a28e8",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "18:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2025-03-26T18:38:18.118Z",
+          "updatedAt": "2025-03-26T18:38:18.118Z",
+          "location_id": null,
+          "service_id": "c814b699-7bde-48f7-b862-b4d2e46ae7de",
+          "service_at_location_id": null
+        }
+      ],
+      "Languages": [],
+      "RequiredDocuments": [],
+      "DocumentsInfo": {
+        "id": "a09fad8b-081d-417a-97dc-918259ddf44c",
+        "recertification_time": null,
+        "grace_period": null,
+        "additional_info": null,
+        "createdAt": "2019-01-14T20:48:23.003Z",
+        "updatedAt": "2019-01-14T20:48:23.003Z",
+        "service_id": "c814b699-7bde-48f7-b862-b4d2e46ae7de"
+      },
+      "Phones": [],
+      "EventRelatedInfos": [],
+      "ServiceAreas": [],
+      "metadata": {
+        "service": [
+          {
+            "field_name": "additional_info",
+            "last_action_date": "2020-05-15T17:12:18.844Z"
+          },
+          {
+            "field_name": "description",
+            "last_action_date": "2025-03-26T18:38:13.870Z"
+          },
+          {
+            "field_name": "name",
+            "last_action_date": "2022-10-03T18:28:50.556Z"
+          },
+          {
+            "field_name": "irregularHours",
+            "last_action_date": "2025-03-26T18:38:18.223Z"
+          }
+        ],
+        "documents": [],
+        "sources": []
+      }
+    }
+  ],
+  "metadata": {
+    "location": [
+      {
+        "field_name": "name",
+        "last_action_date": "2024-01-20T22:09:16.584Z"
+      }
+    ],
+    "organization": [
+      {
+        "field_name": "description",
+        "last_action_date": "2024-01-20T22:10:37.539Z"
+      },
+      {
+        "field_name": "name",
+        "last_action_date": "2025-03-26T18:32:37.283Z"
+      },
+      {
+        "field_name": "url",
+        "last_action_date": "2024-08-24T18:08:58.826Z"
+      }
+    ],
+    "address": [
+      {
+        "field_name": "address_1",
+        "last_action_date": "2025-03-26T18:32:36.818Z"
+      }
+    ],
+    "sources": []
+  },
+  "closed": false
+}

@@ -1,6 +1,13 @@
 (() => {
+  if (window.top !== window.self) return; // 🚫 don’t run inside iframes at all
+
+  const EMBED_WRAPPER_ID = "yp-embed-wrapper";
+
   function redirectTelLinksToGoogleVoice() {
+    if (location.hostname.includes("voice.google.com")) return;
     document.querySelectorAll('a[href^="tel:"]').forEach(link => {
+      if (link.closest(`#${EMBED_WRAPPER_ID}`)) return; // 🚫 skip inside embed
+
       const tel = link.getAttribute('href').replace('tel:', '');
       const [mainPart, extension] = tel.split(/[,;]/);
       let digits = mainPart.replace(/\D/g, '').slice(-10);
@@ -15,7 +22,10 @@
   }
 
   function redirectMailtoLinksToGmail() {
+    if (location.hostname.includes("mail.google.com")) return;
     document.querySelectorAll('a[href^="mailto:"]').forEach(link => {
+      if (link.closest(`#${EMBED_WRAPPER_ID}`)) return; // 🚫 skip inside embed
+
       const email = link.getAttribute('href').replace(/^mailto:/, '').trim();
       if (!email || !email.includes('@')) return;
       const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(email)}`;
@@ -30,7 +40,15 @@
     redirectMailtoLinksToGmail();
   }
 
+  // Run once now
   redirectAllLinks();
-  const observer = new MutationObserver(redirectAllLinks);
+
+  // Watch DOM changes, but ignore mutations inside the embed wrapper
+  const observer = new MutationObserver(muts => {
+    if (muts.some(m => m.target.closest && m.target.closest(`#${EMBED_WRAPPER_ID}`))) {
+      return; // skip changes that only happen inside embed
+    }
+    redirectAllLinks();
+  });
   observer.observe(document.body, { childList: true, subtree: true });
 })();
