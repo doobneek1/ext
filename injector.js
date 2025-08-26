@@ -347,15 +347,34 @@ function formatTimeRange(text) {
   });
 }
 
+function formatAge(text) {
+  // Helper: ordinal suffix
+  const ordinal = (n) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
 
-  function formatAge(text) {
-    return text.replace(/age\((.+?)\)/gi, (_, ages) => {
-      const nums = ages.split(/[-,]/).map(Number);
-      return nums.length === 2
-        ? `Age requirement: ${nums[0]}-${nums[1]} (until your ${nums[1] + 1}th birthday)`
-        : `Age requirement: ${nums[0]}+`;
-    });
-  }
+  return text.replace(/age\((.+?)\)/gi, (match, ages, offset, full) => {
+    const nums = ages.split(/[-,]/).map(Number);
+    const phrase =
+      nums.length === 2
+        ? `age requirement: ${nums[0]}-${nums[1]} (until your ${ordinal(
+            nums[1] + 1
+          )} birthday)`
+        : `age requirement: ${nums[0]}+`;
+
+    // Check preceding char for capitalization
+    const prevChar = full[offset - 1];
+    const capitalize =
+      offset === 0 || /[\.\?\!]\s*$/.test(full.slice(0, offset));
+
+    return capitalize
+      ? phrase.charAt(0).toUpperCase() + phrase.slice(1)
+      : phrase;
+  });
+}
+
 
 function safeHyperlink(text) {
   const parts = text.split(/(<a .*?>.*?<\/a>)/g);
