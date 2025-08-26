@@ -530,7 +530,69 @@ async function injectSiteVisitUI({
     // Remove prior banner if re-rendered
     parentEl.querySelector('#sitevisit-banner')?.remove();
 
-    const rec = await fetchSiteVisitRecord(uuid);
+    // --- Helpers ------------------------------------------------------------
+    function normalizeSiteVisitRecord(raw, uuid) {
+      // If the caller fetched the whole branch and it's keyed by uuid
+      let rec = raw && raw[uuid] ? raw[uuid] : raw;
+      if (!rec || typeof rec !== 'object') return null;
+
+      // Ensure meta exists, coerce done to boolean
+      rec.meta = rec.meta || {};
+      const dv = rec.meta.done;
+      rec.meta.done = dv === true || dv === 'true' || dv === 1 ? true
+                   : dv === false || dv === 'false' || dv === 0 ? false
+                   : Boolean(dv); // fallback
+
+      // Ensure updatedAt is usable
+      if (!rec.meta.updatedAt) rec.meta.updatedAt = new Date().toISOString();
+
+      // Notes may be an object keyed by push IDs
+      if (rec.notes && typeof rec.notes === 'object' && !Array.isArray(rec.notes)) {
+        // leave as-is
+      }
+      return rec;
+    }
+
+    function getLatestNoteTextFromObjectNotes(notesObj) {
+      if (!notesObj || typeof notesObj !== 'object') return '';
+      const entries = Object.entries(notesObj);
+      if (entries.length === 0) return '';
+      entries.sort((a, b) => {
+        const da = Date.parse(a[1]?.date || 0);
+        const db = Date.parse(b[1]?.date || 0);
+        return da - db;
+      });
+      const last = entries[entries.length - 1];
+      return (last?.[1]?.text || '').trim();
+    }
+
+    async function postNoteFromSiteVisit({ uuid, userName, userPassword, NOTE_API, rec }) {
+      // Prefer the latest object note text if present
+      const latestObjNote = getLatestNoteTextFromObjectNotes(rec?.notes);
+      const note = latestObjNote
+        ? `[Site Visit] ${latestObjNote}`
+        : `[Site Visit] Completed`;
+
+      const res = await fetch(NOTE_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uuid,
+          userName,
+          password: userPassword,
+          date: (typeof today === 'string' && today) ? today : new Date().toISOString(),
+          note
+        })
+      });
+      if (!res.ok) throw new Error("NOTE_API post failed");
+      return res;
+    }
+
+    // --- Fetch + normalize --------------------------------------------------
+    const raw = await fetchSiteVisitRecord(uuid);
+    const rec = normalizeSiteVisitRecord(raw, uuid);
+
+    // Build banner
     const banner = document.createElement('div');
     banner.id = 'sitevisit-banner';
 
@@ -545,103 +607,79 @@ async function injectSiteVisitUI({
         day: "numeric",
         year: "2-digit"
       });
-      info.textContent = `Marked for site visit ${rec.meta.userName} on ${updated}`;
+      info.textContent = `Marked for site visit ${rec.meta.userName || userName || ''} on ${updated}`;
       banner.appendChild(info);
-function getLatestNoteText(rec) {
-  if (!rec.notes || typeof rec.notes !== "object") return "";
-  const noteIds = Object.keys(rec.notes);
-  if (noteIds.length === 0) return "";
-  // pick the last by key order or sort by createdAt if you store that
-  const lastId = noteIds[noteIds.length - 1];
-  return rec.notes[lastId]?.text?.trim() || "";
-}
 
-const noteText = getLatestNoteText(rec);
-if (noteText) {
-  const prevNote = document.createElement("div");
-  prevNote.style.marginTop = "4px";
-  prevNote.style.fontStyle = "italic";
-  prevNote.textContent = `Previous note: ${noteText}`;
-  banner.appendChild(prevNote);
-}
+      // Show the latest previous note (object notes)
+      const noteText = getLatestNoteTextFromObjectNotes(rec.notes);
+      if (noteText) {
+        const prevNote = document.createElement("div");
+        prevNote.style.marginTop = "4px";
+        prevNote.style.fontStyle = "italic";
+        prevNote.textContent = `Previous note: ${noteText}`;
+        banner.appendChild(prevNote);
+      }
 
+      if (done !== true) {
+        // ========= OLD VERSION: Checkbox, no embedding =========
 
-if (done !== true) {
-  // ========= OLD VERSION: Checkbox, no embedding =========
+        // Back-compat: If rec.notes had been a string in some old records
+        if (typeof rec.notes === 'string' && rec.notes.trim()) {
+          const svNote = document.createElement('div');
+          svNote.style.marginTop = '6px';
+          svNote.style.fontStyle = 'italic';
+          svNote.textContent = `Note: ${rec.notes}`;
+          banner.appendChild(svNote);
+        }
 
-  // Show existing note from DB (if any)
-  if (typeof rec.notes === 'string' && rec.notes.trim()) {
-    const svNote = document.createElement('div');
-    svNote.style.marginTop = '6px';
-    svNote.style.fontStyle = 'italic';
-    svNote.textContent = `Note: ${rec.notes}`;
-    banner.appendChild(svNote);
-  }
+        const chkWrap = document.createElement('label');
+        chkWrap.style.display = 'inline-flex';
+        chkWrap.style.alignItems = 'center';
+        chkWrap.style.gap = '6px';
+        chkWrap.style.marginTop = '8px';
 
-  const chkWrap = document.createElement('label');
-  chkWrap.style.display = 'inline-flex';
-  chkWrap.style.alignItems = 'center';
-  chkWrap.style.gap = '6px';
-  chkWrap.style.marginTop = '8px';
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        const chkText = document.createTextNode(' Done?');
 
-  const chk = document.createElement('input');
-  chk.type = 'checkbox';
-  const chkText = document.createTextNode(' Done?');
+        chkWrap.appendChild(chk);
+        chkWrap.appendChild(chkText);
+        banner.appendChild(chkWrap);
 
-  chkWrap.appendChild(chk);
-  chkWrap.appendChild(chkText);
-  banner.appendChild(chkWrap);
+        chk.addEventListener('change', async () => {
+          if (!chk.checked) return;
 
-chk.addEventListener('change', async () => {
-  if (!chk.checked) return;
+          try {
+            // --- 1) Flip the done flag directly in RTDB ---
+            async function flipDone(uuid) {
+              const url = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/siteVisits/${uuid}/meta/done.json`;
+              const res = await fetch(url, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(true)
+              });
+              if (!res.ok) throw new Error("Failed to flip done flag");
+            }
 
-  try {
-    // --- 1) Flip the done flag directly in RTDB ---
-    async function flipDone(uuid, userName, userPassword) {
-      const url = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/siteVisits/${uuid}/meta/done.json`;
-      const res = await fetch(url, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(true)
-      });
-      if (!res.ok) throw new Error("Failed to flip done flag");
-    }
+            await flipDone(uuid);
 
-    await flipDone(uuid, userName, userPassword);
+            // --- 2) Post a note to NOTE_API (use latest object-note if any) ---
+            await postNoteFromSiteVisit({ uuid, userName, userPassword, NOTE_API, rec });
 
-    // --- 2) Post a note to NOTE_API ---
-    const note = rec?.notes
-      ? `[Site Visit] ${rec.notes}`
-      : `[Site Visit] Completed`;
+            // --- 3) UI cleanup ---
+            chk.disabled = true;
+            chkWrap.textContent = "Thanks — recorded and cleared.";
+            setTimeout(() => banner.remove(), 1200);
 
-    const res = await fetch(NOTE_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uuid,
-        userName,
-        password: userPassword,
-        date: today,
-        note,
-      }),
-    });
-    await checkResponse(res, "Saving site-visit completion");
+          } catch (err) {
+            console.error("[SiteVisit] Failed to mark done:", err);
+            alert("Failed to record completion.");
+            chk.checked = false;
+          }
+        });
 
-    // --- 3) UI cleanup ---
-    chk.disabled = true;
-    chkWrap.textContent = "Thanks — recorded and cleared.";
-    setTimeout(() => banner.remove(), 1200);
-
-  } catch (err) {
-    console.error("[SiteVisit] Failed to mark done:", err);
-    alert("Failed to record completion.");
-    chk.checked = false;
-  }
-});
-
-  // ========= END OLD VERSION =========
-}
-else {
+        // ========= END OLD VERSION =========
+      } else {
         // ========= NEW VERSION: Inline editor via embed (when done === true) =========
         const editorWrap = document.createElement('div');
 
@@ -673,8 +711,9 @@ else {
 
           } else if (type === 'CLOSE_EMBED') {
             try {
-              const latest = await fetchSiteVisitRecord(uuid);
-              if (latest && latest.meta && latest.meta.done === true) {
+              const latestRaw = await fetchSiteVisitRecord(uuid);
+              const latest = normalizeSiteVisitRecord(latestRaw, uuid);
+              if (latest?.meta?.done === true) {
                 await postNoteFromSiteVisit({
                   uuid,
                   userName,
@@ -2323,6 +2362,7 @@ function linkifyPhonesAndEmails(rootDoc){
 
 // Re-run linkification on DOM changes (SPA-friendly)
 function installLinkObservers(){
+  if (window.top !== window.self) return;
   linkifyPhonesAndEmails(document);
   const mo = new MutationObserver(() => linkifyPhonesAndEmails(document));
   mo.observe(document.body, { childList: true, subtree: true });
