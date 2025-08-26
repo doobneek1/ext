@@ -1,7 +1,7 @@
   const NOTE_API = "https://locationnote-iygwucy2fa-uc.a.run.app";
 window.gghost = window.gghost || {};
 window.gghost.NOTE_API = NOTE_API;
-const baseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes";
+const baseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/";
 window.gghost.baseURL = baseURL;
 function normalizeOrgName(name) {
   return (name || "")
@@ -15,7 +15,7 @@ function normalizeOrgName(name) {
 
         const today = new Date().toISOString().slice(0, 10); 
 async function fetchValidationStats(uuid) {
-  const url = `${baseURL}/${uuid}/stats.json`;
+  const url = `${baseURL}locationNotes/${uuid}/stats.json`;
   const r = await fetch(url);
   if (!r.ok) return [];
   const data = (await r.json()) || {};
@@ -339,7 +339,7 @@ async function recordLocationStat(uuid, lastValidated) {
     lastValidated,
   });
 
-  const res = await fetch(`${base}.json`, {
+  const res = await fetch(base, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body
@@ -393,7 +393,7 @@ async function postNoteFromSiteVisit({ uuid, userName, userPassword, NOTE_API, r
 }
 
 async function fetchSiteVisitRecord(uuid) {
-  const url = `${baseURL}/${uuid}.json`;
+  const url = `${baseURL}/siteVisits/${uuid}.json`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`SiteVisit fetch failed: ${r.status}`);
   return await r.json(); // null if not present
@@ -652,7 +652,7 @@ async function injectSiteVisitUI({
           try {
             // --- 1) Flip the done flag directly in RTDB ---
             async function flipDone(uuid) {
-              const url = `https://doobneek-fe7b7-default-rtdb.firebaseio.com/siteVisits/${uuid}/meta/done.json`;
+              const url = `${baseURL}/siteVisits/${uuid}/meta/done.json`;
               const res = await fetch(url, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -1116,7 +1116,7 @@ function decodeCompositeKey(key) {
 async function loadExisting() {
   existingDiv.innerHTML = "Loading…";
   try {
-    const r = await fetch(`${baseURL}.json`);
+    const r = await fetch(`${baseURL}locationNotes.json`);
     if (!r.ok) throw new Error(`Fetch failed: ${r.status}`);
     const all = await r.json() || {};
 
@@ -1478,7 +1478,7 @@ async function addConnectionModeButton() {
   document.body.appendChild(connectionButton);
 }
 async function doesSanitizedGroupNameExist(userInput) {
-  const firebaseURL = `${baseURL}/connections.json`;
+  const firebaseURL = `${baseURL}locationNotes/connections.json`;
   if (!userInput || typeof userInput !== 'string') return false;
   const sanitize = str => str.replace(/\s+/g, '').toLowerCase(); 
   const sanitizedInput = sanitize(userInput);
@@ -1510,7 +1510,7 @@ async function showConnectedLocations(NOTE_API, userPassword) {
   const currentPageLocationDetails = await fetchLocationDetails(uuid);
   const currentPageOrgName = currentPageLocationDetails.org;
   console.log("[gghost.js] showConnectedLocations: Current page org name:", currentPageOrgName);
-  const firebaseURL = `${baseURL}/connections.json`;
+  const firebaseURL = `${baseURL}locationNotes/connections.json`;
   console.log("[gghost.js] showConnectedLocations: Fetching connections from:", firebaseURL);
   let allData;
   try {
@@ -1914,7 +1914,7 @@ if (!allowBecauseLinkIsBlank && !allowBecauseValidUuid && !allowBecauseGroupExis
   alert("Please enter a valid GoGetta location link or an existing group name.");
   return;
 }
-  const locationNotesURL = `${baseURL}/${currentPageUuid}.json`;
+  const locationNotesURL = `${baseURL}locationNotes/${currentPageUuid}.json`;
   try {
     const res = await fetch(locationNotesURL);
     const existingLocationNotes = await res.json();
@@ -2845,7 +2845,7 @@ if (!userName && !location.pathname.startsWith('/find/')) {
   setTimeout(() => banner.remove(), 10000);
   return;
 }
-const res = await fetch(`${baseURL}.json`);
+const res = await fetch(`${baseURL}locationNotes.json`);
 const allData = await res.json();
 const data = allData?.[uuid] || {};
             const notesArray = [];

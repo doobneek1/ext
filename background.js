@@ -91,6 +91,23 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(maybeRedirect, {
 //     return true; // ✅ THIS LINE IS CRITICAL
 //   }
 // });
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  (async () => {
+    if (msg?.type !== "FETCH_JSON") return;
+    try {
+      const r = await fetch(msg.url, { cache: "no-store", credentials: "omit" });
+      if (!r.ok) {
+        sendResponse({ ok: false, status: r.status, statusText: r.statusText });
+        return;
+      }
+      const data = await r.json();
+      sendResponse({ ok: true, data });
+    } catch (e) {
+      sendResponse({ ok: false, error: String(e && e.message || e) });
+    }
+  })();
+  return true; // keep channel open for async sendResponse
+});
 
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

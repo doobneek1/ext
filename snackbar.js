@@ -202,7 +202,11 @@ watchSpaNavigation();
       currentSnackbar = null;
     }
   }
-
+async function bgFetchJson(url) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "FETCH_JSON", url }, resolve);
+  });
+}
   function showSnackbar(items, currentUser) {
     destroySnackbar();
     if (!items.length) return;
@@ -290,16 +294,20 @@ watchSpaNavigation();
     if (location.pathname === lastRenderedPath) return; // avoid duplicate fetch on same URL
     lastRenderedPath = location.pathname;
 
-    let res;
-    try {
-      res = await fetch(jsonUrl, { cache: "no-store" });
-    } catch (e) {
-      console.warn("[Snackbar] fetch failed:", e);
-      return;
-    }
-    if (!res.ok) return;
-    const all = await res.json();
-    if (!all || typeof all !== "object") return;
+  let resMsg;
+try {
+  resMsg = await bgFetchJson(jsonUrl);
+} catch (e) {
+  console.warn("[Snackbar] background fetch failed:", e);
+  return;
+}
+if (!resMsg?.ok) {
+  console.warn("[Snackbar] fetch not ok:", resMsg);
+  return;
+}
+const all = resMsg.data;
+if (!all || typeof all !== "object") return;
+
 
     let matchedUserMap = null;
     for (const [topKey, userMap] of Object.entries(all)) {
