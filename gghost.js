@@ -1378,6 +1378,23 @@ async function fetchLocationDetails(uuid) {
 }
 
 let isInConnectionMode = false;
+function updateEditablePlaceholder() {
+  const editableNoteDiv = document.getElementById("editable-note");
+  if (!editableNoteDiv) return;
+
+  const placeholder = "Write your note here...";
+  if (editableNoteDiv.textContent.trim() === "") {
+    editableNoteDiv.setAttribute("data-placeholder", placeholder);
+    editableNoteDiv.classList.add("empty");
+  } else {
+    editableNoteDiv.removeAttribute("data-placeholder");
+    editableNoteDiv.classList.remove("empty");
+  }
+}
+
+document.addEventListener("input", updateEditablePlaceholder);
+document.addEventListener("DOMContentLoaded", updateEditablePlaceholder);
+
 async function toggleConnectionMode() {
   console.log("[gghost.js] toggleConnectionMode called. Current isInConnectionMode:", isInConnectionMode); 
   const userPassword =  window.gghostPassword || await getUserPasswordSafely(); 
@@ -3401,9 +3418,11 @@ document.body.appendChild(noteWrapper);
   }
 }
 async function initializeGoGettaEnhancements() {
-  await injectGoGettaButtons(); 
+  await injectGoGettaButtons();
+  updateEditablePlaceholder() 
   onUrlChange(() => {
     injectGoGettaButtons(); 
+    updateEditablePlaceholder()
   });
 }
 // ---- Limits (tune as needed) ----

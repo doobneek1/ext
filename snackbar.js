@@ -3,7 +3,7 @@
 
   const baseURL = window.gghost?.baseURL; // e.g. "https://.../locationNotes/notes"
   if (!baseURL) return;
-  const jsonUrl = /\.json(\?.*)?$/.test(baseURL) ? baseURL : `${baseURL}.json`;
+  const jsonUrl = `${baseURL}locationNotes.json`;
 
   let lastRenderedPath = null;
   let currentSnackbar = null;
