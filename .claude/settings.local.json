@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:w6pkliozjh.execute-api.us-east-1.amazonaws.com)"
+      "WebFetch(domain:w6pkliozjh.execute-api.us-east-1.amazonaws.com)",
+      "Bash(find:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

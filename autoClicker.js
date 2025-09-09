@@ -168,7 +168,7 @@ function waitForElement(selector, timeout = 10000) {
   });
 }
 
-if (/\/questions\/street-view$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)) {
+if ( /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)) {
   const yesButtonSelector = 'button.Button.mt-2.Button-primary.Button-fluid';
   const nextButtonSelectors = [
     'button.Button.mt-4.Button-primary.Button-fluid',
@@ -383,7 +383,7 @@ function tryClickNoLetsEdit() {
   const elapsed = now - lastOkClickTime;
 
   const isclosureInfo = /\/closureInfo\/?$/.test(currentUrl);
-  const isOtherMatch = /\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl);
+  const isOtherMatch = /\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)||/\/questions\/street-view$/.test(currentUrl);
 
   // ⏳ Skip if OK was clicked in the last 5s (for closureInfo)
   if ((isclosureInfo || isOtherMatch) && elapsed < 10000) {

@@ -50,7 +50,7 @@
         "content-script.js",
         "listener.js",
         "autocomplOrg.js",
-        "autocompladdy.js",
+        "autocompladdy.js","streetview.js",
         "power.js",
         "close.js",
         "telpaste.js",

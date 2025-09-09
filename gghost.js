@@ -1,5 +1,10 @@
   console.log('🚀 GGHOST.JS LOADING - URL:', window.location.href);
 
+// Check for extension context validity
+if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
+  console.warn('Extension context may be invalidated');
+}
+
 const NOTE_API = "https://locationnote1-iygwucy2fa-uc.a.run.app";
 window.gghost = window.gghost || {};
 window.gghost.NOTE_API = NOTE_API;
@@ -1396,7 +1401,7 @@ async function checkResponse(response, actionDescription) {
 
 async function fetchLocationDetails(uuid) {
   try {
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+    const res = await fetch(``);
     if (!res.ok) throw new Error("Fetch failed");
     const data = await res.json();
 
@@ -3612,7 +3617,15 @@ function buildFutureOrgKey({ phone, website, email }) {
       const match = url.match(/\/team\/location\/([a-f0-9-]+)\/questions\/street-view/);
       if (match && match[1]) {
         const uuid = match[1];
-        chrome.runtime.sendMessage({ type: 'showStreetView', uuid });
+        try {
+          if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
+            chrome.runtime.sendMessage({ type: 'showStreetView', uuid });
+          } else {
+            console.warn('Extension context invalidated, cannot send message');
+          }
+        } catch (error) {
+          console.warn('Extension context error:', error.message);
+        }
       }
     }
   };
