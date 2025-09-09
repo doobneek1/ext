@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "doobneek feat YourPeer",
-  "version": "5.9.67",
+  "version": "5.9.68",
   "description": "Injects text formatting buttons and redirect logic.",
   "permissions": [
     "storage",
@@ -50,7 +50,8 @@
         "content-script.js",
         "listener.js",
         "autocomplOrg.js",
-        "autocompladdy.js","streetview.js",
+        "autocompladdy.js",
+        "streetview.js",
         "power.js",
         "close.js",
         "telpaste.js",
