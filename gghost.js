@@ -520,7 +520,7 @@ function showSiteVisitEmbed({ uuid, onClose = () => {} }) {
     ? Array.from(crypto.getRandomValues(new Uint32Array(2))).map(n => n.toString(36)).join('')
     : String(Date.now());
 
-  const src = `https://doobneek.org/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
+  const src = `http://localhost:3210/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
   const iframe = document.createElement('iframe');
   Object.assign(iframe, { src, allow: "clipboard-read; clipboard-write" });
   Object.assign(iframe.style, {
@@ -767,7 +767,7 @@ async function injectSiteVisitUI({
           ? crypto.getRandomValues(new Uint32Array(1))[0].toString(36)
           : String(Date.now());
 
-        const src = `https://doobneek.org/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
+        const src = `http://localhost:3210/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
         const iframe = document.createElement('iframe');
         Object.assign(iframe.style, { width: '100%', height: '30px', display: 'block' });
         iframe.src = src;
@@ -2505,7 +2505,90 @@ function createYourPeerEmbedWindow(slug, services, onClose = () => {}, positionO
   const iframe = document.createElement("iframe");
   iframe.src = `https://yourpeer.nyc/locations/${slug}${hash}`;
   Object.assign(iframe.style, { border: "none", width: "100%", height: "100%" });
+  
+  // Add sandbox and allow attributes to force links to open in new tabs and handle tel: links
+  iframe.sandbox = "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation";
+  iframe.allow = "microphone 'none'; camera 'none'";
+  
+  // Track initial URL and detect navigation
+  let lastIframeUrl = iframe.src;
+  
+  // Inject script to handle tel: links and navigation when iframe loads
+  iframe.onload = () => {
+    try {
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+      const currentUrl = iframeDoc.location.href;
+      
+      // Check if we've navigated to a different page
+      if (currentUrl !== lastIframeUrl && lastIframeUrl !== iframe.src) {
+        console.log('[YP Mini] Navigation detected:', currentUrl);
+        
+        // Handle tel: links specially
+        if (currentUrl.startsWith('tel:')) {
+          const phoneNumber = currentUrl.replace('tel:', '');
+          const googleVoiceUrl = `https://voice.google.com/u/0/calls?a=nc,${phoneNumber}`;
+          window.open(googleVoiceUrl, '_blank', 'noopener,noreferrer');
+          
+          // Refresh the iframe back to original page
+          iframe.src = lastIframeUrl;
+          return;
+        }
+        
+        // For other navigation, copy address and open in new tab
+        navigator.clipboard.writeText(currentUrl).then(() => {
+          console.log('[YP Mini] Copied to clipboard:', currentUrl);
+        });
+        window.open(currentUrl, '_blank', 'noopener,noreferrer');
+        
+        // Refresh iframe back to original page
+        iframe.src = lastIframeUrl;
+        return;
+      }
+      
+      lastIframeUrl = currentUrl;
+      
+      const script = iframeDoc.createElement('script');
+      script.textContent = `
+        // Override tel: link clicks to open in new tab
+        document.addEventListener('click', function(e) {
+          const link = e.target.closest('a[href^="tel:"]');
+          if (link) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.parent.postMessage({
+              type: 'tel-link-click', 
+              url: link.href
+            }, '*');
+          }
+        }, true);
+      `;
+      iframeDoc.head.appendChild(script);
+    } catch (err) {
+      // Cross-origin restrictions, fallback to message listening
+      console.log('[YP Mini] Cross-origin iframe, using message fallback');
+    }
+  };
+  
   wrapper.appendChild(iframe);
+
+  // Listen for messages from the iframe to handle tel: links
+  const messageHandler = (event) => {
+    if (event.origin !== 'https://yourpeer.nyc') return;
+    if (event.data && event.data.type === 'tel-link-click') {
+      // Create Google Voice link for tel: links
+      const phoneNumber = event.data.url.replace('tel:', '');
+      const googleVoiceUrl = `https://voice.google.com/u/0/calls?a=nc,${phoneNumber}`;
+      window.open(googleVoiceUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+  window.addEventListener('message', messageHandler);
+  
+  // Clean up message listener when iframe is removed
+  const originalRemove = wrapper.remove;
+  wrapper.remove = function() {
+    window.removeEventListener('message', messageHandler);
+    originalRemove.call(this);
+  };
 
   document.body.appendChild(wrapper);
 
@@ -3098,7 +3181,7 @@ if (notesArray.length > 0) {
       container.style.marginBottom = "10px";
 
       const safeUser = n.user === 'doobneek'
-        ? `<a href="https://doobneek.org" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
+        ? `<a href="http://localhost:3210" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
         : `<strong>${escapeHtml(n.user)}</strong>`;
 
       const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"

@@ -13,10 +13,10 @@
     "https://yourpeer.nyc/*",
     "https://mail.google.com/*",
     "https://voice.google.com/*",
-    "https://doobneek.org/*",
+    "http://localhost:3210/*",
     "https://maps.googleapis.com/",
     "https://doobneek-fe7b7-default-rtdb.firebaseio.com/*",
-    "https://doobneek.org/*",
+    "http://localhost:3210/*",
     "https://*.doobneek.org/*"
   ],
   "background": {
@@ -39,10 +39,10 @@
       "matches": [
         "https://gogetta.nyc/*",
         "https://yourpeer.nyc/locations*",
-        "https://doobneek.org/*",
+        "http://localhost:3210/*",
         "https://*.doobneek.org/*",
         "http://localhost:3000/*",
-        "https://doobneek.org/*"
+        "http://localhost:3210/*"
       ],
       "js": [
         "injector.js",

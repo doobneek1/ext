@@ -1,6 +1,13 @@
 (() => {
   const isGmail = location.hostname.includes('mail.google.com');
   const isGoogleVoice = location.hostname.includes('voice.google.com');
+  const isYourPeer = location.hostname.includes('yourpeer.nyc');
+  const isGoGetta = location.hostname.includes('gogetta.nyc');
+  
+  // Skip hyperlink functionality entirely on Gmail only
+  if (isGmail) {
+    return;
+  }
 
   const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?(?:\(\d{1,4}\)|\d{1,4})[-.\s]?\d{1,4}[-.\s]?\d{1,9}(?:\s?(?:ext|x|extension)\.?\s?\d+)?/gi;
   const emailRegex = /[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?/g;
@@ -10,9 +17,9 @@
     let current = node.parentNode;
     while (current) {
       if (
-        current.nodeName === 'A' ||
         current.nodeName === 'TEXTAREA' ||
-        current.isContentEditable
+        current.isContentEditable ||
+        current.id === 'yp-embed-wrapper'
       ) {
         return true;
       }
@@ -35,10 +42,13 @@
       const originalText = node.textContent;
       let replaced = originalText;
 
-      replaced = replaced.replace(urlRegex, match => {
-        const href = match.startsWith('http') ? match : `https://${match}`;
-        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${match}</a>`;
-      });
+      // Only apply URL hyperlinking on domains that aren't yourpeer or gogetta
+      if (!isYourPeer && !isGoGetta) {
+        replaced = replaced.replace(urlRegex, match => {
+          const href = match.startsWith('http') ? match : `https://${match}`;
+          return `<a href="${href}" target="_blank" rel="noopener noreferrer">${match}</a>`;
+        });
+      }
 
       replaced = replaced.replace(emailRegex, match => {
         return isGmail
@@ -186,5 +196,31 @@ if (!isGoogleVoice) {
       observeMutations(document.body);
       document.body._tesserObserverAttached = true;
   }
+
+  // Add right-click functionality to copy actual number/email/address
+  document.addEventListener('contextmenu', (e) => {
+    const link = e.target.closest('a');
+    if (!link) return;
+    
+    const href = link.href;
+    let textToCopy = '';
+    
+    if (href.startsWith('tel:')) {
+      textToCopy = href.replace('tel:', '');
+    } else if (href.startsWith('mailto:')) {
+      textToCopy = href.replace('mailto:', '');
+    } else if (href.startsWith('http')) {
+      textToCopy = href;
+    }
+    
+    if (textToCopy) {
+      e.preventDefault();
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        console.log('Copied to clipboard:', textToCopy);
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+      });
+    }
+  });
 
 })();

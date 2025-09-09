@@ -242,6 +242,11 @@ watchSpaNavigation();
     list.tabIndex = 0;
 
     items.forEach(({ userName, date, dateOnly }) => {
+      // Filter out reminder and connections usernames
+      if (userName && (userName.toLowerCase() === 'reminder' || userName.toLowerCase() === 'connections')) {
+        return;
+      }
+      
       const you = currentUser && userName && userName.trim().toLowerCase() === currentUser.trim().toLowerCase();
       const who = you ? "You" : userName || "Someone";
       const row = document.createElement("div");
@@ -341,4 +346,60 @@ watchSpaNavigation();
 
   // Kick off initially
   fetchAndRender();
+
+  // Special button tracking for recap pages
+  document.addEventListener('click', async (e) => {
+    const button = e.target.closest('button');
+    if (!button) return;
+    
+    // Only track on /services/recap pages
+    if (!/\/services\/recap$/.test(location.pathname)) return;
+    
+    const buttonText = button.textContent.trim();
+    const classes = button.className;
+    
+    let actionType = '';
+    
+    // Check for service deletion button
+    if (buttonText === "I'M SURE" && 
+        classes.includes('Button-primary') && 
+        classes.includes('Button-fluid')) {
+      actionType = 'Service deletion';
+    }
+    
+    // Check for service addition button  
+    if (buttonText === "OK" &&
+        classes.includes('Button-primary') &&
+        classes.includes('mt-3')) {
+      actionType = 'Service addition';
+    }
+    
+    if (actionType) {
+      console.log(`[Snackbar] Recording: ${actionType}`);
+      
+      // Record this action to the notes API
+      const currentUser = await getCurrentUserName();
+      const uuid = location.pathname.split('/')[3]; // Extract UUID from path
+      
+      if (currentUser && baseURL) {
+        const notePayload = {
+          uuid: uuid,
+          userName: currentUser,
+          date: new Date().toISOString(),
+          note: actionType
+        };
+        
+        try {
+          await fetch(`${baseURL}locationNotes.json`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [uuid]: { [currentUser]: { [new Date().toISOString()]: actionType } } })
+          });
+        } catch (err) {
+          console.warn('[Snackbar] Failed to record action:', err);
+        }
+      }
+    }
+  });
+
 })();
