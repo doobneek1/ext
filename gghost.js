@@ -3606,6 +3606,25 @@ function buildFutureOrgKey({ phone, website, email }) {
 
 (async function () {
 
+  // Function to check if current URL is a street-view page and trigger modal
+  const checkAndShowStreetView = (url) => {
+    if (url.endsWith('/street-view')) {
+      const match = url.match(/\/team\/location\/([a-f0-9-]+)\/questions\/street-view/);
+      if (match && match[1]) {
+        const uuid = match[1];
+        chrome.runtime.sendMessage({ type: 'showStreetView', uuid });
+      }
+    }
+  };
+
+  // Check current URL immediately on load
+  checkAndShowStreetView(location.href);
+
+  // Also check on URL changes
+  onUrlChange((newUrl) => {
+    checkAndShowStreetView(newUrl);
+  });
+
   // --- GoGetta custom back/redirect logic ---
   function getGoGettaLocationUuid() {
     const path = location.pathname;

@@ -159,6 +159,37 @@ if (msg.type === 'getAddressSuggestions') {
   return true;
 }
 
+if (msg.type === 'showStreetView') {
+    const uuid = msg.uuid;
+    const apiUrl = `https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`;
+    
+    fetch(apiUrl)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch location data');
+        return res.json();
+      })
+      .then(data => {
+        chrome.scripting.executeScript({
+          target: { tabId: sender.tab.id },
+          files: ['streetview.js'],
+          world: 'MAIN'
+        }, () => {
+          chrome.scripting.executeScript({
+            target: { tabId: sender.tab.id },
+            function: (locationData, apiKey) => {
+              createStreetViewPicker(locationData, apiKey);
+            },
+            args: [data, 'AIzaSyBFIrEjge5TMx-Zz-GAFhwFnrmkECLd28k'],
+            world: 'MAIN'
+          });
+        });
+      })
+      .catch(err => {
+        console.error('[Background] Street View fetch failed:', err);
+      });
+    return true;
+  }
+
 if (msg.type === 'getPlaceDetails') {
   const placeId = encodeURIComponent(msg.placeId);
   const proxyUrl = `https://placesproxy-iygwucy2fa-uc.a.run.app?placeId=${placeId}`;
