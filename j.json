@@ -1,0 +1,529 @@
+{
+  "id": "6d3720c8-fd2e-47f0-860c-b5891f695a28",
+  "name": "Dr Kenneth Popler Children's Center",
+  "description": null,
+  "transportation": null,
+  "position": {
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:4326"
+      }
+    },
+    "type": "Point",
+    "coordinates": [-74.0774750232385, 40.6388046568646]
+  },
+  "slug": "staten-island-mental-health-society-st-george",
+  "last_validated_at": "2025-07-29T19:10:34.049Z",
+  "name_vector": "'center':6 'children':4 'dr':1 'kenneth':2 'popler':3",
+  "createdAt": "2023-02-14T21:31:19.852Z",
+  "updatedAt": "2023-02-14T21:33:07.492Z",
+  "organization_id": "c4930d32-53a3-441f-8e99-34ee86bc3b56",
+  "neighborhood": "St. George",
+  "Organization": {
+    "id": "c4930d32-53a3-441f-8e99-34ee86bc3b56",
+    "name": "Staten Island Mental Health Society",
+    "description": null,
+    "email": null,
+    "url": "rumcsi.org/services/behavioral-health/staten-island-mental-health-society/outpatient-children-family",
+    "partners": false,
+    "name_vector": "'health':4 'island':2 'mental':3 'societi':5 'staten':1",
+    "createdAt": "2023-02-14T21:31:19.661Z",
+    "updatedAt": "2025-01-13T23:27:29.274Z",
+    "Phones": []
+  },
+  "Phones": [
+    {
+      "id": "d0392426-7085-4271-ba14-5932593acd49",
+      "number": "718.720.6727",
+      "extension": null,
+      "type": null,
+      "language": null,
+      "description": null,
+      "createdAt": "2023-02-14T21:33:34.108Z",
+      "updatedAt": "2023-02-14T21:33:34.108Z",
+      "location_id": "6d3720c8-fd2e-47f0-860c-b5891f695a28",
+      "organization_id": null,
+      "service_id": null,
+      "service_at_location_id": null
+    }
+  ],
+  "AccessibilityForDisabilities": [],
+  "EventRelatedInfos": [],
+  "additionalInfo": null,
+  "address": {
+    "street": "444 St Marks Pl",
+    "city": "Staten Island",
+    "region": null,
+    "state": "NY",
+    "postalCode": "10301",
+    "country": "US"
+  },
+  "Services": [
+    {
+      "id": "68a6027c-cda9-4845-a1a5-a7e3c8300966",
+      "name": "Children's Mental Health",
+      "description": null,
+      "url": null,
+      "email": null,
+      "interpretation_services": null,
+      "fees": null,
+      "additional_info": null,
+      "name_vector": "'children':1 'health':4 'mental':3",
+      "description_vector": null,
+      "createdAt": "2023-02-14T21:35:07.369Z",
+      "updatedAt": "2023-02-14T21:35:07.369Z",
+      "organization_id": "c4930d32-53a3-441f-8e99-34ee86bc3b56",
+      "ServiceAtLocation": {
+        "id": "07ac47a8-008a-4daa-bc36-11ee6c4990f2",
+        "description": null,
+        "createdAt": "2023-02-14T21:35:07.379Z",
+        "updatedAt": "2023-02-14T21:35:07.379Z",
+        "location_id": "6d3720c8-fd2e-47f0-860c-b5891f695a28",
+        "service_id": "68a6027c-cda9-4845-a1a5-a7e3c8300966"
+      },
+      "Eligibilities": [
+        {
+          "id": "97e82fb9-9446-4812-b095-e7e1bd4cd73c",
+          "eligible_values": [
+            {
+              "age_max": 17,
+              "age_min": null,
+              "all_ages": false,
+              "population_served": null
+            }
+          ],
+          "description": null,
+          "createdAt": "2024-06-25T17:39:33.908Z",
+          "updatedAt": "2024-06-25T17:39:33.908Z",
+          "parameter_id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+          "service_id": "68a6027c-cda9-4845-a1a5-a7e3c8300966",
+          "EligibilityParameter": {
+            "id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+            "name": "age",
+            "createdAt": "2020-03-24T21:46:07.576Z",
+            "updatedAt": "2020-03-24T21:46:07.576Z"
+          }
+        }
+      ],
+      "ServiceTaxonomySpecificAttributes": [],
+      "Taxonomies": [
+        {
+          "id": "e838dbf0-21f8-47c2-b17d-57543e8dbffb",
+          "name": "Health",
+          "parent_name": null,
+          "name_vector": "'health':1",
+          "createdAt": "2020-03-24T21:46:07.580Z",
+          "updatedAt": "2020-03-24T21:46:07.580Z",
+          "parent_id": null,
+          "ServiceTaxonomy": {
+            "id": "330c0b96-237c-4d39-8374-b9396f62fead",
+            "createdAt": "2023-02-14T21:35:07.406Z",
+            "updatedAt": "2023-02-14T21:35:07.406Z",
+            "service_id": "68a6027c-cda9-4845-a1a5-a7e3c8300966",
+            "taxonomy_id": "e838dbf0-21f8-47c2-b17d-57543e8dbffb"
+          }
+        }
+      ],
+      "RegularSchedules": [],
+      "HolidaySchedules": [
+        {
+          "id": "70ca11b0-3e6f-4300-b4bb-cf60b3eca71e",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "19:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2023-02-14T21:41:22.156Z",
+          "updatedAt": "2023-02-14T21:41:22.156Z",
+          "location_id": null,
+          "service_id": "68a6027c-cda9-4845-a1a5-a7e3c8300966",
+          "service_at_location_id": null
+        },
+        {
+          "id": "a8c9e9c4-268a-4fa6-bcab-36b86b2c136c",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "18:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2023-02-14T21:41:22.156Z",
+          "updatedAt": "2023-02-14T21:41:22.156Z",
+          "location_id": null,
+          "service_id": "68a6027c-cda9-4845-a1a5-a7e3c8300966",
+          "service_at_location_id": null
+        },
+        {
+          "id": "b4be5dfe-5be1-49a1-9de7-4a76e92ea332",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "19:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2023-02-14T21:41:22.156Z",
+          "updatedAt": "2023-02-14T21:41:22.156Z",
+          "location_id": null,
+          "service_id": "68a6027c-cda9-4845-a1a5-a7e3c8300966",
+          "service_at_location_id": null
+        },
+        {
+          "id": "170d41f9-d6a2-4ac1-a8c6-84b9cdcabf6a",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "18:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2023-02-14T21:41:22.156Z",
+          "updatedAt": "2023-02-14T21:41:22.156Z",
+          "location_id": null,
+          "service_id": "68a6027c-cda9-4845-a1a5-a7e3c8300966",
+          "service_at_location_id": null
+        },
+        {
+          "id": "0ea0cada-4c30-4759-aa70-1c800628b44a",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "18:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2023-02-14T21:41:22.156Z",
+          "updatedAt": "2023-02-14T21:41:22.156Z",
+          "location_id": null,
+          "service_id": "68a6027c-cda9-4845-a1a5-a7e3c8300966",
+          "service_at_location_id": null
+        }
+      ],
+      "Languages": [],
+      "RequiredDocuments": [],
+      "DocumentsInfo": {
+        "id": "f30042ac-7054-40ad-8e18-45cc2b4d702a",
+        "recertification_time": null,
+        "grace_period": null,
+        "additional_info": null,
+        "createdAt": "2023-02-14T21:35:07.435Z",
+        "updatedAt": "2023-02-14T21:35:07.435Z",
+        "service_id": "68a6027c-cda9-4845-a1a5-a7e3c8300966"
+      },
+      "Phones": [],
+      "EventRelatedInfos": [
+        {
+          "id": "29b17fd6-6623-4333-9026-84f4d78502be",
+          "event": "COVID19",
+          "information": "Walk in or call during open hours to fill out paperwork and get on a waitlist. Immigration status or insurance does not matter. You need a parent’s consent to complete an intake, but for the first appointment, an ID and an escort from parents are not required.",
+          "createdAt": "2025-07-29T18:12:52.057Z",
+          "updatedAt": "2025-07-29T18:12:52.057Z",
+          "location_id": null,
+          "service_id": "68a6027c-cda9-4845-a1a5-a7e3c8300966"
+        }
+      ],
+      "ServiceAreas": [],
+      "metadata": {
+        "service": [
+          {
+            "field_name": "additional_info",
+            "last_action_date": "2023-02-14T21:35:07.392Z"
+          },
+          {
+            "field_name": "description",
+            "last_action_date": "2023-02-14T21:35:07.392Z"
+          },
+          {
+            "field_name": "name",
+            "last_action_date": "2023-02-14T21:35:07.392Z"
+          },
+          {
+            "field_name": "organization_id",
+            "last_action_date": "2023-02-14T21:35:07.392Z"
+          },
+          {
+            "field_name": "url",
+            "last_action_date": "2023-02-14T21:35:07.392Z"
+          },
+          {
+            "field_name": "irregularHours",
+            "last_action_date": "2023-02-14T21:41:22.237Z"
+          },
+          {
+            "field_name": "eventRelatedInfo",
+            "last_action_date": "2025-07-29T18:12:52.087Z"
+          }
+        ],
+        "documents": [
+          {
+            "field_name": "service_id",
+            "last_action_date": "2023-02-14T21:35:07.438Z"
+          }
+        ],
+        "sources": []
+      }
+    },
+    {
+      "id": "ac1bc136-6208-4027-a2f5-c7e224a2e260",
+      "name": "Alcoholism and Substance Use Treatment",
+      "description": null,
+      "url": null,
+      "email": null,
+      "interpretation_services": null,
+      "fees": null,
+      "additional_info": null,
+      "name_vector": "'alcohol':1 'substanc':3 'treatment':5 'use':4",
+      "description_vector": null,
+      "createdAt": "2023-02-14T21:41:42.153Z",
+      "updatedAt": "2023-02-14T21:41:42.153Z",
+      "organization_id": "c4930d32-53a3-441f-8e99-34ee86bc3b56",
+      "ServiceAtLocation": {
+        "id": "ec90068b-1f2c-4597-b2c8-16751abdba07",
+        "description": null,
+        "createdAt": "2023-02-14T21:41:42.160Z",
+        "updatedAt": "2023-02-14T21:41:42.160Z",
+        "location_id": "6d3720c8-fd2e-47f0-860c-b5891f695a28",
+        "service_id": "ac1bc136-6208-4027-a2f5-c7e224a2e260"
+      },
+      "Eligibilities": [],
+      "ServiceTaxonomySpecificAttributes": [],
+      "Taxonomies": [
+        {
+          "id": "e838dbf0-21f8-47c2-b17d-57543e8dbffb",
+          "name": "Health",
+          "parent_name": null,
+          "name_vector": "'health':1",
+          "createdAt": "2020-03-24T21:46:07.580Z",
+          "updatedAt": "2020-03-24T21:46:07.580Z",
+          "parent_id": null,
+          "ServiceTaxonomy": {
+            "id": "79f36d16-9422-4173-b785-fbb032e05019",
+            "createdAt": "2023-02-14T21:41:42.183Z",
+            "updatedAt": "2023-02-14T21:41:42.183Z",
+            "service_id": "ac1bc136-6208-4027-a2f5-c7e224a2e260",
+            "taxonomy_id": "e838dbf0-21f8-47c2-b17d-57543e8dbffb"
+          }
+        }
+      ],
+      "RegularSchedules": [],
+      "HolidaySchedules": [
+        {
+          "id": "c47e9c45-dd77-46c3-9975-b98f8b59330a",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "19:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2023-02-14T21:44:36.463Z",
+          "updatedAt": "2023-02-14T21:44:36.463Z",
+          "location_id": null,
+          "service_id": "ac1bc136-6208-4027-a2f5-c7e224a2e260",
+          "service_at_location_id": null
+        },
+        {
+          "id": "fa3d2d2a-72d6-4e07-ba4f-6a3b0e80dec2",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "18:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2023-02-14T21:44:36.463Z",
+          "updatedAt": "2023-02-14T21:44:36.463Z",
+          "location_id": null,
+          "service_id": "ac1bc136-6208-4027-a2f5-c7e224a2e260",
+          "service_at_location_id": null
+        },
+        {
+          "id": "43c0476f-12de-4997-a8e3-e89371d97251",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "19:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2023-02-14T21:44:36.463Z",
+          "updatedAt": "2023-02-14T21:44:36.463Z",
+          "location_id": null,
+          "service_id": "ac1bc136-6208-4027-a2f5-c7e224a2e260",
+          "service_at_location_id": null
+        },
+        {
+          "id": "0a28d95c-ae8a-4d3a-ae69-99c14672a940",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "18:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2023-02-14T21:44:36.463Z",
+          "updatedAt": "2023-02-14T21:44:36.463Z",
+          "location_id": null,
+          "service_id": "ac1bc136-6208-4027-a2f5-c7e224a2e260",
+          "service_at_location_id": null
+        },
+        {
+          "id": "a197550f-28cb-44cc-9471-ea522fcccd94",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "18:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2023-02-14T21:44:36.462Z",
+          "updatedAt": "2023-02-14T21:44:36.462Z",
+          "location_id": null,
+          "service_id": "ac1bc136-6208-4027-a2f5-c7e224a2e260",
+          "service_at_location_id": null
+        }
+      ],
+      "Languages": [],
+      "RequiredDocuments": [],
+      "DocumentsInfo": {
+        "id": "649aeb02-d105-4fef-ad9f-43862af8d7b3",
+        "recertification_time": null,
+        "grace_period": null,
+        "additional_info": null,
+        "createdAt": "2023-02-14T21:41:42.198Z",
+        "updatedAt": "2023-02-14T21:41:42.198Z",
+        "service_id": "ac1bc136-6208-4027-a2f5-c7e224a2e260"
+      },
+      "Phones": [],
+      "EventRelatedInfos": [
+        {
+          "id": "38bdf0b2-e40b-4b42-ae75-b2d18cbebe46",
+          "event": "COVID19",
+          "information": "Walk in or call during open hours to fill out paperwork and get on a waitlist. Any residency, immigration, or insurance status is eligible.",
+          "createdAt": "2025-07-29T18:30:28.608Z",
+          "updatedAt": "2025-07-29T18:30:28.608Z",
+          "location_id": null,
+          "service_id": "ac1bc136-6208-4027-a2f5-c7e224a2e260"
+        }
+      ],
+      "ServiceAreas": [],
+      "metadata": {
+        "service": [
+          {
+            "field_name": "additional_info",
+            "last_action_date": "2023-02-14T21:41:42.165Z"
+          },
+          {
+            "field_name": "description",
+            "last_action_date": "2023-02-14T21:41:42.164Z"
+          },
+          {
+            "field_name": "name",
+            "last_action_date": "2023-02-14T21:41:42.164Z"
+          },
+          {
+            "field_name": "organization_id",
+            "last_action_date": "2023-02-14T21:41:42.165Z"
+          },
+          {
+            "field_name": "url",
+            "last_action_date": "2023-02-14T21:41:42.165Z"
+          },
+          {
+            "field_name": "irregularHours",
+            "last_action_date": "2023-02-14T21:44:36.598Z"
+          },
+          {
+            "field_name": "eventRelatedInfo",
+            "last_action_date": "2025-07-29T18:30:28.612Z"
+          }
+        ],
+        "documents": [
+          {
+            "field_name": "service_id",
+            "last_action_date": "2023-02-14T21:41:42.202Z"
+          }
+        ],
+        "sources": []
+      }
+    }
+  ],
+  "metadata": {
+    "location": [
+      {
+        "field_name": "additional_info",
+        "last_action_date": "2023-02-14T21:31:19.858Z"
+      },
+      {
+        "field_name": "description",
+        "last_action_date": "2023-02-14T21:31:19.858Z"
+      },
+      {
+        "field_name": "name",
+        "last_action_date": "2023-02-14T21:33:08.279Z"
+      },
+      {
+        "field_name": "organization_id",
+        "last_action_date": "2023-02-14T21:31:19.858Z"
+      },
+      {
+        "field_name": "position",
+        "last_action_date": "2023-02-14T21:31:19.858Z"
+      },
+      {
+        "field_name": "phones",
+        "last_action_date": "2023-02-14T21:33:34.113Z"
+      }
+    ],
+    "organization": [
+      {
+        "field_name": "description",
+        "last_action_date": "2023-02-14T21:31:19.675Z"
+      },
+      {
+        "field_name": "name",
+        "last_action_date": "2025-01-13T23:27:30.036Z"
+      },
+      {
+        "field_name": "url",
+        "last_action_date": "2025-07-29T18:26:09.307Z"
+      }
+    ],
+    "address": [
+      {
+        "field_name": "address_1",
+        "last_action_date": "2023-02-14T21:34:36.639Z"
+      },
+      {
+        "field_name": "city",
+        "last_action_date": "2023-02-14T21:31:19.896Z"
+      },
+      {
+        "field_name": "country",
+        "last_action_date": "2023-02-14T21:31:19.897Z"
+      },
+      {
+        "field_name": "location_id",
+        "last_action_date": "2023-02-14T21:31:19.897Z"
+      },
+      {
+        "field_name": "postal_code",
+        "last_action_date": "2023-02-14T21:31:19.896Z"
+      },
+      {
+        "field_name": "region",
+        "last_action_date": "2023-02-14T21:31:19.896Z"
+      },
+      {
+        "field_name": "state_province",
+        "last_action_date": "2023-02-14T21:31:19.896Z"
+      }
+    ],
+    "sources": []
+  },
+  "closed": false
+}

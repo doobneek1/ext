@@ -1,0 +1,480 @@
+{
+  "main office": {
+    "e634301f-47ff-4796-877d-b757acc04359": true,
+    "0a660b8a-ecdb-44e3-8556-00b32ab76915": true,
+    "e8cf48aa-b092-46ee-92e6-bc8a837101f0": true,
+    "d8c94dc6-8248-4e22-86e9-9d0eea4407d1": true,
+    "ce18a686-57a7-46aa-a54d-5368c1ba45ee": true,
+    "983312ac-bf17-4099-867e-70b50d577dcc": true,
+    "515a3940-3732-43e1-a939-fd5d859173e3": true,
+    "3bbbdaae-f3e6-4686-ab99-a113d799d824": true,
+    "b48196c5-f12b-4f14-8758-a05747cdcaa4": true,
+    "6e5bcb0f-42ed-4ed9-afd8-746ff988ced1": true,
+    "0dd659fb-1f8f-43af-a93d-ab8d750760c8": true,
+    "49875c1b-89fd-4c3a-8b16-4dda33995e01": true
+  },
+  "dycd youth dropin center": {
+    "bd0e8924-b7d1-43bc-a2fa-9babf09555ca": true,
+    "0d381537-31c4-4165-a5a0-4d7ffc02bace": true,
+    "ec5bf617-ee77-43ce-83fa-6a445d305246": true,
+    "29301fb5-020f-473d-9cff-70584edad23c": true,
+    "8a1e80f4-864d-4b83-9d5f-6cf59a9cc212": true,
+    "0aeaeca9-4c98-406b-8cc6-81974c659ba4": true,
+    "7d7b9a72-a842-40c3-9b9c-4aa446b393a5": true,
+    "74fcd72a-ebe9-43b3-887e-42c2710ef8c5": true
+  },
+  "queens neighborhood office i": {
+    "ceececc1-d4fc-4f39-9668-e36bff5b1fcc": true,
+    "437c1ae0-b892-4a00-8680-06dfd918d798": true
+  },
+  "main location": {
+    "a76755a4-2254-4d4d-bb68-6ffcd8815001": true,
+    "ab394e8b-948f-4f56-876d-61e111a0a716": true,
+    "5d685ae3-d368-4a05-9e42-71ef8e210b10": true,
+    "8c001f45-47fd-4d3e-964f-fdce8111cd5a": true,
+    "47dd2bf9-561c-428c-9a95-325215342c36": true,
+    "8bad2f7e-440d-4eb9-b1a3-0c6820d8e6d6": true,
+    "ae7b3ff7-3eb3-4f04-b596-8fd9c6ec074c": true,
+    "9eb890ff-35a2-4cd6-acad-319bfc314ea1": true,
+    "448f5a2a-81df-473e-8727-d8d6da0bbbbd": true
+  },
+  "food pantry": {
+    "fbb13969-057b-44b2-a097-d84ef4872be9": true,
+    "23b6b9ac-27f0-48a8-994d-5702499faccd": true
+  },
+  "manhattan": {
+    "5aedfde8-454d-4c7a-b215-721e5b01b754": true,
+    "4da505d4-c7e8-408c-8052-ef8649d14824": true,
+    "0c2c5490-01eb-49d9-8a06-19d05390e4c7": true,
+    "ea42690d-1c74-4903-ab88-0f499cf665c2": true,
+    "218347f5-6a31-42b2-b266-226228641460": true,
+    "f7494efd-a752-4c74-9773-0a58bda9ddaf": true,
+    "82616973-310e-41ef-badd-e7d7a2cd751d": true,
+    "dc2b3ce7-734f-4359-b8a3-f5ca1de06914": true,
+    "dc897b40-15d8-4e81-bdb6-4835aff85824": true,
+    "0546b29a-c700-4a3d-a318-563abc64ad92": true,
+    "29bd0c7a-89e0-4724-9578-4f7e389852b7": true,
+    "018f8703-1e3c-4780-9f77-36d9b43ed39a": true
+  },
+  "elmhurst hospital center": {
+    "ad104e38-048e-43b0-b4b7-ba2cd2f7c18c": true,
+    "0fe0c82f-d4b5-400d-8284-e55d98c51f08": true
+  },
+  "no walkins are allowed": {
+    "2bbacc24-0949-4bd8-ad82-cdc9b1a67301": true,
+    "ab34d7ea-111a-4739-9472-aaaf89a332de": true
+  },
+  "community center": {
+    "fdd3d46d-d1b9-4d5e-a009-592a96fbc75d": true,
+    "159aec84-b27a-482c-b51a-a0e1458883f9": true,
+    "fe3355f3-0760-41a2-814d-b46ccb4583dd": true,
+    "7ccf57c2-e647-4b08-a220-f0011c80b4a7": true,
+    "41f753d7-3d2f-4bc0-bf9c-cf0671783b39": true,
+    "a4e1ea35-ff1d-4378-8da3-b608cc382923": true,
+    "7a2ad158-afb0-49b1-a106-1041d28ffb95": true,
+    "94a324ee-3618-4a70-8a37-a7471631df40": true,
+    "56c37c4b-f331-42eb-9e13-75476793da51": true,
+    "e8f993fc-17c9-4ed5-bd61-2fed193fa742": true
+  },
+  "show street health outreach  wellness  coney island": {
+    "fd675373-ab33-4375-aa91-c2958980e7a4": true,
+    "6f849403-476d-43ee-9b5c-2138903dee4f": true,
+    "19abc98f-1864-47b8-8e18-cc345426f6bd": true
+  },
+  "good shepherd services": {
+    "7c3b4f78-c1c0-4db3-813c-da270e4f4e5b": true,
+    "46f7268e-204b-40ee-9f27-3ce408f3677b": true
+  },
+  "brooklyn": {
+    "bf23bc60-35e5-426a-8dfb-60516dd567bb": true,
+    "933467c2-741f-4f43-820f-69a0e3497675": true,
+    "5d9e39bd-01b1-4103-9091-b30371f3fd4f": true,
+    "a6d61819-76b6-4738-8bfd-e882b2a6a01a": true,
+    "058a39a5-c0d0-4ea0-b331-10b85fefe8d5": true,
+    "65ce333a-65c3-426f-ab46-e1670d6764c2": true,
+    "19011b56-474b-4acf-983b-38c9c980dafd": true,
+    "eb71ee24-5158-4357-9698-1bcef10c36ed": true,
+    "2e12f561-34d2-48a6-8cd5-d03cc97664d2": true,
+    "a83f6d26-2e8c-4cbb-8b13-5f8800e3116d": true,
+    "24ed5c35-50fb-433b-84de-d8653209a70b": true,
+    "1d065961-27d7-42ea-a2ea-9839196b00f3": true
+  },
+  "jackson heights queens": {
+    "c1e3b264-65e6-4382-8316-28d3b64f3d80": true,
+    "8617dcea-4ea1-49ec-a225-3c124e458b50": true
+  },
+  "new location headquarters": {
+    "261aeda6-9363-49ac-a90f-0d8322cd9c56": true,
+    "09b27fde-9f8e-4d92-acda-5c82d8572f8a": true
+  },
+  "einstein older adult center": {
+    "93ef12eb-0976-46f4-90a4-ddc837a2e858": true,
+    "ae7b2c48-d644-4b99-8322-27adf6863e29": true
+  },
+  "manhattanheadquarters": {
+    "1759c6ba-027b-4470-8ce6-9affcc76480d": true,
+    "2daa4316-8eac-4743-b935-fc0af28ead49": true,
+    "6541f292-94c0-46ba-a5ee-275224475941": true,
+    "72b77c76-2c23-478b-8104-ba2655aed8e7": true,
+    "76c904de-dd5f-40a2-99b6-89f25c7bf7a8": true,
+    "af811187-e4b3-44c6-a070-852796569486": true,
+    "897ce6b9-3c2d-49f4-8043-3ac0dbc2d215": true,
+    "f52b0d1a-04e0-43c7-8cf6-680afaa6c5b6": true,
+    "4278d4ec-e73f-4ff5-a38c-ceea8a5f7daa": true,
+    "68ac2b17-c9d0-40c6-88f9-923c02e82868": true
+  },
+  "lenox health greenwich village": {
+    "eaeb9bb7-d030-40aa-a0cd-9e51e708da00": true,
+    "e9b58317-815a-4875-a6bb-dbd2cfbbfc66": true
+  },
+  "washington heights dropin center dic": {
+    "51be3217-749f-440a-bd71-d6515ecc0686": true,
+    "cdf65bab-cd8d-4d79-b363-2558b570ca67": true
+  },
+  "east new york": {
+    "d842b54c-0576-4b7c-909a-252abd3fb537": true,
+    "aefab018-0f08-4ed8-901c-f019b4dcc09f": true,
+    "cb680c09-9b42-43c2-aa5f-c2b8a8cf725b": true,
+    "1bbaae64-86b4-41c5-beed-ff1976971a45": true
+  },
+  "wellness center": {
+    "a6a042e1-4954-455f-9576-b8b344034bf4": true,
+    "121962c3-e040-449d-adc8-81ae87e7798d": true,
+    "aa79f5ad-d354-4368-8255-0c71dbf686c9": true,
+    "35417d69-e99e-4602-a2bd-9546b882dad6": true,
+    "c306521f-26e1-4318-b669-2d1a3870e76b": true,
+    "cb4c9704-55bf-43d5-8ca1-53605604580d": true
+  },
+  "downtown brooklyn": {
+    "29ccb897-54ee-4557-9382-d33931f352b9": true,
+    "a14f9d60-a576-4e05-9e11-f86584164bc4": true
+  },
+  "staten island": {
+    "c2e24ba7-6adf-4c87-8c7e-f11d0c44d476": true,
+    "0af52dea-e769-492e-992b-8c22aa84bb11": true,
+    "fbd337f8-3c86-42d9-9ef8-cc506c456a30": true,
+    "c932ec1b-0095-401a-89bf-e83a448bb534": true,
+    "6a242480-6c9f-4380-a99a-adffea6a1c75": true,
+    "28c47a84-ff6c-4695-899a-b52de6ada8de": true,
+    "1d6420b2-785c-4526-ad0c-b750cc5aab8c": true
+  },
+  "bronx": {
+    "d6b41325-d939-4241-ba64-499b3093239e": true,
+    "8844289c-4b95-4969-9c6b-c5c0ec46feb7": true,
+    "324aea46-6dc8-42f6-892c-bfaf612bd1cb": true,
+    "b7be9f6e-ddc1-49e5-a0c0-77e51f608a46": true,
+    "c83b4470-6192-480b-b027-586402afadc5": true,
+    "13dfd64b-48db-4224-88ec-ac49636d0187": true,
+    "76b4ce1f-83d0-4bfe-b135-532a173b84a8": true,
+    "0cf6c682-44b5-47cb-aac0-ca24056a9898": true,
+    "c6c0635d-dfa4-4d35-9d70-f62ce04bb1ac": true,
+    "d72ca7f0-a8bc-4249-a400-9aa076f6a074": true,
+    "04de8f32-b2c5-4206-9543-bcc6c8e4a1a5": true,
+    "0208f380-20d6-461e-9f0f-01ea7adfb9bd": true,
+    "93091124-350e-4a2f-9b77-e2e49fca12b1": true,
+    "b4ff3925-ac14-41e4-b0d7-6c71be113ef0": true,
+    "56f62390-ed3c-46f4-87d5-16dcc3071c27": true,
+    "7f8de2e1-f024-46a4-a581-ed909e467a8c": true,
+    "793d9757-4d41-4725-90d8-e43eca9634b2": true,
+    "62342032-3812-4e27-a36b-2054dbb52354": true,
+    "c7503ad1-abf2-47e0-9918-e5530d1712be": true
+  },
+  "ny connects": {
+    "8b309368-e263-4959-9326-02ce0b8f8481": true,
+    "6e2e14ab-0b0b-4ba2-8dff-ddc91af4626a": true
+  },
+  "harbor house i intensive residential program": {
+    "06b616d6-6cef-4727-b21e-6a95d4516cc0": true,
+    "2cca7a42-9590-4259-ae48-0f4778e79001": true
+  },
+  "broadway family health center": {
+    "bd00614a-6e4b-4d9b-85e4-cb9e8c0e33db": true,
+    "f7dd312c-0a8d-4110-a6c2-2a38e4693eae": true,
+    "af892cad-9152-443a-91c7-2fe40f8ff7c2": true
+  },
+  "harlem outpatient clinic": {
+    "1d968ea2-8422-4a07-9658-1c100325fc7d": true,
+    "6b1c483b-3303-4efb-8837-32b8442c07ec": true,
+    "c4c84c68-0a19-4b13-a1ba-4ce4d64955f9": true
+  },
+  "bronx outpatient treatment program": {
+    "12eb3d00-10bb-47aa-ad3f-688f9117ddd9": true,
+    "ca9798df-f658-4188-aada-751931dafa72": true
+  },
+  "metropolitan hospital center": {
+    "709cd6dc-6922-4f38-87e0-b81be4799a5c": true,
+    "68d71819-4881-4858-a7cc-667386c042cc": true
+  },
+  "harlem": {
+    "7eb85bc0-aa9c-4365-b340-5efd967606ff": true,
+    "2e6099bf-9132-4a3c-a146-e176ca0d7d90": true,
+    "7298852f-6630-4cd0-b632-d6077ee724d0": true,
+    "ac6e3b0b-8fb8-4a7e-a507-9a32bd72f4ea": true
+  },
+  "bronx office": {
+    "2f0e7060-391b-4086-b987-23ff7c113fbb": true,
+    "9556f7ee-8de3-4c00-b951-10195106c6c3": true
+  },
+  "district 8 office harlem": {
+    "60a5bc8f-18c9-410e-accc-e6eef585b79b": true,
+    "1183109b-0c37-4dc0-9440-c53b6e6d33ca": true
+  },
+  "downtown": {
+    "72e2fe2a-e1df-49bc-9ce6-063942fceb8a": true,
+    "b7e89cc4-f8f3-4530-9fd2-cec461fc97aa": true
+  },
+  "closed": {
+    "50513c2b-b40b-488a-9ec6-a83215c70458": true,
+    "2ad50741-3989-45db-8617-28a835f0c7d4": true,
+    "02c7f6a7-0916-47b2-a17d-d1dd604d6eb8": true,
+    "3690774f-5eeb-4b4b-8bad-8a1810525673": true
+  },
+  "jersey city site": {
+    "34ffd43e-d898-4137-b8d0-19a97509891e": true,
+    "e3c1c9dd-5da2-4f42-be63-cd03338de320": true
+  },
+  "queens": {
+    "a47a9a63-2015-4776-b821-067cd0cbb20b": true,
+    "4b9589f9-b4c3-41fd-b6c9-0a5f5ccffde0": true,
+    "0d36529b-70b1-409d-bbea-3cc6b0e58f32": true,
+    "9f8fe620-2d2c-4372-b460-cb6beda558ce": true,
+    "0e5a7b8e-0975-4873-aaae-9647e9a805ee": true,
+    "bf516caa-f158-4521-9bee-28c2e69adfec": true,
+    "6455680b-11b2-4df1-bfa1-d1d752a4ce24": true
+  },
+  "queen of peace single maleidentified adult shelter": {
+    "b9cd64b9-7f85-4317-8d4f-8c541c7d7b9a": true,
+    "391d73f2-34bd-47c5-8af8-78517107960d": true
+  },
+  "grand concourse": {
+    "d84f98d7-a885-41e9-96df-51912c9f1d1d": true,
+    "8c29ca39-9f59-412a-ba1d-dd5dc601997c": true
+  },
+  "health and wellness center at 199": {
+    "34a47a4d-7e7f-4923-8e96-e131c2abf4ae": true,
+    "87b928ff-f80a-4934-91d6-21702b8cddd0": true,
+    "92caa759-a1d2-4684-ba04-ac3ea6706f18": true
+  },
+  "fort greene": {
+    "75e16652-aff8-48b6-aaab-c7bfb848d614": true,
+    "6408d71d-6b43-4dbc-891b-e4f4902d84da": true,
+    "f8d52735-546b-41db-acd4-cc7d14e157fe": true
+  },
+  "harlem health center": {
+    "a5812581-6d5f-464e-a8b7-e74b0998cff2": true,
+    "de3f2864-a8d2-4be7-ae82-f629008c03c9": true
+  },
+  "long island city": {
+    "994713ca-474b-4834-bf95-8076aa58e1c0": true,
+    "b6a214a7-f09e-430d-b92b-fe38ed0926ca": true,
+    "318ccaf2-b9c4-44b9-bc02-5c3de46631a9": true
+  },
+  "tremont": {
+    "dc42b64b-12f2-42d3-ae25-9bf02f956a36": true,
+    "534af3d7-3f6e-427f-8eb3-d2d15ad76657": true
+  },
+  "avenue church": {
+    "e019485d-5199-4acc-8e95-8db83f4a719a": true,
+    "d72eda6f-e707-461c-9550-8b816231a855": true,
+    "ac526d38-1111-435c-b71b-b7dac394cb03": true
+  },
+  "bushwickhylan community center dycd cornerstone": {
+    "5c31b128-397c-432e-b9d4-75571544589d": true,
+    "25d83df6-bf29-418f-b1ec-b4188412d683": true
+  },
+  "park avenue family health center": {
+    "ee60d902-bb2a-4345-9d0d-eb3aedb44f15": true,
+    "cd7a0777-6dd8-4d53-8afd-86e3dfc82980": true,
+    "5a684cc5-7624-4f5c-b0e1-1178b880728f": true,
+    "1df3ff0e-6ff1-4791-b1b4-31fed33e8876": true
+  },
+  "moved": {
+    "95d53b70-70c0-4c24-9cdd-9423e536b199": true,
+    "ae95f7eb-3c21-4235-ba99-7c88f5c035ff": true
+  },
+  "bellevue hospital center": {
+    "2e4952df-aaca-4a4b-b472-905f84f9fa0e": true,
+    "a2644f9e-7944-4752-a8d5-6a15dfef1009": true
+  },
+  "bushwick": {
+    "831ec192-b5aa-4ca4-b42e-63dca3ef4268": true,
+    "b7af5a52-f273-43f5-9126-007c11bfc4c6": true
+  },
+  "queens hospital": {
+    "87edbfe0-06dc-4dfc-8eba-b4f3c7fd30ca": true,
+    "fb4c6da4-f6dd-4f80-b545-3eea49dee876": true
+  },
+  "williamsburg": {
+    "51f67940-354a-4f25-b23f-e4c0b59a7d04": true,
+    "be46598c-225a-4609-bea0-bd3d5c38eb92": true
+  },
+  "family care center": {
+    "20c951e9-e7fb-47a1-a01c-9c1333e3cab1": true,
+    "bd30eb3a-d7fd-49de-ac25-72de45c66001": true,
+    "52d7bc0d-f77e-4d07-9e5a-2245baea592e": true,
+    "b50bed26-da08-499d-b5ba-e40be45d6669": true,
+    "dcf43bee-f30d-423d-adb8-92bfb5a85e97": true
+  },
+  "st lawrence community health center": {
+    "044a0f34-0c9c-4794-896b-a4ddde9b7881": true,
+    "49258f8b-5bd0-4125-b9f9-7dd44c011074": true,
+    "c2f6b62f-3588-4c90-997a-bfa4f917f6ba": true,
+    "8c470506-1228-40c1-a970-581887734acd": true,
+    "1907d2bd-8fb0-4bea-bb3e-319c5caf1b61": true,
+    "6f262eb1-ff7b-4711-bb9e-e6ddee3ffe93": true
+  },
+  "westchester square": {
+    "a7f62f69-0b8e-4d7b-b624-808f35226cfc": true,
+    "542c04dd-581e-4d04-a53c-a5b667f750f2": true,
+    "55ac774b-551b-4093-96b4-e99f732f8324": true
+  },
+  "serendipity i": {
+    "7427a973-7801-4b28-bdcc-6112ea923961": true,
+    "3046cdb2-042a-416e-ba31-b229cc94fc54": true
+  },
+  "institute for advanced medicine jack martin fund center": {
+    "e33d1d3a-929a-41ee-ac79-14b92b080d88": true,
+    "b198e2d1-830f-41df-928a-5ce3082be9fd": true
+  },
+  "mainchance adult dropin center": {
+    "fe3051b8-09a1-436f-8516-97f4a8ebb9e5": true,
+    "c0956288-d6db-4af5-a561-c3fbf5122da5": true,
+    "52c79659-583d-4ac1-a3fc-bb2cf3e39fc7": true
+  },
+  "bronx health center": {
+    "6649f721-9570-477a-a38b-dadf9f243fed": true,
+    "d62ca641-07cf-406e-82f4-b7801d21da8a": true
+  },
+  "new york city": {
+    "0c68bb39-2b7c-4e5a-ac3b-bfa524ff49ef": true,
+    "45f1444c-d5b8-421a-94de-af4a53f29d35": true
+  },
+  "bronx housing court": {
+    "f87b7094-2a23-4634-98f2-cd4a67cd23d8": true,
+    "828dc64e-d631-49aa-afc9-1a4e4619c2c3": true
+  },
+  "brooklyn housing court office": {
+    "f7e434c0-ef6b-425e-9886-317d4f83ae7a": true,
+    "9995419a-59d3-48df-aeb5-a6451aff0c7e": true
+  },
+  "south jamaica": {
+    "fd393dd2-a34f-4b1c-964b-adfffb6910a1": true,
+    "e2627807-d5cb-48e0-931e-f495ac84b239": true
+  },
+  "site i": {
+    "ff85d967-5c64-4eb7-8980-39cb08ea8e12": true,
+    "779192f5-570c-49ca-a95b-ae8b57cc646e": true
+  },
+  "no walkins": {
+    "9e6292c8-a978-42ea-a8f0-181688e05a09": true,
+    "928a3005-929f-40e7-8e6c-562c788ca374": true,
+    "23f6946f-44fb-4e77-91ab-b22bca2df98f": true
+  },
+  "crown heights": {
+    "30a751de-1981-4388-ab57-257fedbe3b76": true,
+    "17bd886f-22b1-40a6-841d-f1d79fc44b51": true
+  },
+  "stapleton older adult center oac": {
+    "ddcf5380-8d31-4b5d-a5c7-9759fb48053c": true,
+    "e90229f2-d3ce-4345-8824-bdd3bd98b3b0": true,
+    "bb0e5e9f-5503-434e-b53f-1d5be77a5a89": true
+  },
+  "bedford avenue": {
+    "95c2741c-4da0-4fda-bbac-c041bbecf5b9": true,
+    "3590a72b-e244-4123-a3b1-489d085326a7": true
+  },
+  "suny downstate medical center": {
+    "7206f0fe-0fab-4bc3-b74c-2d302391acc2": true,
+    "9ae0b313-4865-404d-8a46-ccace9a7f0eb": true
+  },
+  "hospital adult outpatient psychiatry clinic 5th avenue": {
+    "f8a37ef2-eb29-4002-aec1-324c77b88f53": true,
+    "a00030b5-9225-4517-97ab-918104e24627": true
+  },
+  "highbridge washington heights": {
+    "ed360813-9f1f-4964-b7e3-cb72a5813db5": true,
+    "215c933d-05f2-4ba1-9dc6-80535a498fe3": true
+  },
+  "city hall senior center": {
+    "16ded0e6-e15f-4d7b-b2dd-811046f08608": true,
+    "5185b796-8945-4a22-a01e-b86350764fb1": true
+  },
+  "comprehensive family care center cfcc": {
+    "85fbde2c-22cc-42d6-9d35-fbb1f48a05ea": true,
+    "fcfcc6d6-d5a0-427e-8cc4-741b19efe95a": true
+  },
+  "castle hill family practice chfp": {
+    "2fb7b97d-f310-4d72-aebf-532e8e636688": true,
+    "bb99debb-293e-4810-bf67-6b0363825f9d": true
+  },
+  "queens family court childrens center": {
+    "f675daf9-8770-42e1-a76b-4d1239c5f832": true,
+    "d73cdec8-00ad-4eda-9fee-a9411fb94ec9": true
+  },
+  "brooklyn criminal court childrens center": {
+    "b849bd78-ad09-4e01-861b-6ca9b5c753ac": true,
+    "5b71d7e5-4c54-4557-ad11-ea546288b7f9": true
+  },
+  "cuny in the heights  bmcc": {
+    "4e714a45-e3ad-4f6e-bfec-1039d90c266d": true,
+    "fcd8f0d1-9660-4ed3-92ef-ddbc4520628b": true,
+    "4fef2f98-0bdb-4269-8761-36d0071fb5cd": true
+  },
+  "queens adolescent skills center vibrant": {
+    "1cbf6d43-8be6-44ab-8750-056e1a41d0f7": true,
+    "df3f4053-562c-4883-9488-fb7f13f5528f": true
+  },
+  "business and industry workforce training center biwtc": {
+    "c5a50abb-9098-45a7-9c45-46599b3f784a": true,
+    "c0dd5712-af42-47a0-a88b-29bc7f62a282": true
+  },
+  "queens housing court clerks office": {
+    "aeb55886-1ae3-442b-9ff3-b0862b39acc1": true,
+    "c2128e56-99d0-4c8c-a4b5-1c31d089f5db": true
+  },
+  "brooklyn office": {
+    "5e1d5785-0aa5-4ccf-bd49-ef1e7574cce2": true,
+    "f296a419-2d35-45b3-a7d3-05f932d3b4f9": true
+  },
+  "pathways to graduation p2g queens referral center": {
+    "6db74553-537c-4171-af91-4131965c2037": true,
+    "abfb2d01-35c4-407e-8ae8-2c6cf02a1552": true
+  },
+  "adult education school region 2": {
+    "9d36d866-13db-4927-9445-2e757830305a": true,
+    "e1d7abf8-ec0b-41d2-a404-91ebcdea351c": true
+  },
+  "333 7th avenue family welcome center fwc": {
+    "b8ee981f-bf48-4c1b-8589-8f72b57bd12d": true,
+    "2fa1dd48-fca8-4cee-a507-c4db262efcaf": true
+  },
+  "zerega family welcome center fwc": {
+    "d76a6a84-7fae-4e49-956f-5fb38d060119": true,
+    "8023cc39-5dd7-4200-93f7-0bca4185eb04": true,
+    "8bf9d47b-1e0c-45f4-8d1c-a09ff60ea210": true,
+    "f9581ab5-404b-4222-bf39-365dda6d91de": true,
+    "3c010ccc-ba90-4b93-a4ba-5c16850182cc": true
+  },
+  "bronx educational opportunity center eoc university center for academic and workforce development ucawd": {
+    "9115cdb2-92aa-413c-ae5b-47f02ec6bd07": true,
+    "fb512a3d-7e1f-40a6-b6cd-3d76b159209e": true,
+    "029514a5-579f-4ec1-b16c-85574306ed64": true,
+    "774de666-60bb-41b0-b062-cc8b9c35984d": true,
+    "fa815d7f-fbd5-49f2-ac79-c7e17d4839c6": true
+  },
+  "administrative office no walkins": {
+    "2f1262d9-d514-4e90-99a0-b96e922d1b40": true,
+    "a793a34b-8831-4a51-a79c-9b6e4325dec3": true,
+    "4fc7c44c-407b-433d-9a87-7052074836a4": true,
+    "da362d29-6b8a-4376-b3c1-5c23354f4d9f": true
+  },
+  "golden phoenix 1 gp1": {
+    "b55c2919-d2ca-4862-bccd-6a178396744f": true,
+    "fcfe3fe4-0ee5-4685-975e-07ee4856cce9": true,
+    "33582379-4d99-475e-aad5-40cbe3faf34b": true
+  },
+  "bronx day laborers program": {
+    "f985e463-c3b7-48b1-854c-272ef9664422": true,
+    "0530fd0f-d0c9-49e7-be5b-1936945178c2": true
+  }
+}
