@@ -2,49 +2,15 @@
 (async function () {
   const params = new URLSearchParams(location.search);
   const nonce  = params.get("nonce") || String(Date.now());
-  const HOST   = "http://localhost:3210";
+  const HOST   = "https://doobneek.org";
 
-  // 🔧 Get JWT tokens from Cognito localStorage
-  function getCognitoTokens() {
-    try {
-      const storage = localStorage;
-      let accessToken = null;
-      let idToken = null;
-      let username = null;
-      let refreshToken = null;
-
-      // Find Cognito tokens by scanning localStorage
-      for (let i = 0; i < storage.length; i++) {
-        const key = storage.key(i);
-        if (key && key.startsWith('CognitoIdentityServiceProvider.')) {
-          if (key.includes('.accessToken')) {
-            accessToken = storage.getItem(key);
-          } else if (key.includes('.idToken')) {
-            idToken = storage.getItem(key);
-          } else if (key.includes('.refreshToken')) {
-            refreshToken = storage.getItem(key);
-          } else if (key.includes('.LastAuthUser')) {
-            username = storage.getItem(key);
-          }
-        }
-      }
-
-      // Validate tokens (basic JWT format check)
-      const isValidJWT = (token) => token && typeof token === 'string' && token.split('.').length === 3;
-      
-      if (!isValidJWT(accessToken) || !isValidJWT(idToken)) {
-        console.warn('[getCognitoTokens] Invalid or missing JWT tokens');
-        return { accessToken: null, idToken: null, username: null, refreshToken: null };
-      }
-
-      return { accessToken, idToken, username, refreshToken };
-    } catch (error) {
-      console.warn('[getCognitoTokens] Error accessing localStorage:', error);
-      return { accessToken: null, idToken: null, username: null, refreshToken: null };
-    }
-  }
-
-  const { accessToken, idToken, username, refreshToken } = getCognitoTokens();
+  // 🔧 Read both old and new keys; prefer the new ones
+  const got = await chrome.storage.local.get([
+    "userName", "userPassword",
+    "lastLoopUserName", "lastLoopUserPassword",
+  ]);
+  const userName = (got.userName || got.lastLoopUserName || "").trim();
+  const userPassword = got.userPassword ?? got.lastLoopUserPassword ?? "";
 
   // For loop mode, uuid is not needed
   const src = `${HOST}/embed?mode=loop&nonce=${encodeURIComponent(nonce)}&parent=${encodeURIComponent(location.origin)}`;
@@ -55,28 +21,29 @@
   Object.assign(iframe.style, { border: "0", width: "100%", height: "100%" });
   (document.getElementById("wrap") || document.body).appendChild(iframe);
 
+  // Proactively send credentials when the iframe is loaded.
+  // This helps prevent a race condition where the iframe's authentication attempt
+  // happens before it has received the credentials.
+  iframe.onload = () => {
+    iframe.contentWindow.postMessage(
+      { type: "CREDS", payload: { userName, userPassword, nonce } },
+      EMBED_ORIGIN
+    );
+  };
+
   window.addEventListener("message", (e) => {
     if (e.source !== iframe.contentWindow) return;
     if (e.origin !== EMBED_ORIGIN) return;
     const { type, payload } = e.data || {};
 
+    // The REQUEST_CREDS handler is kept as a fallback, in case the proactive
+    // message is missed or the iframe needs to request credentials again.
     if (type === "REQUEST_CREDS") {
       const ok = !payload?.nonce || payload.nonce === nonce;
       if (!ok) return;
-      
-      // ✅ Send the Cognito JWT tokens
+      // ✅ Send the creds we actually have
       iframe.contentWindow.postMessage(
-        { 
-          type: "CREDS", 
-          payload: { 
-            username,
-            accessToken,
-            idToken,
-            refreshToken,
-            authType: 'cognito_jwt',
-            nonce 
-          } 
-        },
+        { type: "CREDS", payload: { userName, userPassword, nonce } },
         EMBED_ORIGIN
       );
     } else if (type === "CLOSE_EMBED") {

@@ -14,7 +14,7 @@
   container.style.fontFamily = 'sans-serif';
   container.style.pointerEvents = 'auto';
 
-  container.innerHTML = `Powered by <a href="http://localhost:3210" target="_blank" rel="noopener noreferrer" style="color: #0066cc; text-decoration: underline;">doobneek.org</a>`;
+  container.innerHTML = `Powered by <a href="https://doobneek.org" target="_blank" rel="noopener noreferrer" style="color: #0066cc; text-decoration: underline;">doobneek.org</a>`;
 
   container.addEventListener('mouseover', () => container.style.opacity = '1');
   container.addEventListener('mouseout', () => container.style.opacity = '0.6');

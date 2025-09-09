@@ -520,7 +520,7 @@ function showSiteVisitEmbed({ uuid, onClose = () => {} }) {
     ? Array.from(crypto.getRandomValues(new Uint32Array(2))).map(n => n.toString(36)).join('')
     : String(Date.now());
 
-  const src = `http://localhost:3210/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
+  const src = `https://doobneek.org/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
   const iframe = document.createElement('iframe');
   Object.assign(iframe, { src, allow: "clipboard-read; clipboard-write" });
   Object.assign(iframe.style, {
@@ -767,7 +767,7 @@ async function injectSiteVisitUI({
           ? crypto.getRandomValues(new Uint32Array(1))[0].toString(36)
           : String(Date.now());
 
-        const src = `http://localhost:3210/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
+        const src = `https://doobneek.org/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
         const iframe = document.createElement('iframe');
         Object.assign(iframe.style, { width: '100%', height: '30px', display: 'block' });
         iframe.src = src;
@@ -3098,7 +3098,7 @@ if (notesArray.length > 0) {
       container.style.marginBottom = "10px";
 
       const safeUser = n.user === 'doobneek'
-        ? `<a href="http://localhost:3210" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
+        ? `<a href="https://doobneek.org" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
         : `<strong>${escapeHtml(n.user)}</strong>`;
 
       const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"

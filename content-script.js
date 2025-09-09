@@ -1,5 +1,5 @@
 // content-script.js
-const APP_ORIGIN = "http://localhost:3210"; // your domain
+const APP_ORIGIN = "https://doobneek.org"; // your domain
 
 function ensureAppOverlay(urlPath = "/embed") {
   if (document.getElementById("dnk-embed-overlay")) return;
@@ -80,4 +80,4 @@ function ensureAppOverlay(urlPath = "/embed") {
 // ensureAppOverlay(`/embed?uuid=${encodeURIComponent(uuid)}&mode=sitevisit`);
 
 // ⛔ Remove the extra poster below; not needed for the handshake flow
-// (async () => { ... window.postMessage({type:"CREDENTIALS", ...}, "http://localhost:8888"); })();
+// (async () => { ... window.postMessage({type:"CREDENTIALS", ...}, "https://doobneek.org"); })();

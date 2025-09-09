@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "doobneek feat YourPeer",
-  "version": "5.9.63",
+  "version": "5.9.65",
   "description": "Injects text formatting buttons and redirect logic.",
   "permissions": [
     "storage",
@@ -13,12 +13,11 @@
     "https://yourpeer.nyc/*",
     "https://mail.google.com/*",
     "https://voice.google.com/*",
-    "http://localhost:3210/*",
+    "https://doobneek.org/*",
     "https://maps.googleapis.com/",
     "https://doobneek-fe7b7-default-rtdb.firebaseio.com/*",
     "https://doobneek.org/*",
-    "https://*.doobneek.org/*",
-    "http://localhost:3000/*"
+    "https://*.doobneek.org/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -43,7 +42,7 @@
         "https://doobneek.org/*",
         "https://*.doobneek.org/*",
         "http://localhost:3000/*",
-        "http://localhost:3210/*"
+        "https://doobneek.org/*"
       ],
       "js": [
         "injector.js",
