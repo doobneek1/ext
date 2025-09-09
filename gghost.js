@@ -2183,7 +2183,15 @@ function onUrlChange(callback) {
     const currentUrl = location.href;
     if (currentUrl !== lastUrl) {
       lastUrl = currentUrl;
-      callback(currentUrl);
+      try {
+        callback(currentUrl);
+      } catch (error) {
+        if (error.message && error.message.includes('Extension context invalidated')) {
+          console.warn('[gghost] Extension context invalidated, stopping URL monitoring');
+          return;
+        }
+        console.error('[gghost] URL change callback error:', error);
+      }
     }
   }).observe(document, { subtree: true, childList: true });
   const pushState = history.pushState;
@@ -3631,7 +3639,15 @@ function buildFutureOrgKey({ phone, website, email }) {
   };
 
   // Check current URL immediately on load
-  checkAndShowStreetView(location.href);
+  try {
+    checkAndShowStreetView(location.href);
+  } catch (error) {
+    if (error.message && error.message.includes('Extension context invalidated')) {
+      console.warn('[gghost] Extension context invalidated on initial load');
+      return;
+    }
+    console.error('[gghost] Initial street view check error:', error);
+  }
 
   // Also check on URL changes
   onUrlChange((newUrl) => {

@@ -307,7 +307,11 @@ autoClickServiceTabs();
 
 
 chrome.storage.local.get("redirectEnabled", (data) => {
-  if (!data.redirectEnabled) return;
+  // Always run on street-view pages, even if redirect is disabled
+  const currentUrl = window.location.href;
+  const isStreetViewPage = /\/questions\/street-view\/?$/.test(currentUrl);
+  
+  if (!data.redirectEnabled && !isStreetViewPage) return;
 
   const observer = new MutationObserver(() => {
     tryClickNoLetsEdit();
