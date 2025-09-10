@@ -1401,7 +1401,7 @@ async function checkResponse(response, actionDescription) {
 
 async function fetchLocationDetails(uuid) {
   try {
-    const res = await fetch(``);
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
     if (!res.ok) throw new Error("Fetch failed");
     const data = await res.json();
 
