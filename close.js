@@ -4,7 +4,7 @@
 //     const closeButton = document.querySelector('button.default.font-weight-light');
 //     if (closeButton) {
 //       closeButton.addEventListener('click', () => {
-//         window.location.href = 'https://gogetta.nyc/team';
+//         window.location.href = 'https://www.gogetta.nyc/team';
 //       });
 //     }
 //   }
@@ -57,7 +57,7 @@
     const closeButton = document.querySelector('button.default.font-weight-light');
     if (closeButton) {
       closeButton.addEventListener('click', () => {
-        window.location.href = 'https://gogetta.nyc/team';
+        window.location.href = 'https://www.gogetta.nyc/team';
       });
     }
   }

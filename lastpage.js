@@ -1,12 +1,12 @@
 (function combinedOutdatedButtons() {
   const host = location.hostname;
-  const isYourPeer = host === "yourpeer.nyc";
-  const isGoGetta = host === "gogetta.nyc";
+  const isYourPeer = host === "test.yourpeer.nyc";
+  const isGoGetta = host === "www.gogetta.nyc" || host === "gogetta.nyc";
   const path = location.pathname;
   const url = new URL(window.location.href);
   const sortBy = url.searchParams.get("sortBy");
 
-  // ✅ YP Buttons (only on yourpeer.nyc/locations?sortBy=recentlyUpdated)
+  // ✅ YP Buttons (only on test.yourpeer.nyc/locations?sortBy=recentlyUpdated)
   if (isYourPeer && path === "/locations" && sortBy === "recentlyUpdated") {
     const currentPage = parseInt(url.searchParams.get("page") || "1", 10);
 
@@ -71,7 +71,7 @@
     });
 
     btn.onclick = () => {
-      const preloadUrl = "https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=70";
+      const preloadUrl = "https://test.yourpeer.nyc/locations?sortBy=recentlyUpdated&page=70";
       window.location.href = preloadUrl;
 
       const timeout = 10000;
@@ -85,7 +85,7 @@
             if (!isNaN(totalPages)) {
               obs.disconnect();
               clearTimeout(observerTimeout);
-              const finalUrl = `https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=${totalPages}`;
+              const finalUrl = `https://test.yourpeer.nyc/locations?sortBy=recentlyUpdated&page=${totalPages}`;
               if (window.location.href !== finalUrl) {
                 window.location.href = finalUrl;
               }

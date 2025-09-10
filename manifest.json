@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "doobneek feat YourPeer",
-  "version": "5.9.69",
+  "version": "5.9.71",
   "description": "Injects text formatting buttons and redirect logic.",
   "permissions": [
     "storage",
@@ -10,8 +10,9 @@
     "scripting"
   ],
   "host_permissions": [
+    "https://www.gogetta.nyc/*",
     "https://gogetta.nyc/*",
-    "https://yourpeer.nyc/*",
+    "https://test.yourpeer.nyc/*",
     "https://mail.google.com/*",
     "https://voice.google.com/*",
     "http://localhost:3210/*",
@@ -38,8 +39,9 @@
   "content_scripts": [
     {
       "matches": [
+        "https://www.gogetta.nyc/*",
         "https://gogetta.nyc/*",
-        "https://yourpeer.nyc/locations*",
+        "https://test.yourpeer.nyc/locations*",
         "http://localhost:3210/*",
         "https://*.doobneek.org/*",
         "http://localhost:3000/*",

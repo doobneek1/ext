@@ -6,10 +6,10 @@ function maybeRedirect(details) {
     if (match) {
       let newUrl;
       if (redirectEnabled) {
-        newUrl = `https://gogetta.nyc/team/location/${match[1]}/services/recap`;
+        newUrl = `https://www.gogetta.nyc/team/location/${match[1]}/services/recap`;
         console.log(`[Redirect] Redirecting to: ${newUrl}`);
       } else {
-        newUrl = `https://gogetta.nyc/team/location/${match[1]}`;
+        newUrl = `https://www.gogetta.nyc/team/location/${match[1]}`;
         console.log(`[Redirect] Redirecting to: ${newUrl}`);
       }
       chrome.tabs.update(details.tabId, { url: newUrl });
@@ -19,14 +19,20 @@ function maybeRedirect(details) {
 
 
 chrome.webNavigation.onBeforeNavigate.addListener(maybeRedirect, {
-  url: [{ hostEquals: "gogetta.nyc", pathPrefix: "/team/location/" }]
+  url: [
+    { hostEquals: "www.gogetta.nyc", pathPrefix: "/team/location/" },
+    { hostEquals: "gogetta.nyc", pathPrefix: "/team/location/" }
+  ]
 });
 chrome.webNavigation.onHistoryStateUpdated.addListener(maybeRedirect, {
-  url: [{ hostEquals: "gogetta.nyc", pathPrefix: "/team/location/" }]
+  url: [
+    { hostEquals: "www.gogetta.nyc", pathPrefix: "/team/location/" },
+    { hostEquals: "gogetta.nyc", pathPrefix: "/team/location/" }
+  ]
 });
 // chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 //   if (msg.type === 'fetchFindHtml') {
-//     const url = `https://gogetta.nyc/find/location/${msg.uuid}`;
+//     const url = `https://www.gogetta.nyc/find/location/${msg.uuid}`;
 //     fetch(url, { credentials: 'include' })
 //       .then(res => res.text())
 //       .then(html => sendResponse({ success: true, html }))
@@ -39,7 +45,7 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(maybeRedirect, {
 //   if (msg.type === 'fetchYourPeerSearch') {
 //     const name = encodeURIComponent(msg.name);
 //     const page = msg.page || 1;
-//     const url = `https://yourpeer.nyc/locations?search=${name}${page > 1 ? `&page=${page}` : ''}`;
+//     const url = `https://test.yourpeer.nyc/locations?search=${name}${page > 1 ? `&page=${page}` : ''}`;
 //     fetch(url)
 //       .then(res => res.text())
 //       .then(html => sendResponse({ success: true, html }))
@@ -95,7 +101,7 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(maybeRedirect, {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'fetchFindHtml') {
-    const url = `https://gogetta.nyc/find/location/${msg.uuid}`;
+    const url = `https://www.gogetta.nyc/find/location/${msg.uuid}`;
     fetch(url, { credentials: 'include' })
       .then(res => res.text())
       .then(html => sendResponse({ success: true, html }))
@@ -109,7 +115,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'fetchYourPeerSearch') {
     const name = encodeURIComponent(msg.name);
     const page = msg.page || 1;
-    const url = `https://yourpeer.nyc/locations?search=${name}${page > 1 ? `&page=${page}` : ''}`;
+    const url = `https://test.yourpeer.nyc/locations?search=${name}${page > 1 ? `&page=${page}` : ''}`;
     fetch(url)
       .then(res => res.text())
       .then(html => sendResponse({ success: true, html }))

@@ -938,7 +938,7 @@ async function transferFutureNoteToUUID({ orgKey, sourceUserName, sourceDate, no
   await postToNoteAPI({
     uuid: orgKey,
     userName: sourceUserName,
-    date: `https://gogetta.nyc/team/location/${sourceDate}`,
+    date: `https://www.gogetta.nyc/team/location/${sourceDate}`,
     note: null
   }).then(r => checkResponse(r, "Deleting original future/online note"));
 
@@ -1139,7 +1139,7 @@ async function saveFutureLead() {
 
   const compositeUuid = `${uuidv()}_${addresses.join(' | ')}-futureNote`;
   const userNameForRecord = buildCompositeUuid(website, email, phone);
-  const dateField = `https://gogetta.nyc/team/location/${encodeURIComponent(orgName)}`;
+  const dateField = `https://www.gogetta.nyc/team/location/${encodeURIComponent(orgName)}`;
 
   const payload = {
     uuid: compositeUuid,
@@ -1705,7 +1705,7 @@ groupNameInput.addEventListener("input", async () => {
     const match = path.match(/\/location\/([a-f0-9-]{12,})/);
     const currentUuid = match?.[1];
     if (currentUuid) {
-      groupLinkInput.value = `https://gogetta.nyc/team/location/${currentUuid}`;
+      groupLinkInput.value = `https://www.gogetta.nyc/team/location/${currentUuid}`;
     }
     addGroupButton.onclick = async () => {
       await addNewGroup(currentGroup, groupLinkInput.value, NOTE_API);
@@ -1784,7 +1784,7 @@ if (connectedUuid === uuid) {
   locationDisplayElement.style.marginRight = "10px";
 } else {
   locationDisplayElement = document.createElement("a");
-  locationDisplayElement.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
+  locationDisplayElement.href = `https://www.gogetta.nyc/team/location/${connectedUuid}`;
   locationDisplayElement.target = "_blank";
   locationDisplayElement.innerText = `Location ${connectedUuid}`;
   locationDisplayElement.style.display = "inline-block";
@@ -1945,7 +1945,7 @@ async function disconnectLocation(groupName, connectedUuid, NOTE_API) {
   try {
     const payload = {
       uuid: "connections",
-      date: `https://gogetta.nyc/team/location/${connectedUuid}`,
+      date: `https://www.gogetta.nyc/team/location/${connectedUuid}`,
       note: false,
       userName: groupName
     };
@@ -2007,12 +2007,12 @@ if (!groupExists) {
   }
 }
 const urlsToSave = [];
-const canonicalCurrent = `https://gogetta.nyc/team/location/${currentPageUuid}`;
+const canonicalCurrent = `https://www.gogetta.nyc/team/location/${currentPageUuid}`;
 urlsToSave.push(canonicalCurrent);
 const uuidMatch = trimmedLink.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,})/);
 const otherUuid = uuidMatch?.[1];
 if (otherUuid && otherUuid !== currentPageUuid) {
-  const canonicalOther = `https://gogetta.nyc/team/location/${otherUuid}`;
+  const canonicalOther = `https://www.gogetta.nyc/team/location/${otherUuid}`;
   urlsToSave.push(canonicalOther);
 }
 try {
@@ -2036,7 +2036,7 @@ async function addUuidToGroup(groupName, uuid, newConnectedUuid, NOTE_API) {
   try {
     const payload = {
       uuid: "connections",
-      date: `https://gogetta.nyc/team/location/${newConnectedUuid}`,  
+      date: `https://www.gogetta.nyc/team/location/${newConnectedUuid}`,  
       note: true,
       userName: groupName
     };
@@ -2098,7 +2098,7 @@ attachMicButtonHandler();
   
     const { org, location: locName,slug } = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
     const summaryText = `${org || 'GoGetta'}${locName ? ' - ' + locName : ''}: ${note.slice(0, 40).replace(/\n/g, ' ')}`.slice(0, 60);
-const ypLink = slug ? `\\nYP: https://yourpeer.nyc/locations/${slug}` : '';
+const ypLink = slug ? `\\nYP: https://test.yourpeer.nyc/locations/${slug}` : '';
 const fullDescription = `${note.replace(/\n/g, '\\n')}${locName ? `\\nLocation: ${locName}` : ''}${org ? `\\nOrganization: ${org}` : ''}${ypLink}`;
     if (mode === 'google') {
       openGoogleCalendarEvent({
@@ -2106,9 +2106,9 @@ const fullDescription = `${note.replace(/\n/g, '\\n')}${locName ? `\\nLocation: 
         description: note +
   (locName ? `\nLocation: ${locName}` : '') +
   (org ? `\nOrganization: ${org}` : '') +
-  (slug ? `\nYP: https://yourpeer.nyc/locations/${slug}` : ''),
+  (slug ? `\nYP: https://test.yourpeer.nyc/locations/${slug}` : ''),
         date,
-        locationUrl: `https://gogetta.nyc/team/location/${uuid}`
+        locationUrl: `https://www.gogetta.nyc/team/location/${uuid}`
       });
     } else if (mode === 'ics') {
       const icsContent = `
@@ -2116,12 +2116,12 @@ BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-
 BEGIN:VEVENT
-UID:${uuid}-${date}@gogetta.nyc
+UID:${uuid}-${date}@www.gogetta.nyc
 DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z
 DTSTART;VALUE=DATE:${date.replace(/-/g, '')}
 SUMMARY:${summaryText}
 DESCRIPTION:${fullDescription}
-URL:https://gogetta.nyc/team/location/${uuid}
+URL:https://www.gogetta.nyc/team/location/${uuid}
 END:VEVENT
 END:VCALENDAR`.trim();
       const blob = new Blob([icsContent], { type: 'text/calendar' });
@@ -2498,7 +2498,7 @@ function createYourPeerEmbedWindow(slug, services, onClose = () => {}, positionO
     borderRadius: "4px"
   });
   copyBtn.onclick = () => {
-    const url = `https://yourpeer.nyc/locations/${slug}${hash}`;
+    const url = `https://test.yourpeer.nyc/locations/${slug}${hash}`;
     navigator.clipboard.writeText(url)
       .then(() => { copyBtn.textContent = "Copied!"; setTimeout(() => { copyBtn.textContent = "Copy YP Link"; }, 1200); })
       .catch(() => { copyBtn.textContent = "Failed to copy"; setTimeout(() => { copyBtn.textContent = "Copy YP Link"; }, 1200); });
@@ -2519,7 +2519,7 @@ function createYourPeerEmbedWindow(slug, services, onClose = () => {}, positionO
 
   // Iframe
   const iframe = document.createElement("iframe");
-  iframe.src = `https://yourpeer.nyc/locations/${slug}${hash}`;
+  iframe.src = `https://test.yourpeer.nyc/locations/${slug}${hash}`;
   Object.assign(iframe.style, { border: "none", width: "100%", height: "100%" });
   wrapper.appendChild(iframe);
 
@@ -2569,7 +2569,7 @@ function remountYourPeerEmbed() {
   const hash = wrapper.dataset.hash || "";
   const iframe = wrapper.querySelector("iframe");
   if (!iframe || !slug) return;
-  const url = `https://yourpeer.nyc/locations/${slug}${hash}`;
+  const url = `https://test.yourpeer.nyc/locations/${slug}${hash}`;
   // Force refresh even if same URL
   iframe.src = url;
 }
@@ -2721,7 +2721,7 @@ document.body.dataset.gghostRendered = 'true';
   }
   const host = location.hostname;
   const path = location.pathname;
-  if (host !== 'gogetta.nyc') return;
+  if (host !== 'www.gogetta.nyc') return;
   const createButton = (text, onClick, offset = 0) => {
     const btn = document.createElement('button');
     btn.textContent = text;
@@ -2752,8 +2752,8 @@ if (uuid === "connections") {
   if (uuid) {
     const currentMode = teamMatch ? 'edit' : 'view';
     const targetUrl = currentMode === 'edit'
-      ? `https://gogetta.nyc/find/location/${uuid}`
-      : `https://gogetta.nyc/team/location/${uuid}`;
+      ? `https://www.gogetta.nyc/find/location/${uuid}`
+      : `https://www.gogetta.nyc/team/location/${uuid}`;
     createButton(
       currentMode === 'edit' ? 'Switch to Frontend Mode' : 'Switch to Edit Mode',
       () => {
@@ -2803,7 +2803,7 @@ if (fullServiceMatch) {
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
     const serviceHash = `#${safeServiceName}`;
-    const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
+    const finalUrl = `https://test.yourpeer.nyc/locations/${slug}${serviceHash}`;
     console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
     window.location.href = finalUrl;
   } catch (err) {
@@ -2839,7 +2839,7 @@ if (fullServiceMatch) {
     localStorage.setItem("ypLastViewedService", JSON.stringify(storedData));
     console.log(`[YPButton] ✅ Successfully stored: ${data.Organization?.name} - ${data.name} for UUID: ${uuid}`);
     if (slug) {
-      const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
+      const ypUrl = `https://test.yourpeer.nyc/locations/${slug}`;
       console.log(`[YPButton] ✅ Redirecting to YourPeer (location level): ${ypUrl}`);
       window.location.href = ypUrl;
     } else {
@@ -3445,7 +3445,7 @@ document.body.appendChild(noteWrapper);
   }
   if (path === '/' || path=== '/find' || path === '/team') {
     const genericYpBtn = createButton('Go to YP', () => {
-      window.location.href = 'https://yourpeer.nyc/locations?sortBy=recentlyUpdated';
+      window.location.href = 'https://test.yourpeer.nyc/locations?sortBy=recentlyUpdated';
     });
     genericYpBtn.setAttribute('data-go-to-yp', 'true');
   }
@@ -3672,10 +3672,10 @@ function buildFutureOrgKey({ phone, website, email }) {
   }
 
   function getClosureInfoUrl(uuid) {
-    return `https://gogetta.nyc/team/location/${uuid}/closureinfo`;
+    return `https://www.gogetta.nyc/team/location/${uuid}/closureinfo`;
   }
   function getLocationUrl(uuid) {
-    return `https://gogetta.nyc/team/location/${uuid}`;
+    return `https://www.gogetta.nyc/team/location/${uuid}`;
   }
 
   // Intercept browser back button

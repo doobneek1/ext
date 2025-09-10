@@ -78,7 +78,7 @@ document.querySelectorAll('div[id]').forEach(section => {
 if (pTag && !alreadyInjected) {
   const dash = document.createTextNode(' – ');
   const link = document.createElement('a');
-  link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/opening-hours`;
+  link.href = `https://www.gogetta.nyc/team/location/${locationId}/services/${serviceId}/opening-hours`;
   link.textContent = statusText;
   link.setAttribute('data-holiday-link', 'true'); 
   Object.assign(link.style, {
@@ -107,7 +107,7 @@ document.querySelectorAll('div[id]').forEach(section => {
 if (infoBlock && !alreadyInjected) {
   const dashText = document.createTextNode(' – ');
   const link = document.createElement('a');
-  link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/other-info`;
+  link.href = `https://www.gogetta.nyc/team/location/${locationId}/services/${serviceId}/other-info`;
   link.textContent = statusText;
   link.setAttribute('data-otherinfo-link', 'true'); 
   Object.assign(link.style, {
@@ -161,7 +161,7 @@ document.querySelectorAll('div[id]').forEach(async section => {
       const color = getValidationColor(lastDescriptionUpdate);
       const dash = document.createTextNode(' – ');
       const link = document.createElement('a');
-      link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/description`;
+      link.href = `https://www.gogetta.nyc/team/location/${locationId}/services/${serviceId}/description`;
       link.textContent = statusText;
       link.setAttribute('data-description-link', 'true');
       Object.assign(link.style, {
@@ -196,7 +196,7 @@ document.querySelectorAll('div[id]').forEach(async section => {
         borderRadius: '4px',
       });
       btn.addEventListener('click', () => {
-        const url = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}`;
+        const url = `https://www.gogetta.nyc/team/location/${locationId}/services/${serviceId}`;
         window.location.href = url;
       });
       const header = section.querySelector('h2');
@@ -209,7 +209,7 @@ document.querySelectorAll('div[id]').forEach(async section => {
     const slug = path.split('/locations/')[1]?.split('#')[0];
     document.querySelectorAll('[data-yp-button]').forEach(btn => btn.remove());
     document.querySelectorAll('.yp-service-edit-btn').forEach(btn => btn.remove());
-    if (host !== 'yourpeer.nyc' || !path.startsWith('/locations')) return;
+    if (host !== 'test.yourpeer.nyc' || !path.startsWith('/locations')) return;
     if (!slug) {
       const btn = document.createElement('button');
       btn.textContent = 'Go to Getta';
@@ -221,7 +221,7 @@ document.querySelectorAll('div[id]').forEach(async section => {
         boxShadow: '0 2px 6px rgba(0,0,0,0.15)', cursor: 'pointer',
       });
       btn.addEventListener('click', () => {
-        window.location.href = 'https://gogetta.nyc/team';
+        window.location.href = 'https://www.gogetta.nyc/team';
       });
       document.body.appendChild(btn);
       return;
@@ -301,7 +301,7 @@ Object.assign(note.style, {
   console.error("🛑 Failed to load note overlay:", err);
 }
 
-      const baseUrl = `https://gogetta.nyc/team/location/${uuid}`;
+      const baseUrl = `https://www.gogetta.nyc/team/location/${uuid}`;
       const isClosed = document.querySelector('p.text-dark.mb-0\\.5.font-medium.text-sm')?.textContent.trim() === 'Closed';
       const createYPButton = (text, target, offset = 0) => {
         const btn = document.createElement('button');

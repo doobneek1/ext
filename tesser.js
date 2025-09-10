@@ -1,8 +1,8 @@
 (() => {
   const isGmail = location.hostname.includes('mail.google.com');
   const isGoogleVoice = location.hostname.includes('voice.google.com');
-  const isYourPeer = location.hostname.includes('yourpeer.nyc');
-  const isGoGetta = location.hostname.includes('gogetta.nyc');
+  const isYourPeer = location.hostname.includes('test.yourpeer.nyc');
+  const isGoGetta = location.hostname.includes('www.gogetta.nyc');
   
   // Skip hyperlink functionality entirely on Gmail only
   if (isGmail) {
