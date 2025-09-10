@@ -159,7 +159,7 @@
     }
 
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,streetview`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,streetview,geometry`;
     script.async = true;
     script.defer = true;
     script.onload = () => {
@@ -217,9 +217,19 @@
       cursor: 'pointer',
       padding: '4px'
     });
-    closeButton.onclick = () => modal.remove();
+    // Add a style rule to ensure the autocomplete suggestions appear over the modal.
+    const style = document.createElement('style');
+    style.textContent = '.pac-container { z-index: 100002 !important; }';
+
+    closeButton.onclick = () => {
+      modal.remove();
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    };
     header.appendChild(closeButton);
     modal.appendChild(header);
+    document.head.appendChild(style);
 
     // Search bar
     const searchContainer = document.createElement('div');
@@ -306,20 +316,34 @@
 
       // Initialize map center - use existing streetview_url if available, otherwise use position or default
       let defaultCenter = { lat: 40.7128, lng: -74.0060 }; // NYC default
+      let initialPov = { heading: 270, pitch: 0 };
       let initialStreetViewUrl = null;
-      
+
       if (locationData.streetview_url) {
         try {
-          // Parse existing street view link to extract coordinates
-          const urlMatch = locationData.streetview_url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-          if (urlMatch) {
-            defaultCenter = { lat: parseFloat(urlMatch[1]), lng: parseFloat(urlMatch[2]) };
-            initialStreetViewUrl = locationData.streetview_url;
+          const url = locationData.streetview_url;
+          initialStreetViewUrl = url; // Preserve the original URL
+
+          // Robustly parse lat, lng, heading, and pitch from the URL
+          const urlParams = url.split('@')[1]?.split('/')[0]?.split(',');
+          if (urlParams && urlParams.length >= 2) {
+            defaultCenter = { lat: parseFloat(urlParams[0]), lng: parseFloat(urlParams[1]) };
+
+            urlParams.forEach(param => {
+              if (param.endsWith('h')) {
+                initialPov.heading = parseFloat(param.slice(0, -1));
+              } else if (param.endsWith('t')) {
+                initialPov.pitch = parseFloat(param.slice(0, -1));
+              }
+            });
+            console.log('Robustly parsed initial POV:', initialPov);
           }
         } catch (e) {
           console.error('Error parsing existing streetview_url:', e);
+          // Fallback to original URL if parsing fails, which is already set
         }
       } else if (locationData.position?.coordinates) {
+        // Use position data if no street view URL is provided
         defaultCenter = { lat: locationData.position.coordinates[1], lng: locationData.position.coordinates[0] };
       }
 
@@ -329,10 +353,10 @@
         streetViewControl: true
       });
 
-      // Initialize Street View
+      // Initialize Street View with parsed or default values
       panorama = new google.maps.StreetViewPanorama(streetViewDiv, {
         position: defaultCenter,
-        pov: { heading: 270, pitch: 0 }
+        pov: initialPov
       });
 
       map.setStreetView(panorama);
@@ -401,7 +425,8 @@
         }, (data, status) => {
           if (status === 'OK') {
             panorama.setPosition(data.location.latLng);
-            panorama.setPov({ heading: 270, pitch: 0 });
+            const heading = google.maps.geometry.spherical.computeHeading(data.location.latLng, clickedLocation);
+            panorama.setPov({ heading: heading, pitch: 0 });
 
             // Generate Street View URL
             const lat = data.location.latLng.lat();
