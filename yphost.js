@@ -78,7 +78,7 @@ document.querySelectorAll('div[id]').forEach(section => {
 if (pTag && !alreadyInjected) {
   const dash = document.createTextNode(' – ');
   const link = document.createElement('a');
-  link.href = `https://www.gogetta.nyc/team/location/${locationId}/services/${serviceId}/opening-hours`;
+  link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/opening-hours`;
   link.textContent = statusText;
   link.setAttribute('data-holiday-link', 'true'); 
   Object.assign(link.style, {
@@ -107,7 +107,7 @@ document.querySelectorAll('div[id]').forEach(section => {
 if (infoBlock && !alreadyInjected) {
   const dashText = document.createTextNode(' – ');
   const link = document.createElement('a');
-  link.href = `https://www.gogetta.nyc/team/location/${locationId}/services/${serviceId}/other-info`;
+  link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/other-info`;
   link.textContent = statusText;
   link.setAttribute('data-otherinfo-link', 'true'); 
   Object.assign(link.style, {
@@ -161,7 +161,7 @@ document.querySelectorAll('div[id]').forEach(async section => {
       const color = getValidationColor(lastDescriptionUpdate);
       const dash = document.createTextNode(' – ');
       const link = document.createElement('a');
-      link.href = `https://www.gogetta.nyc/team/location/${locationId}/services/${serviceId}/description`;
+      link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/description`;
       link.textContent = statusText;
       link.setAttribute('data-description-link', 'true');
       Object.assign(link.style, {
@@ -196,7 +196,7 @@ document.querySelectorAll('div[id]').forEach(async section => {
         borderRadius: '4px',
       });
       btn.addEventListener('click', () => {
-        const url = `https://www.gogetta.nyc/team/location/${locationId}/services/${serviceId}`;
+        const url = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}`;
         window.location.href = url;
       });
       const header = section.querySelector('h2');
@@ -208,22 +208,86 @@ document.querySelectorAll('div[id]').forEach(async section => {
     const path = location.pathname;
     const slug = path.split('/locations/')[1]?.split('#')[0];
     document.querySelectorAll('[data-yp-button]').forEach(btn => btn.remove());
+    document.querySelectorAll('[data-yp-container]').forEach(container => container.remove());
     document.querySelectorAll('.yp-service-edit-btn').forEach(btn => btn.remove());
-    if (host !== 'test.yourpeer.nyc' || !path.startsWith('/locations')) return;
-    if (!slug) {
-      const btn = document.createElement('button');
-      btn.textContent = 'Go to Getta';
-      btn.setAttribute('data-yp-button', 'true');
-      Object.assign(btn.style, {
-        position: 'fixed', bottom: `20px`, right: '20px', zIndex: '9999',
-        padding: '10px 16px', fontSize: '13px', background: '#fff',
-        border: '2px solid black', borderRadius: '4px',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.15)', cursor: 'pointer',
+    const isYourPeer = host === 'yourpeer.nyc';
+    const isGoGetta = host === 'gogetta.nyc' || host === 'gogetta.nyc';
+    
+    if (!isYourPeer && !isGoGetta) return;
+    if (isYourPeer && !path.startsWith('/locations')) return;
+
+    if (!slug&& isYourPeer) {
+      // Create hover button for YourPeer pages without location
+      const hoverButton = document.createElement('button');
+      hoverButton.textContent = 'Hover';
+      hoverButton.setAttribute('data-yp-container', 'true');
+      Object.assign(hoverButton.style, {
+        position: 'fixed',
+        bottom: '0px',
+        right: '0px',
+        zIndex: '9999',
+        padding: '4px 8px',
+        fontSize: '11px',
+        background: '#fff',
+        border: '1px solid black',
+        borderRight: 'none',
+        borderBottom: 'none',
+        borderRadius: '4px 0 0 0',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease'
       });
-      btn.addEventListener('click', () => {
-        window.location.href = 'https://www.gogetta.nyc/team';
+
+      // Simple button for Go to Getta only
+      const goToGettaBtn = document.createElement('button');
+      goToGettaBtn.textContent = 'Go to Getta';
+      goToGettaBtn.setAttribute('data-yp-button', 'true');
+      Object.assign(goToGettaBtn.style, {
+        position: 'fixed',
+        bottom: '50px',
+        right: '0px',
+        zIndex: '9998',
+        padding: '10px 16px',
+        fontSize: '13px',
+        background: '#fff',
+        border: '2px solid black',
+        borderRadius: '4px',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+        cursor: 'pointer',
+        opacity: '0',
+        transform: 'translateY(20px)',
+        transition: 'all 0.3s ease',
+        pointerEvents: 'none'
       });
-      document.body.appendChild(btn);
+
+      goToGettaBtn.addEventListener('click', () => {
+        window.location.href = 'https://gogetta.nyc/team';
+      });
+
+      // Hover functionality
+      let hoverTimeout;
+      const showButton = () => {
+        clearTimeout(hoverTimeout);
+        goToGettaBtn.style.opacity = '1';
+        goToGettaBtn.style.transform = 'translateY(0)';
+        goToGettaBtn.style.pointerEvents = 'auto';
+      };
+
+      const hideButton = () => {
+        hoverTimeout = setTimeout(() => {
+          goToGettaBtn.style.opacity = '0';
+          goToGettaBtn.style.transform = 'translateY(20px)';
+          goToGettaBtn.style.pointerEvents = 'none';
+        }, 300);
+      };
+
+      hoverButton.addEventListener('mouseenter', showButton);
+      hoverButton.addEventListener('mouseleave', hideButton);
+      goToGettaBtn.addEventListener('mouseenter', () => clearTimeout(hoverTimeout));
+      goToGettaBtn.addEventListener('mouseleave', hideButton);
+
+      document.body.appendChild(hoverButton);
+      document.body.appendChild(goToGettaBtn);
       return;
     }
     try {
@@ -301,38 +365,251 @@ Object.assign(note.style, {
   console.error("🛑 Failed to load note overlay:", err);
 }
 
-      const baseUrl = `https://www.gogetta.nyc/team/location/${uuid}`;
+      const baseUrl = `https://gogetta.nyc/team/location/${uuid}`;
       const isClosed = document.querySelector('p.text-dark.mb-0\\.5.font-medium.text-sm')?.textContent.trim() === 'Closed';
-      const createYPButton = (text, target, offset = 0) => {
+      // Create hover button to expose YP buttons
+      const hoverButton = document.createElement('button');
+      hoverButton.textContent = 'Hover';
+      hoverButton.setAttribute('data-yp-container', 'true');
+      Object.assign(hoverButton.style, {
+        position: 'fixed',
+        bottom: '0px',
+        right: '0px',
+        zIndex: '9999',
+        padding: '4px 8px',
+        fontSize: '11px',
+        background: '#fff',
+        border: '1px solid black',
+        borderRight: 'none',
+        borderBottom: 'none',
+        borderRadius: '4px 0 0 0',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease'
+      });
+
+      // Create the actual YP buttons (initially hidden) - dynamic based on URL and context
+      const buttonData = [];
+      
+      // Core editing options
+      buttonData.push(
+        { text: 'Edit Services', target: 'recap' },
+        { text: 'Add/Delete Services', target: 'services' },
+        { text: 'Edit Location', target: 'edit' }
+      );
+      
+      // Navigation options based on current context
+      const url = new URL(window.location.href);
+      const currentPath = url.pathname;
+      const searchParams = url.searchParams;
+      
+      // Add navigation options based on current page context
+      if (currentPath === '/locations' && searchParams.get('sortBy') === 'recentlyUpdated') {
+        // On outdated pages listing, show lastpage navigation
+        buttonData.push({ text: 'Go to Last Page', target: 'lastPageDirect' });
+      } else {
+        // On individual location pages, show only most outdated page option
+        buttonData.push({ text: 'Most outdated page', target: 'mostOutdated' });
+      }
+      
+      // Add Go to Getta button for YourPeer pages
+      buttonData.push({ text: 'Go to Getta', target: 'goToGetta' });
+      
+      // Conditional closure button
+      if (isClosed) {
+        buttonData.push({ text: 'Open Location', target: 'closureInfo' });
+      }
+      
+      console.log('Creating YourPeer hover menu');
+      console.log('YP Button Data:', buttonData);
+
+      const ypButtons = [];
+      buttonData.forEach((data, index) => {
         const btn = document.createElement('button');
-        btn.textContent = text;
+        btn.textContent = data.text;
         btn.setAttribute('data-yp-button', 'true');
         Object.assign(btn.style, {
-          position: 'fixed', bottom: `${20 + offset}px`, right: '20px', zIndex: '9999',
-          padding: '10px 16px', fontSize: '13px', background: '#fff',
-          border: '2px solid black', borderRadius: '4px',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.15)', cursor: 'pointer',
+          position: 'fixed',
+          bottom: `${50 + (index * 50)}px`,
+          right: '0px',
+          zIndex: '9998',
+          padding: '10px 16px',
+          fontSize: '13px',
+          background: '#fff',
+          border: '2px solid black',
+          borderRadius: '4px',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+          cursor: 'pointer',
+          opacity: '0',
+          transform: 'translateY(20px)',
+          transition: 'all 0.3s ease',
+          pointerEvents: 'none'
         });
+
         btn.addEventListener('click', () => {
-          const finalUrl = {
-            edit: `${baseUrl}`,
-            services: `${baseUrl}/services`,
-            recap: `${baseUrl}/services/recap`,
-            closure: `${baseUrl}/closureInfo`
-          }[target] || baseUrl;
-          chrome.storage?.local?.set?.({ redirectEnabled: false }, () => {
-            sessionStorage.setItem('ypNeedsRedirectReenable', 'true');
-            sessionStorage.setItem('ypSkipBackgroundRedirect', 'true');
-            window.location.href = finalUrl;
-          });
+          if (data.target === 'mostOutdated') {
+            const preloadUrl = "https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=70";
+            window.location.href = preloadUrl;
+
+            const timeout = 10000;
+            const observer = new MutationObserver((mutationsList, obs) => {
+              const spanParent = document.querySelector("div.flex.items-center.justify-between > div.text-dark.font-medium");
+              if (spanParent) {
+                const spans = spanParent.querySelectorAll("span");
+                if (spans.length === 3) {
+                  const totalPagesText = spans[2].textContent.trim();
+                  const totalPages = parseInt(totalPagesText, 10);
+                  if (!isNaN(totalPages)) {
+                    obs.disconnect();
+                    clearTimeout(observerTimeout);
+                    const finalUrl = `https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=${totalPages}`;
+                    if (window.location.href !== finalUrl) {
+                      window.location.href = finalUrl;
+                    }
+                  }
+                }
+              }
+            });
+
+            observer.observe(document.body, { childList: true, subtree: true });
+
+            const observerTimeout = setTimeout(() => {
+              observer.disconnect();
+              console.warn("⏳ Timeout: Did not find pagination element.");
+            }, timeout);
+          } else if (data.target === 'lastPage') {
+            // Navigate to the last page of outdated locations
+            const preloadUrl = "https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=70";
+            window.location.href = preloadUrl;
+
+            const timeout = 10000;
+            const observer = new MutationObserver((mutationsList, obs) => {
+              const spanParent = document.querySelector("div.flex.items-center.justify-between > div.text-dark.font-medium");
+              if (spanParent) {
+                const spans = spanParent.querySelectorAll("span");
+                if (spans.length === 3) {
+                  const totalPagesText = spans[2].textContent.trim();
+                  const totalPages = parseInt(totalPagesText, 10);
+                  if (!isNaN(totalPages)) {
+                    obs.disconnect();
+                    clearTimeout(observerTimeout);
+                    const finalUrl = `https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=${totalPages}`;
+                    if (window.location.href !== finalUrl) {
+                      window.location.href = finalUrl;
+                    }
+                  }
+                }
+              }
+            });
+
+            observer.observe(document.body, { childList: true, subtree: true });
+
+            const observerTimeout = setTimeout(() => {
+              observer.disconnect();
+              console.warn("⏳ Timeout: Did not find pagination element.");
+            }, timeout);
+          } else if (data.target === 'lastPageDirect') {
+            // Direct navigation to last page (used when already on locations page)
+            const timeout = 5000;
+            const observer = new MutationObserver((mutationsList, obs) => {
+              const spanParent = document.querySelector("div.flex.items-center.justify-between > div.text-dark.font-medium");
+              if (spanParent) {
+                const spans = spanParent.querySelectorAll("span");
+                if (spans.length === 3) {
+                  const totalPagesText = spans[2].textContent.trim();
+                  const totalPages = parseInt(totalPagesText, 10);
+                  if (!isNaN(totalPages)) {
+                    obs.disconnect();
+                    clearTimeout(observerTimeout);
+                    const currentUrl = new URL(window.location.href);
+                    currentUrl.searchParams.set('page', totalPages.toString());
+                    window.location.href = currentUrl.toString();
+                  }
+                }
+              }
+            });
+
+            // If pagination is already loaded, try to get the last page immediately
+            const spanParent = document.querySelector("div.flex.items-center.justify-between > div.text-dark.font-medium");
+            if (spanParent) {
+              const spans = spanParent.querySelectorAll("span");
+              if (spans.length === 3) {
+                const totalPagesText = spans[2].textContent.trim();
+                const totalPages = parseInt(totalPagesText, 10);
+                if (!isNaN(totalPages)) {
+                  const currentUrl = new URL(window.location.href);
+                  currentUrl.searchParams.set('page', totalPages.toString());
+                  window.location.href = currentUrl.toString();
+                  return;
+                }
+              }
+            }
+
+            // If not immediately available, observe for changes
+            observer.observe(document.body, { childList: true, subtree: true });
+
+            const observerTimeout = setTimeout(() => {
+              observer.disconnect();
+              console.warn("⏳ Timeout: Did not find pagination element for direct navigation.");
+            }, timeout);
+          } else if (data.target === 'goToGetta') {
+            window.location.href = 'https://gogetta.nyc/team';
+          } else {
+            const finalUrl = {
+              edit: `${baseUrl}`,
+              services: `${baseUrl}/services`,
+              recap: `${baseUrl}/services/recap`,
+              closure: `${baseUrl}/closureInfo`
+            }[data.target] || baseUrl;
+            chrome.storage?.local?.set?.({ redirectEnabled: false }, () => {
+              sessionStorage.setItem('ypNeedsRedirectReenable', 'true');
+              sessionStorage.setItem('ypSkipBackgroundRedirect', 'true');
+              window.location.href = finalUrl;
+            });
+          }
         });
+
+        ypButtons.push(btn);
         document.body.appendChild(btn);
+      });
+
+      // Hover functionality to show/hide buttons
+      let hoverTimeout;
+      const showButtons = () => {
+        clearTimeout(hoverTimeout);
+        ypButtons.forEach((btn, index) => {
+          setTimeout(() => {
+            btn.style.opacity = '1';
+            btn.style.transform = 'translateY(0)';
+            btn.style.pointerEvents = 'auto';
+          }, index * 100);
+        });
       };
-    if (slug) { createYPButton('Edit Services', 'recap', 0);
-      createYPButton('Add/Delete Services', 'services', 40);
-      createYPButton('Edit Location', 'edit', 80);
-      if (isClosed) createYPButton('Open Location', 'closureInfo', 120);
-      await injectServiceEditButtons(slug, uuid, json?.Services || []);}
+
+      const hideButtons = () => {
+        hoverTimeout = setTimeout(() => {
+          ypButtons.forEach((btn) => {
+            btn.style.opacity = '0';
+            btn.style.transform = 'translateY(20px)';
+            btn.style.pointerEvents = 'none';
+          });
+        }, 300);
+      };
+
+      hoverButton.addEventListener('mouseenter', showButtons);
+      hoverButton.addEventListener('mouseleave', hideButtons);
+
+      // Also keep buttons visible when hovering over them
+      ypButtons.forEach(btn => {
+        btn.addEventListener('mouseenter', () => clearTimeout(hoverTimeout));
+        btn.addEventListener('mouseleave', hideButtons);
+      });
+
+      document.body.appendChild(hoverButton);
+      
+      if (slug) {
+        await injectServiceEditButtons(slug, uuid, json?.Services || []);
+      }
     } catch (err) {
       console.error('[YP] ❌ Failed to inject buttons:', err);
     }

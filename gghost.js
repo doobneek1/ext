@@ -1,4 +1,6 @@
   console.log('🚀 GGHOST.JS LOADING - URL:', window.location.href);
+  let globalButtonDropdown = null;
+  const buttonActions = [];
 
 // Check for extension context validity
 if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
@@ -938,7 +940,7 @@ async function transferFutureNoteToUUID({ orgKey, sourceUserName, sourceDate, no
   await postToNoteAPI({
     uuid: orgKey,
     userName: sourceUserName,
-    date: `https://www.gogetta.nyc/team/location/${sourceDate}`,
+    date: `https://gogetta.nyc/team/location/${sourceDate}`,
     note: null
   }).then(r => checkResponse(r, "Deleting original future/online note"));
 
@@ -1139,7 +1141,7 @@ async function saveFutureLead() {
 
   const compositeUuid = `${uuidv()}_${addresses.join(' | ')}-futureNote`;
   const userNameForRecord = buildCompositeUuid(website, email, phone);
-  const dateField = `https://www.gogetta.nyc/team/location/${encodeURIComponent(orgName)}`;
+  const dateField = `https://gogetta.nyc/team/location/${encodeURIComponent(orgName)}`;
 
   const payload = {
     uuid: compositeUuid,
@@ -1705,7 +1707,7 @@ groupNameInput.addEventListener("input", async () => {
     const match = path.match(/\/location\/([a-f0-9-]{12,})/);
     const currentUuid = match?.[1];
     if (currentUuid) {
-      groupLinkInput.value = `https://www.gogetta.nyc/team/location/${currentUuid}`;
+      groupLinkInput.value = `https://gogetta.nyc/team/location/${currentUuid}`;
     }
     addGroupButton.onclick = async () => {
       await addNewGroup(currentGroup, groupLinkInput.value, NOTE_API);
@@ -1784,7 +1786,7 @@ if (connectedUuid === uuid) {
   locationDisplayElement.style.marginRight = "10px";
 } else {
   locationDisplayElement = document.createElement("a");
-  locationDisplayElement.href = `https://www.gogetta.nyc/team/location/${connectedUuid}`;
+  locationDisplayElement.href = `https://gogetta.nyc/team/location/${connectedUuid}`;
   locationDisplayElement.target = "_blank";
   locationDisplayElement.innerText = `Location ${connectedUuid}`;
   locationDisplayElement.style.display = "inline-block";
@@ -1945,7 +1947,7 @@ async function disconnectLocation(groupName, connectedUuid, NOTE_API) {
   try {
     const payload = {
       uuid: "connections",
-      date: `https://www.gogetta.nyc/team/location/${connectedUuid}`,
+      date: `https://gogetta.nyc/team/location/${connectedUuid}`,
       note: false,
       userName: groupName
     };
@@ -2007,12 +2009,12 @@ if (!groupExists) {
   }
 }
 const urlsToSave = [];
-const canonicalCurrent = `https://www.gogetta.nyc/team/location/${currentPageUuid}`;
+const canonicalCurrent = `https://gogetta.nyc/team/location/${currentPageUuid}`;
 urlsToSave.push(canonicalCurrent);
 const uuidMatch = trimmedLink.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,})/);
 const otherUuid = uuidMatch?.[1];
 if (otherUuid && otherUuid !== currentPageUuid) {
-  const canonicalOther = `https://www.gogetta.nyc/team/location/${otherUuid}`;
+  const canonicalOther = `https://gogetta.nyc/team/location/${otherUuid}`;
   urlsToSave.push(canonicalOther);
 }
 try {
@@ -2036,7 +2038,7 @@ async function addUuidToGroup(groupName, uuid, newConnectedUuid, NOTE_API) {
   try {
     const payload = {
       uuid: "connections",
-      date: `https://www.gogetta.nyc/team/location/${newConnectedUuid}`,  
+      date: `https://gogetta.nyc/team/location/${newConnectedUuid}`,  
       note: true,
       userName: groupName
     };
@@ -2098,7 +2100,7 @@ attachMicButtonHandler();
   
     const { org, location: locName,slug } = JSON.parse(localStorage.getItem("ypLastViewedService") || '{}');
     const summaryText = `${org || 'GoGetta'}${locName ? ' - ' + locName : ''}: ${note.slice(0, 40).replace(/\n/g, ' ')}`.slice(0, 60);
-const ypLink = slug ? `\\nYP: https://test.yourpeer.nyc/locations/${slug}` : '';
+const ypLink = slug ? `\\nYP: https://yourpeer.nyc/locations/${slug}` : '';
 const fullDescription = `${note.replace(/\n/g, '\\n')}${locName ? `\\nLocation: ${locName}` : ''}${org ? `\\nOrganization: ${org}` : ''}${ypLink}`;
     if (mode === 'google') {
       openGoogleCalendarEvent({
@@ -2106,9 +2108,9 @@ const fullDescription = `${note.replace(/\n/g, '\\n')}${locName ? `\\nLocation: 
         description: note +
   (locName ? `\nLocation: ${locName}` : '') +
   (org ? `\nOrganization: ${org}` : '') +
-  (slug ? `\nYP: https://test.yourpeer.nyc/locations/${slug}` : ''),
+  (slug ? `\nYP: https://yourpeer.nyc/locations/${slug}` : ''),
         date,
-        locationUrl: `https://www.gogetta.nyc/team/location/${uuid}`
+        locationUrl: `https://gogetta.nyc/team/location/${uuid}`
       });
     } else if (mode === 'ics') {
       const icsContent = `
@@ -2116,12 +2118,12 @@ BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-
 BEGIN:VEVENT
-UID:${uuid}-${date}@www.gogetta.nyc
+UID:${uuid}-${date}@gogetta.nyc
 DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z
 DTSTART;VALUE=DATE:${date.replace(/-/g, '')}
 SUMMARY:${summaryText}
 DESCRIPTION:${fullDescription}
-URL:https://www.gogetta.nyc/team/location/${uuid}
+URL:https://gogetta.nyc/team/location/${uuid}
 END:VEVENT
 END:VCALENDAR`.trim();
       const blob = new Blob([icsContent], { type: 'text/calendar' });
@@ -2498,7 +2500,7 @@ function createYourPeerEmbedWindow(slug, services, onClose = () => {}, positionO
     borderRadius: "4px"
   });
   copyBtn.onclick = () => {
-    const url = `https://test.yourpeer.nyc/locations/${slug}${hash}`;
+    const url = `https://yourpeer.nyc/locations/${slug}${hash}`;
     navigator.clipboard.writeText(url)
       .then(() => { copyBtn.textContent = "Copied!"; setTimeout(() => { copyBtn.textContent = "Copy YP Link"; }, 1200); })
       .catch(() => { copyBtn.textContent = "Failed to copy"; setTimeout(() => { copyBtn.textContent = "Copy YP Link"; }, 1200); });
@@ -2519,7 +2521,7 @@ function createYourPeerEmbedWindow(slug, services, onClose = () => {}, positionO
 
   // Iframe
   const iframe = document.createElement("iframe");
-  iframe.src = `https://test.yourpeer.nyc/locations/${slug}${hash}`;
+  iframe.src = `https://yourpeer.nyc/locations/${slug}${hash}`;
   Object.assign(iframe.style, { border: "none", width: "100%", height: "100%" });
   wrapper.appendChild(iframe);
 
@@ -2569,7 +2571,7 @@ function remountYourPeerEmbed() {
   const hash = wrapper.dataset.hash || "";
   const iframe = wrapper.querySelector("iframe");
   if (!iframe || !slug) return;
-  const url = `https://test.yourpeer.nyc/locations/${slug}${hash}`;
+  const url = `https://yourpeer.nyc/locations/${slug}${hash}`;
   // Force refresh even if same URL
   iframe.src = url;
 }
@@ -2714,32 +2716,123 @@ document.addEventListener("DOMContentLoaded", () => {
 async function injectGoGettaButtons() {
 if (document.body.dataset.gghostRendered === 'true') return;
 document.body.dataset.gghostRendered = 'true';
-  document.querySelectorAll('[data-gghost-button]').forEach(btn => btn.remove());
+  document.querySelectorAll('[data-gghost-container]').forEach(container => container.remove());
+  globalButtonDropdown = null;
+  buttonActions.length = 0;
   const existingGoToYpBtn = document.querySelector('[data-go-to-yp]');
   if (existingGoToYpBtn) {
     existingGoToYpBtn.remove();
   }
   const host = location.hostname;
   const path = location.pathname;
-  if (host !== 'www.gogetta.nyc') return;
-  const createButton = (text, onClick, offset = 0) => {
-    const btn = document.createElement('button');
-    btn.textContent = text;
-    btn.style.position = 'fixed';
-    btn.style.bottom = `${20 + offset}px`; 
-    btn.style.left = '20px';
-    btn.style.zIndex = '9999';
-    btn.style.padding = '10px 16px';
-    btn.style.fontSize = '13px';
-    btn.style.background = '#fff';
-    btn.style.border = '2px solid black';
-    btn.style.borderRadius = '4px';
-    btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
-    btn.style.cursor = 'pointer';
-    btn.setAttribute('data-gghost-button', 'true'); 
-    document.body.appendChild(btn);
-    btn.addEventListener('click', onClick);
-    return btn;
+  if (!host.includes('gogetta.nyc')) return;
+  // Global dropdown system for all gghost buttons
+
+  const createHoverDropdown = () => {
+    if (globalButtonDropdown) return globalButtonDropdown;
+
+    const container = document.createElement('div');
+    container.setAttribute('data-gghost-container', 'true');
+    Object.assign(container.style, {
+      position: 'fixed',
+      bottom: '0px',
+      left: '0px',
+      zIndex: '9999'
+    });
+
+    const hoverButton = document.createElement('button');
+    hoverButton.textContent = 'Hover';
+    hoverButton.setAttribute('data-gghost-button', 'true');
+    Object.assign(hoverButton.style, {
+      padding: '4px 8px',
+      fontSize: '11px',
+      background: '#fff',
+      border: '1px solid black',
+      borderLeft: 'none',
+      borderBottom: 'none',
+      borderRadius: '0 4px 0 0',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease'
+    });
+
+    const dropdown = document.createElement('div');
+    Object.assign(dropdown.style, {
+      position: 'absolute',
+      bottom: '100%',
+      left: '0',
+      marginBottom: '8px',
+      background: '#fff',
+      border: '2px solid black',
+      borderRadius: '4px',
+      boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+      opacity: '0',
+      transform: 'translateY(10px)',
+      transition: 'all 0.2s ease',
+      pointerEvents: 'none',
+      minWidth: '200px'
+    });
+
+    let hoverTimeout;
+    const showDropdown = () => {
+      clearTimeout(hoverTimeout);
+      dropdown.style.opacity = '1';
+      dropdown.style.transform = 'translateY(0)';
+      dropdown.style.pointerEvents = 'auto';
+    };
+
+    const hideDropdown = () => {
+      hoverTimeout = setTimeout(() => {
+        dropdown.style.opacity = '0';
+        dropdown.style.transform = 'translateY(10px)';
+        dropdown.style.pointerEvents = 'none';
+      }, 100);
+    };
+
+    container.addEventListener('mouseenter', showDropdown);
+    container.addEventListener('mouseleave', hideDropdown);
+
+    container.appendChild(dropdown);
+    container.appendChild(hoverButton);
+    document.body.appendChild(container);
+
+    globalButtonDropdown = { container, dropdown };
+    return globalButtonDropdown;
+  };
+
+  const createButton = (text, onClick) => {
+    const dropdown = createHoverDropdown();
+    
+    const option = document.createElement('div');
+    option.textContent = text;
+    Object.assign(option.style, {
+      padding: '8px 12px',
+      cursor: 'pointer',
+      fontSize: '13px',
+      borderBottom: buttonActions.length > 0 ? '1px solid #ccc' : 'none',
+      transition: 'background 0.1s ease'
+    });
+
+    option.addEventListener('mouseenter', () => {
+      option.style.background = '#f0f0f0';
+    });
+
+    option.addEventListener('mouseleave', () => {
+      option.style.background = 'transparent';
+    });
+
+    option.addEventListener('click', onClick);
+
+    // Add to top of dropdown
+    if (dropdown.dropdown.firstChild) {
+      dropdown.dropdown.insertBefore(option, dropdown.dropdown.firstChild);
+      dropdown.dropdown.firstChild.nextSibling.style.borderBottom = '1px solid #ccc';
+    } else {
+      dropdown.dropdown.appendChild(option);
+    }
+
+    buttonActions.push({ text, onClick, element: option });
+    return { remove: () => option.remove() };
   };
 const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
 const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
@@ -2752,8 +2845,8 @@ if (uuid === "connections") {
   if (uuid) {
     const currentMode = teamMatch ? 'edit' : 'view';
     const targetUrl = currentMode === 'edit'
-      ? `https://www.gogetta.nyc/find/location/${uuid}`
-      : `https://www.gogetta.nyc/team/location/${uuid}`;
+      ? `https://gogetta.nyc/find/location/${uuid}`
+      : `https://gogetta.nyc/team/location/${uuid}`;
     createButton(
       currentMode === 'edit' ? 'Switch to Frontend Mode' : 'Switch to Edit Mode',
       () => {
@@ -2803,7 +2896,7 @@ if (fullServiceMatch) {
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
     const serviceHash = `#${safeServiceName}`;
-    const finalUrl = `https://test.yourpeer.nyc/locations/${slug}${serviceHash}`;
+    const finalUrl = `https://yourpeer.nyc/locations/${slug}${serviceHash}`;
     console.log(`[YPButton] ✅ Redirecting to YP service (from service page): ${finalUrl}`);
     window.location.href = finalUrl;
   } catch (err) {
@@ -2839,7 +2932,7 @@ if (fullServiceMatch) {
     localStorage.setItem("ypLastViewedService", JSON.stringify(storedData));
     console.log(`[YPButton] ✅ Successfully stored: ${data.Organization?.name} - ${data.name} for UUID: ${uuid}`);
     if (slug) {
-      const ypUrl = `https://test.yourpeer.nyc/locations/${slug}`;
+      const ypUrl = `https://yourpeer.nyc/locations/${slug}`;
       console.log(`[YPButton] ✅ Redirecting to YourPeer (location level): ${ypUrl}`);
       window.location.href = ypUrl;
     } else {
@@ -3444,10 +3537,38 @@ document.body.appendChild(noteWrapper);
     return; 
   }
   if (path === '/' || path=== '/find' || path === '/team') {
-    const genericYpBtn = createButton('Go to YP', () => {
-      window.location.href = 'https://test.yourpeer.nyc/locations?sortBy=recentlyUpdated';
+    const mostOutdatedBtn = createButton('Most outdated page', () => {
+      const preloadUrl = "https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=70";
+      window.location.href = preloadUrl;
+
+      const timeout = 10000;
+      const observer = new MutationObserver((mutationsList, obs) => {
+        const spanParent = document.querySelector("div.flex.items-center.justify-between > div.text-dark.font-medium");
+        if (spanParent) {
+          const spans = spanParent.querySelectorAll("span");
+          if (spans.length === 3) {
+            const totalPagesText = spans[2].textContent.trim();
+            const totalPages = parseInt(totalPagesText, 10);
+            if (!isNaN(totalPages)) {
+              obs.disconnect();
+              clearTimeout(observerTimeout);
+              const finalUrl = `https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=${totalPages}`;
+              if (window.location.href !== finalUrl) {
+                window.location.href = finalUrl;
+              }
+            }
+          }
+        }
+      });
+
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      const observerTimeout = setTimeout(() => {
+        observer.disconnect();
+        console.warn("⏳ Timeout: Did not find pagination element.");
+      }, timeout);
     });
-    genericYpBtn.setAttribute('data-go-to-yp', 'true');
+    mostOutdatedBtn.setAttribute('data-most-outdated', 'true');
   }
 }
 async function initializeGoGettaEnhancements() {
@@ -3672,10 +3793,10 @@ function buildFutureOrgKey({ phone, website, email }) {
   }
 
   function getClosureInfoUrl(uuid) {
-    return `https://www.gogetta.nyc/team/location/${uuid}/closureinfo`;
+    return `https://gogetta.nyc/team/location/${uuid}/closureinfo`;
   }
   function getLocationUrl(uuid) {
-    return `https://www.gogetta.nyc/team/location/${uuid}`;
+    return `https://gogetta.nyc/team/location/${uuid}`;
   }
 
   // Intercept browser back button

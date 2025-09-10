@@ -339,7 +339,7 @@ if (cancelBtn && cancelBtn.textContent.trim().toUpperCase() === 'CANCEL') {
     const uuidMatch = currentUrl.match(/\/team\/location\/([a-f0-9\-]{12,36})\//);
     if (uuidMatch) {
       const uuid = uuidMatch[1];
-      window.location.href = `https://www.gogetta.nyc/team/location/${uuid}`;
+      window.location.href = `https://gogetta.nyc/team/location/${uuid}`;
     } else {
       // Fallback to history.back() if UUID extraction fails
       setTimeout(() => history.back(), 300);

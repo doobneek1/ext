@@ -6,7 +6,7 @@
   }
 
   function isTargetPage(url) {
-    return normalizeUrl(url) === 'https://www.gogetta.nyc/team';
+    return normalizeUrl(url) === 'https://gogetta.nyc/team';
   }
 
   function checkAndInjectButton() {

@@ -91,12 +91,12 @@
   Use <strong>|(label)</strong> at the end of the link to customize text.
   Example:
  <strong>
-        test.yourpeer.nyc/<span class="rainbow-word">doobneek</span>/
+        yourpeer.nyc/<span class="rainbow-word">doobneek</span>/
         |(Visit <a href="http://localhost:3210" target="_blank" rel="noopener noreferrer" class="rainbow-word">doobneek.org</a>)
       </strong>
   will convert to
   <code>
-    &lt;a href="https://test.yourpeer.nyc/<span style="font-weight: bold; color: red;">d</span><span style="font-weight: bold; color: orange;">o</span><span style="font-weight: bold; color: yellow;">o</span><span style="font-weight: bold; color: green;">b</span><span style="font-weight: bold; color: blue;">n</span><span style="font-weight: bold; color: cyan;">e</span><span style="font-weight: bold; color: violet;">e</span><span style="font-weight: bold; color: deeppink;">k</span>/"&gt;Visit <span style="font-weight: bold; color: red;">d</span><span style="font-weight: bold; color: orange;">o</span><span style="font-weight: bold; color: yellow;">o</span><span style="font-weight: bold; color: green;">b</span><span style="font-weight: bold; color: blue;">n</span><span style="font-weight: bold; color: cyan;">e</span><span style="font-weight: bold; color: violet;">e</span><span style="font-weight: bold; color: deeppink;">k</span>.org&lt;/a&gt;
+    &lt;a href="https://yourpeer.nyc/<span style="font-weight: bold; color: red;">d</span><span style="font-weight: bold; color: orange;">o</span><span style="font-weight: bold; color: yellow;">o</span><span style="font-weight: bold; color: green;">b</span><span style="font-weight: bold; color: blue;">n</span><span style="font-weight: bold; color: cyan;">e</span><span style="font-weight: bold; color: violet;">e</span><span style="font-weight: bold; color: deeppink;">k</span>/"&gt;Visit <span style="font-weight: bold; color: red;">d</span><span style="font-weight: bold; color: orange;">o</span><span style="font-weight: bold; color: yellow;">o</span><span style="font-weight: bold; color: green;">b</span><span style="font-weight: bold; color: blue;">n</span><span style="font-weight: bold; color: cyan;">e</span><span style="font-weight: bold; color: violet;">e</span><span style="font-weight: bold; color: deeppink;">k</span>.org&lt;/a&gt;
   </code>
 </li>
 
@@ -432,7 +432,7 @@ function safeHyperlink(text) {
             return match; // not a parsable URL — leave as-is
           }
 
-          const host = u.hostname;           // e.g., "test.yourpeer.nyc"
+          const host = u.hostname;           // e.g., "yourpeer.nyc"
           const parts = host.split('.');
           if (parts.length < 2) return match; // needs at least sld.tld
 
@@ -446,7 +446,7 @@ function safeHyperlink(text) {
           // Display: use label if provided; else show host + path (no scheme)
           const display = label || (u.host + u.pathname + u.search + u.hash).replace(/^www\./, '');
 
-          const isYourPeer = host.endsWith('test.yourpeer.nyc');
+          const isYourPeer = host.endsWith('yourpeer.nyc');
           const targetAttr = isYourPeer ? '' : 'target="_blank" rel="noopener noreferrer"';
 
           return `<a href="${u.href}" ${targetAttr}>${display}</a>${trailing}`;

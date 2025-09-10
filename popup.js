@@ -87,7 +87,7 @@ function renderReminderList(remindersToShow, filtered = false) {
 
     for (const r of past) {
       const li = document.createElement("li");
-      li.innerHTML = `<a href="https://www.gogetta.nyc/team/location/${r.uuid}" target="_blank">${r.date}</a>: ${r.note}`;
+      li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${r.date}</a>: ${r.note}`;
       pastContainer.appendChild(li);
     }
 
@@ -109,7 +109,7 @@ function renderReminderList(remindersToShow, filtered = false) {
   for (const r of upcoming) {
     const dateText = r.date === today ? "Today" : r.date;
     const li = document.createElement("li");
-    li.innerHTML = `<a href="https://www.gogetta.nyc/team/location/${r.uuid}" target="_blank">${dateText}</a>: ${r.note}`;
+    li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${dateText}</a>: ${r.note}`;
     list.appendChild(li);
   }
 
@@ -279,10 +279,10 @@ chrome.windows.onRemoved.addListener((id) => {
       chrome.storage.local.set({ gayMode: false });
     }
   });
-  // Check for JWT authentication on www.gogetta.nyc pages
+  // Check for JWT authentication on gogetta.nyc pages
   chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     const tab = tabs[0];
-    if (!tab || !tab.url || !tab.url.includes("www.gogetta.nyc/team")) return;
+    if (!tab || !tab.url || !tab.url.includes("gogetta.nyc/team")) return;
     
     // Get Cognito tokens from the content script
     try {
