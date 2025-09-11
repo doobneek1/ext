@@ -3196,8 +3196,12 @@ function setupClosureAutoClicks(mode) {
 
 // Back button interception for closure handling
 function setupClosureBackButtonHandler() {
-  if (!uuid || uuid === "connections") return;
-  
+if (location.hostname === "gogetta.nyc") {
+  const uuidPattern = new RegExp(`/team/location/${uuid}/?$`); // Regex pattern to match the UUID with or without slash
+  if (!uuidPattern.test(location.pathname)) {
+    return; // URL matches the desired form
+  }
+}
   let isHandlingNavigation = false;
   
   // Show dialog and handle navigation
@@ -3230,10 +3234,7 @@ function setupClosureBackButtonHandler() {
   // Block back button navigation
   window.addEventListener('popstate', (e) => {
     const path = location.pathname;
-    const isOnMainLocationPage = path.includes(`/team/location/${uuid}`) && 
-                                !path.includes('/questions/') && 
-                                !path.includes('/closureInfo') && 
-                                !path.includes('/isClosed');
+    const isOnMainLocationPage = new RegExp(`^/team/location/${uuid}/?$`).test(path);
     
     if (isOnMainLocationPage) {
       // Immediately push the state back to prevent navigation
@@ -3298,10 +3299,7 @@ function setupClosureBackButtonClicks() {
       
       // Check if we're on a location page that should show closure dialog
       const path = location.pathname;
-      const isOnMainLocationPage = path.includes(`/team/location/${currentUuid}`) && 
-                                  !path.includes('/questions/') && 
-                                  !path.includes('/closureInfo') && 
-                                  !path.includes('/isClosed');
+      const isOnMainLocationPage = new RegExp(`^/team/location/${currentUuid}/?$`).test(path);
       
       if (isOnMainLocationPage) {
         e.preventDefault();
@@ -3331,19 +3329,48 @@ function setupClosureBackButtonClicks() {
   }, true); // Use capture phase to intercept before other handlers
 }
 
-// Initialize closure handling
-const currentPath = location.pathname;
-const shouldInitializeClosure = uuid && 
-                               currentPath.includes(`/team/location/${uuid}`) && 
-                               !currentPath.includes('/questions/') && 
-                               !currentPath.includes('/closureInfo') && 
-                               !currentPath.includes('/isClosed');
+// Initialize closure handling with URL change monitoring
+let currentClosureHandlers = null;
 
-if (shouldInitializeClosure) {
-  setupClosureBackButtonHandler();
-  setupClosureBackButtonClicks();
-  console.log('[Closure] 🔧 Closure back button and click handlers initialized for UUID:', uuid);
+function initializeClosureForCurrentPage() {
+  const currentPath = location.pathname;
+  const shouldInitializeClosure = uuid && new RegExp(`^/team/location/${uuid}/?$`).test(currentPath);
+
+  // Clean up existing handlers
+  if (currentClosureHandlers) {
+    currentClosureHandlers.cleanup();
+    currentClosureHandlers = null;
+  }
+
+  if (shouldInitializeClosure) {
+    currentClosureHandlers = {
+      cleanup: () => {
+        // Any cleanup logic if needed
+      }
+    };
+    setupClosureBackButtonHandler();
+    setupClosureBackButtonClicks();
+    console.log('[Closure] 🔧 Closure back button and click handlers initialized for UUID:', uuid);
+  } else {
+    // If we are on a closure page directly, start the autoclick sequence.
+    if (currentPath.includes('/closureInfo')) {
+      console.log('[Closure] Detected /closureInfo page on load, starting auto-click for "change" mode.');
+      setupClosureAutoClicks('change');
+    } else if (currentPath.includes('/isClosed')) {
+      console.log('[Closure] Detected /isClosed page on load, starting auto-click for "close" mode.');
+      setupClosureAutoClicks('close');
+    }
+  }
 }
+
+// Initialize on page load
+initializeClosureForCurrentPage();
+
+// Monitor URL changes for SPA navigation
+window.addEventListener('locationchange', () => {
+  console.log('[Closure] 🔄 URL changed, reinitializing closure handling');
+  initializeClosureForCurrentPage();
+});
 
 console.log('[YP Mini] 🔧 Creating YP Mini button for UUID:', uuid);
 const ypMiniBtn = createButton('YP Mini', async () => {
