@@ -66,7 +66,7 @@ async function loadOrgList() {
 
       input.addEventListener('input', (e) => {
         const value = e.target.value.toLowerCase();
-        document.querySelectorAll('.org-suggest-box').forEach(b => b.remove());
+        cleanupOrgAutocomplete();
         if (!value) return;
 
         const matched = orgList.filter(org => org.toLowerCase().includes(value)).slice(0, 10);
@@ -77,13 +77,21 @@ async function loadOrgList() {
 
       input.addEventListener('blur', () => {
         setTimeout(() => {
-          document.querySelectorAll('.org-suggest-box').forEach(b => b.remove());
+          cleanupOrgAutocomplete();
         }, 200);
       });
+
+      // Also cleanup on window blur (when switching tabs/apps) and beforeunload
+      window.addEventListener('blur', cleanupOrgAutocomplete);
+      window.addEventListener('beforeunload', cleanupOrgAutocomplete);
 
     } catch (err) {
       console.warn('[Org Autocomplete] Error:', err);
     }
+  }
+
+  function cleanupOrgAutocomplete() {
+    document.querySelectorAll('.org-suggest-box').forEach(b => b.remove());
   }
 
   function monitorOrgPageRoute() {
@@ -92,6 +100,7 @@ async function loadOrgList() {
     const observer = new MutationObserver(() => {
       const newPath = location.pathname;
       if (newPath !== lastPath) {
+        cleanupOrgAutocomplete();
         lastPath = newPath;
         if (/\/questions\/organization-name$/.test(newPath)|| /\/location$/.test(newPath)) {
           setupOrgAutocomplete();

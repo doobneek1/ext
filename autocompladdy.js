@@ -226,7 +226,7 @@
 
       input.addEventListener('input', async () => {
         const value = input.value.trim();
-        document.querySelectorAll('.autocomplete-box').forEach(el => el.remove());
+        cleanupAutocomplete();
         if (value.length < 3) return;
         const suggestions = await fetchAddressSuggestions(value);
         if (suggestions.length) {
@@ -236,9 +236,13 @@
 
       input.addEventListener('blur', () => {
         setTimeout(() => {
-          document.querySelectorAll('.autocomplete-box').forEach(el => el.remove());
+          cleanupAutocomplete();
         }, 200);
       });
+
+      // Also cleanup on window blur (when switching tabs/apps) and beforeunload
+      window.addEventListener('blur', cleanupAutocomplete);
+      window.addEventListener('beforeunload', cleanupAutocomplete);
     } catch (err) {
       console.warn('[YourPeer] Address autocomplete error:', err);
     }
@@ -247,10 +251,15 @@
   // 🔁 Monitor SPA navigation changes
   let lastPathname = location.pathname;
 
+  function cleanupAutocomplete() {
+    document.querySelectorAll('.autocomplete-box').forEach(el => el.remove());
+  }
+
   function monitorRouteChanges() {
     const observer = new MutationObserver(() => {
       const newPath = location.pathname;
       if (newPath !== lastPathname) {
+        cleanupAutocomplete();
         lastPathname = newPath;
         if (/\/questions\/location-address$/.test(newPath)) {
           setupAutocomplete();

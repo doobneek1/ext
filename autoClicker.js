@@ -93,43 +93,43 @@ document.addEventListener('click', (e) => {
 
   const currentUrl = window.location.href.replace(/\/$/, ''); // remove trailing slash if present
   localStorage.setItem('ypLastOkClickTime', Date.now().toString());
-if (/\/closureInfo\/?$/.test(currentUrl)) {
-  console.warn('[YP] ✅ OK clicked on /closureInfo — waiting for YES and BACK TO THE MAP');
+// if (/\/closureInfo\/?$/.test(currentUrl)) {
+//   console.warn('[YP] ✅ OK clicked on /closureInfo — waiting for YES and BACK TO THE MAP');
 
-  localStorage.setItem('ypLastOkClickTime', Date.now().toString());
+//   localStorage.setItem('ypLastOkClickTime', Date.now().toString());
 
 
-  const yesButtonSelector = 'button.Button-primary.Button-fluid';
-  const backToMapButtonSelector = 'button.Button.mt-4.Button-primary.Button-fluid';
+//   const yesButtonSelector = 'button.Button-primary.Button-fluid';
+//   const backToMapButtonSelector = 'button.Button.mt-4.Button-primary.Button-fluid';
 
-  // ⏳ Add delay to allow DOM update
-  setTimeout(() => {
-    waitForElement(yesButtonSelector)
-      .then((yesBtn) => {
-        if (yesBtn.textContent.trim().toUpperCase() === 'YES') {
-          console.warn('[YP] ✅ Clicking "YES" button');
-          yesBtn.click();
+//   // ⏳ Add delay to allow DOM update
+//   setTimeout(() => {
+//     waitForElement(yesButtonSelector)
+//       .then((yesBtn) => {
+//         if (yesBtn.textContent.trim().toUpperCase() === 'YES') {
+//           console.warn('[YP] ✅ Clicking "YES" button');
+//           yesBtn.click();
 
-          return waitForElement(backToMapButtonSelector);
-        } else {
-          throw new Error('YES button found, but text did not match');
-        }
-      })
-      .then((backToMapBtn) => {
-        if (backToMapBtn.textContent.trim().toUpperCase() === 'BACK TO THE MAP') {
-          console.warn('[YP] 🗺️ Clicking "BACK TO THE MAP" button');
-          backToMapBtn.click();
-        } else {
-          throw new Error('BACK TO THE MAP button text mismatch');
-        }
-      })
-      .catch((err) => {
-        console.warn(`[YP] ⚠️ ${err.message}`);
-      });
-  }, 300); // Adjust delay as needed (e.g., 300–500ms)
+//           return waitForElement(backToMapButtonSelector);
+//         } else {
+//           throw new Error('YES button found, but text did not match');
+//         }
+//       })
+//       .then((backToMapBtn) => {
+//         if (backToMapBtn.textContent.trim().toUpperCase() === 'BACK TO THE MAP') {
+//           console.warn('[YP] 🗺️ Clicking "BACK TO THE MAP" button');
+//           backToMapBtn.click();
+//         } else {
+//           throw new Error('BACK TO THE MAP button text mismatch');
+//         }
+//       })
+//       .catch((err) => {
+//         console.warn(`[YP] ⚠️ ${err.message}`);
+//       });
+//   }, 300); // Adjust delay as needed (e.g., 300–500ms)
 
-  return;
-}
+//   return;
+// }
 
 
   // 🛑 Skip action on /services or /location pages

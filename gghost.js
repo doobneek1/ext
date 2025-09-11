@@ -457,6 +457,7 @@ async function maybeRecordValidation(uuid, data) {
     }
   } catch (e) {
     console.warn("[YPButton] ⚠️ Could not record validation:", e);
+    // Don't throw - this is a non-critical operation
   }
 
 }
@@ -2832,7 +2833,7 @@ document.body.dataset.gghostRendered = 'true';
     }
 
     buttonActions.push({ text, onClick, element: option });
-    return { remove: () => option.remove() };
+    return { remove: () => option.remove(), element: option };
   };
 const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
 const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
@@ -2943,20 +2944,432 @@ if (fullServiceMatch) {
   }
 }
 
-}, 60); 
+}); 
 const futureBtn = createButton(
   'Add future/online org',
   () => {
     openFutureOnlineModal(); // 2) Then open the modal
-  },
-  180 // offset so it sits below your other fixed buttons
+  }
 );
 
 
+// Closure handling functionality
+function createClosureDialog() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
+
+  const dialog = document.createElement('div');
+  dialog.style.cssText = `
+    background: white;
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  `;
+
+  dialog.innerHTML = `
+    <h3 style="margin: 0 0 16px 0; color: #333;">Location Action</h3>
+    <p style="margin: 0 0 24px 0; color: #666; line-height: 1.4;">
+      What would you like to do with this location?
+    </p>
+    <div style="display: flex; gap: 12px; justify-content: center;">
+      <button id="close-location-btn" style="
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+      ">Close Location</button>
+      <button id="change-closure-btn" style="
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+      ">Change Closure Notice</button>
+    </div>
+    <div style="margin-top: 16px; text-align: center;">
+      <button id="cancel-navigation-btn" style="
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+      ">Cancel</button>
+    </div>
+  `;
+
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  return new Promise((resolve) => {
+    document.getElementById('close-location-btn').addEventListener('click', () => {
+      overlay.remove();
+      resolve('close');
+    });
+    
+    document.getElementById('change-closure-btn').addEventListener('click', () => {
+      overlay.remove();
+      resolve('change');
+    });
+
+    document.getElementById('cancel-navigation-btn').addEventListener('click', () => {
+      overlay.remove();
+      resolve('cancel');
+    });
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+        resolve('cancel');
+      }
+    });
+  });
+}
+
+function setupClosureAutoClicks(mode) {
+  console.log('[Closure] 🤖 Setting up auto-click handlers for mode:', mode);
+  
+  let hasClickedFirst = false;
+  let hasClickedYes = false;
+  let currentUrl = location.href;
+
+  const performAutoClicks = () => {
+    const path = location.pathname;
+    
+    if (mode === 'close') {
+      // CLOSE SEQUENCE: NO, IT'S CLOSED → YES → BACK TO THE MAP
+      
+      // Step 1: Click "NO, IT'S CLOSED" on isClosed page
+      if (!hasClickedFirst && path.includes('/isClosed')) {
+        const isClosedBtn = Array.from(document.querySelectorAll('button')).find(btn => 
+          btn.textContent.trim() === "NO, IT'S CLOSED" && 
+          btn.classList.contains('Button-primary')
+        );
+        
+        if (isClosedBtn) {
+          console.log('[Closure] 🖱️ Clicking "NO, IT\'S CLOSED"');
+          isClosedBtn.click();
+          hasClickedFirst = true;
+          setTimeout(() => {
+            createBubble('NO, IT\'S CLOSED Clicked!');
+          }, 100);
+          return;
+        }
+      }
+
+      // Step 2: Click "YES"
+      if (hasClickedFirst && !hasClickedYes) {
+        const yesBtn = Array.from(document.querySelectorAll('button')).find(btn => 
+          btn.textContent.trim() === "YES" && 
+          btn.classList.contains('Button-primary') &&
+          btn.classList.contains('Button-fluid')
+        );
+        
+        if (yesBtn) {
+          console.log('[Closure] 🖱️ Clicking "YES"');
+          yesBtn.click();
+          hasClickedYes = true;
+          setTimeout(() => {
+            createBubble('YES Clicked!');
+          }, 100);
+          return;
+        }
+      }
+
+      // Step 3: Click "BACK TO THE MAP"
+      if (hasClickedYes) {
+        const backToMapBtn = Array.from(document.querySelectorAll('button')).find(btn => 
+          btn.textContent.trim() === "BACK TO THE MAP" && 
+          btn.classList.contains('Button-primary') &&
+          btn.classList.contains('Button-fluid')
+        );
+        
+        if (backToMapBtn) {
+          console.log('[Closure] 🖱️ Clicking "BACK TO THE MAP"');
+          backToMapBtn.click();
+          setTimeout(() => {
+            createBubble('BACK TO THE MAP Clicked!');
+            cleanup();
+          }, 100);
+          return;
+        }
+      }
+      
+    } else if (mode === 'change') {
+      // CHANGE SEQUENCE: NO, LET'S EDIT IT → (wait for user OK) → YES
+      
+      // Step 1: Click "NO, LET'S EDIT IT" on closureInfo page
+      if (!hasClickedFirst && path.includes('/closureInfo')) {
+        const noLetsEditBtn = Array.from(document.querySelectorAll('button')).find(btn => 
+          btn.textContent.trim() === "NO, LET'S EDIT IT" && 
+          btn.classList.contains('Button-primary')
+        );
+        
+        if (noLetsEditBtn) {
+          console.log('[Closure] 🖱️ Clicking "NO, LET\'S EDIT IT"');
+          noLetsEditBtn.click();
+          hasClickedFirst = true;
+          setTimeout(() => {
+            createBubble('NO, LET\'S EDIT IT Clicked!');
+          }, 100);
+          return;
+        }
+      }
+
+      // Step 2: Wait for user to click OK, then click "YES"
+      if (hasClickedFirst && !hasClickedYes) {
+        const yesBtn = Array.from(document.querySelectorAll('button')).find(btn => 
+          btn.textContent.trim() === "YES" && 
+          btn.classList.contains('Button-primary') &&
+          btn.classList.contains('Button-fluid')
+        );
+        
+        if (yesBtn) {
+          console.log('[Closure] 🖱️ Clicking "YES"');
+          yesBtn.click();
+          hasClickedYes = true;
+          setTimeout(() => {
+            createBubble('YES Clicked!');
+            cleanup();
+          }, 100);
+          return;
+        }
+      }
+    }
+  };
+
+  // Monitor URL changes and DOM mutations
+  const observer = new MutationObserver(() => {
+    if (location.href !== currentUrl) {
+      currentUrl = location.href;
+      console.log('[Closure] 🔄 URL changed to:', currentUrl);
+      setTimeout(performAutoClicks, 100); // Give page time to load
+    }
+    performAutoClicks(); // Also check on DOM changes
+  });
+
+  // Monitor popstate for back/forward navigation
+  const popstateHandler = () => {
+    if (location.href !== currentUrl) {
+      currentUrl = location.href;
+      console.log('[Closure] 🔄 Popstate URL change to:', currentUrl);
+      setTimeout(performAutoClicks, 100);
+    }
+  };
+
+  const cleanup = () => {
+    observer.disconnect();
+    window.removeEventListener('popstate', popstateHandler);
+    console.log('[Closure] 🛑 Auto-click sequence completed, cleaning up observers');
+  };
+
+  observer.observe(document.body, { childList: true, subtree: true });
+  window.addEventListener('popstate', popstateHandler);
+  
+  // Initial check
+  setTimeout(performAutoClicks, 100);
+  
+  // Return cleanup function
+  return cleanup;
+}
+
+// Back button interception for closure handling
+function setupClosureBackButtonHandler() {
+  if (!uuid || uuid === "connections") return;
+  
+  let isHandlingNavigation = false;
+  
+  // Show dialog and handle navigation
+  const showDialogAndNavigate = async () => {
+    if (isHandlingNavigation) return;
+    isHandlingNavigation = true;
+    
+    console.log('[Closure] 🔙 Navigation detected, showing closure dialog');
+    
+    const choice = await createClosureDialog();
+    
+    if (choice === 'close') {
+      console.log('[Closure] 🔄 User chose to close location, navigating to isClosed');
+      setupClosureAutoClicks('close');
+      // Allow navigation by navigating directly
+      window.location.replace(`https://gogetta.nyc/team/location/${uuid}/isClosed`);
+    } else if (choice === 'change') {
+      console.log('[Closure] 🔄 User chose to change closure notice, redirecting to closureInfo');
+      setupClosureAutoClicks('change');
+      // Allow navigation by navigating directly
+      window.location.replace(`https://gogetta.nyc/team/location/${uuid}/closureInfo`);
+    } else {
+      console.log('[Closure] ❌ User cancelled, staying on page');
+      isHandlingNavigation = false;
+      // Push current state back to maintain URL
+      history.pushState(null, '', location.href);
+    }
+  };
+  
+  // Block back button navigation
+  window.addEventListener('popstate', (e) => {
+    const path = location.pathname;
+    const isOnMainLocationPage = path.includes(`/team/location/${uuid}`) && 
+                                !path.includes('/questions/') && 
+                                !path.includes('/closureInfo') && 
+                                !path.includes('/isClosed');
+    
+    if (isOnMainLocationPage) {
+      // Immediately push the state back to prevent navigation
+      history.pushState(null, '', location.href);
+      showDialogAndNavigate();
+    }
+  });
+  
+  // Push initial state to enable popstate detection
+  history.pushState(null, '', location.href);
+}
+
+// Bubble feedback function (reused from streetview.js)
+function createBubble(text) {
+  const bubble = document.createElement('div');
+  Object.assign(bubble.style, {
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    background: 'rgba(66, 133, 244, 0.9)',
+    color: 'white',
+    padding: '12px 20px',
+    borderRadius: '25px',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    zIndex: '100002',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+    animation: 'bubbleFade 2s ease-out forwards'
+  });
+  bubble.textContent = text;
+
+  // Add CSS animation if not already present
+  if (!document.querySelector('#bubble-animation-style')) {
+    const style = document.createElement('style');
+    style.id = 'bubble-animation-style';
+    style.textContent = `
+      @keyframes bubbleFade {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.body.appendChild(bubble);
+
+  setTimeout(() => {
+    if (bubble.parentNode) bubble.remove();
+  }, 2000);
+}
+
+// Add Back button click handler for closure dialog
+function setupClosureBackButtonClicks() {
+  document.addEventListener('click', function(e) {
+    const t = e.target;
+    if (t && t.tagName === 'BUTTON' && t.textContent && t.textContent.replace(/\s/g, '').startsWith('<Back')) {
+      const currentUuid = uuid; // Use the uuid from scope
+      if (!currentUuid) return;
+      
+      // Check if we're on a location page that should show closure dialog
+      const path = location.pathname;
+      const isOnMainLocationPage = path.includes(`/team/location/${currentUuid}`) && 
+                                  !path.includes('/questions/') && 
+                                  !path.includes('/closureInfo') && 
+                                  !path.includes('/isClosed');
+      
+      if (isOnMainLocationPage) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        console.log('[Closure] 🔙 Back button click detected, showing closure dialog');
+        
+        createClosureDialog().then(choice => {
+          if (choice === 'close') {
+            console.log('[Closure] 🔄 User chose to close location, navigating to isClosed');
+            setupClosureAutoClicks('close');
+            window.location.replace(`https://gogetta.nyc/team/location/${currentUuid}/isClosed`);
+          } else if (choice === 'change') {
+            console.log('[Closure] 🔄 User chose to change closure notice, redirecting to closureInfo');
+            setupClosureAutoClicks('change');
+            window.location.replace(`https://gogetta.nyc/team/location/${currentUuid}/closureInfo`);
+          } else {
+            console.log('[Closure] ❌ User cancelled back action');
+            // Stay on current page - no action needed
+          }
+        });
+        
+        return false; // Additional prevention
+      }
+    }
+  }, true); // Use capture phase to intercept before other handlers
+}
+
+// Initialize closure handling
+const currentPath = location.pathname;
+const shouldInitializeClosure = uuid && 
+                               currentPath.includes(`/team/location/${uuid}`) && 
+                               !currentPath.includes('/questions/') && 
+                               !currentPath.includes('/closureInfo') && 
+                               !currentPath.includes('/isClosed');
+
+if (shouldInitializeClosure) {
+  setupClosureBackButtonHandler();
+  setupClosureBackButtonClicks();
+  console.log('[Closure] 🔧 Closure back button and click handlers initialized for UUID:', uuid);
+}
+
+console.log('[YP Mini] 🔧 Creating YP Mini button for UUID:', uuid);
 const ypMiniBtn = createButton('YP Mini', async () => {
+console.log('[YP Mini] 🖱️ Button clicked!');
 try {
-  const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+  if (!uuid) {
+    console.error('[YP Mini] ❌ UUID is undefined or empty');
+    alert('YP Mini: Location UUID not found. Make sure you are on a valid location page.');
+    return;
+  }
+
+  console.log('[YP Mini] 🔄 Fetching data for UUID:', uuid);
+  const apiUrl = `https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`;
+  
+  const res = await fetch(apiUrl);
+  
+  if (!res.ok) {
+    console.error('[YP Mini] ❌ API request failed:', res.status, res.statusText);
+    const errorText = await res.text();
+    console.error('[YP Mini] ❌ Error response:', errorText);
+    alert(`YP Mini fetch failed: ${res.status} ${res.statusText}`);
+    return;
+  }
+
   const data = await res.json();
+  console.log('[YP Mini] ✅ API response:', data);
 
   // 🟢 record validation timestamp
   await maybeRecordValidation(uuid, data);
@@ -2965,18 +3378,23 @@ try {
   const services = data.Services || [];
 
   if (slug) {
-    ypMiniBtn.style.display = "none"; 
+    console.log('[YP Mini] ✅ Found slug:', slug);
+    ypMiniBtn.element.style.display = "none"; 
     createYourPeerEmbedWindow(slug, services, () => {
-      ypMiniBtn.style.display = "block"; 
+      ypMiniBtn.element.style.display = "block"; 
     });
   } else {
-    console.warn('[YP Mini] ❌ Slug not found.');
+    console.warn('[YP Mini] ❌ Slug not found in response.');
+    console.warn('[YP Mini] ❌ Available data keys:', Object.keys(data));
+    alert('YP Mini: No slug found for this location. This location may not be available on YourPeer.');
   }
 } catch (err) {
   console.error('[YP Mini] 🛑 Error fetching slug:', err);
+  console.error('[YP Mini] 🛑 Error details:', err.message, err.stack);
+  alert(`YP Mini error: ${err.message}`);
 }
 
-}, 120);
+});
 if (!document.getElementById("gg-note-overlay")) {
   try {
 const { accessToken, username: cognitoUsername } = getCognitoTokens();
@@ -3799,35 +4217,35 @@ function buildFutureOrgKey({ phone, website, email }) {
     return `https://gogetta.nyc/team/location/${uuid}`;
   }
 
-  // Intercept browser back button
-  window.addEventListener('popstate', function(e) {
-    const uuid = getGoGettaLocationUuid();
-    if (!uuid) return;
-    if (isGoGettaLocationPage()) {
-      // If on /location/:uuid, redirect to /closureinfo
-      window.location.href = getClosureInfoUrl(uuid);
-    } else if (isGoGettaClosureInfoPage()) {
-      // If on /closureinfo, redirect to /location/:uuid
-      window.location.href = getLocationUrl(uuid);
-    }
-    // Don't redirect from /isClosed anymore
-  });
+  // Intercept browser back button - DISABLED: Replaced with closure dialog system
+  // window.addEventListener('popstate', function(e) {
+  //   const uuid = getGoGettaLocationUuid();
+  //   if (!uuid) return;
+  //   if (isGoGettaLocationPage()) {
+  //     // If on /location/:uuid, redirect to /closureinfo
+  //     window.location.href = getClosureInfoUrl(uuid);
+  //   } else if (isGoGettaClosureInfoPage()) {
+  //     // If on /closureinfo, redirect to /location/:uuid
+  //     window.location.href = getLocationUrl(uuid);
+  //   }
+  //   // Don't redirect from /isClosed anymore
+  // });
 
-  // Intercept <Back button clicks
-  document.addEventListener('click', function(e) {
-    const t = e.target;
-    if (t && t.tagName === 'BUTTON' && t.textContent && t.textContent.replace(/\s/g, '').startsWith('<Back')) {
-      const uuid = getGoGettaLocationUuid();
-      if (!uuid) return;
-      if (isGoGettaLocationPage() || isGoGettaIsClosedPage()) {
-        window.location.href = getClosureInfoUrl(uuid);
-        e.preventDefault();
-      } else if (isGoGettaClosureInfoPage()) {
-        window.location.href = getLocationUrl(uuid);
-        e.preventDefault();
-      }
-    }
-  }, true);
+  // Intercept <Back button clicks - DISABLED: Replaced with closure dialog system
+  // document.addEventListener('click', function(e) {
+  //   const t = e.target;
+  //   if (t && t.tagName === 'BUTTON' && t.textContent && t.textContent.replace(/\s/g, '').startsWith('<Back')) {
+  //     const uuid = getGoGettaLocationUuid();
+  //     if (!uuid) return;
+  //     if (isGoGettaLocationPage() || isGoGettaIsClosedPage()) {
+  //       window.location.href = getClosureInfoUrl(uuid);
+  //       e.preventDefault();
+  //     } else if (isGoGettaClosureInfoPage()) {
+  //       window.location.href = getLocationUrl(uuid);
+  //       e.preventDefault();
+  //     }
+  //   }
+  // }, true);
 
   await initializeGoGettaEnhancements();
 document.addEventListener('visibilitychange', () => {
