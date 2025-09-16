@@ -290,11 +290,28 @@ document.querySelectorAll('div[id]').forEach(async section => {
       document.body.appendChild(goToGettaBtn);
       return;
     }
+    if (!slug) {
+      console.warn('[yphost.js] No slug found, skipping API call');
+      return;
+    }
     try {
       const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations-by-slug/${slug}`);
       const json = await res.json();
       const uuid = json?.id;
       if (!uuid) return;
+
+      // Store service information for site visits
+      if (json.Services && Array.isArray(json.Services)) {
+        window.gghost = window.gghost || {};
+        window.gghost.currentLocationServices = json.Services.map(service => ({
+          id: service.id,
+          name: service.name,
+          description: service.description,
+          serviceType: service.serviceType,
+          validationStatus: service.HolidaySchedules?.[0]?.createdAt ? 'validated' : 'pending'
+        }));
+        console.log('[yphost.js] Stored services for site visit:', window.gghost.currentLocationServices);
+      }
       // 🔹 Show draggable read-only note overlay
 try {
   const NOTE_API = "https://locationnote1-iygwucy2fa-uc.a.run.app";

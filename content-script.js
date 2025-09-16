@@ -29,41 +29,38 @@ function ensureAppOverlay(urlPath = "/embed") {
     if (ev.origin !== APP_ORIGIN) return; // only accept messages from your iframe
     const { type } = ev.data || {};
     if (type === "REQUEST_CREDS") {
-      // Get JWS tokens from localStorage
-      function getJWSTokens() {
+      // Get Cognito tokens from localStorage (same logic as gghost.js)
+      function getCognitoTokens() {
         try {
           const storage = localStorage;
-          let jwsToken = null;
+          let accessToken = null;
+          let idToken = null;
           let username = null;
 
-          // Look for JWS token in localStorage
-          // Adjust these keys based on your actual JWS storage implementation
-          jwsToken = storage.getItem('jws_token') || storage.getItem('authToken') || storage.getItem('accessToken');
-          username = storage.getItem('username') || storage.getItem('user_id') || storage.getItem('currentUser');
-
-          // If JWS token is not found in common keys, scan for JWT-like patterns
-          if (!jwsToken) {
-            for (let i = 0; i < storage.length; i++) {
-              const key = storage.key(i);
-              const value = storage.getItem(key);
-              // Check if value looks like a JWT/JWS token (has two dots)
-              if (value && typeof value === 'string' && value.split('.').length === 3) {
-                jwsToken = value;
-                break;
+          // Find Cognito tokens by scanning localStorage
+          for (let i = 0; i < storage.length; i++) {
+            const key = storage.key(i);
+            if (key && key.startsWith('CognitoIdentityServiceProvider.')) {
+              if (key.includes('.accessToken')) {
+                accessToken = storage.getItem(key);
+              } else if (key.includes('.idToken')) {
+                idToken = storage.getItem(key);
+              } else if (key.includes('.LastAuthUser')) {
+                username = storage.getItem(key);
               }
             }
           }
 
-          return { jwsToken, accessToken: jwsToken, username };
+          return { accessToken, idToken, username };
         } catch (error) {
-          console.warn('[getJWSTokens] Error accessing localStorage:', error);
-          return { jwsToken: null, accessToken: null, username: null };
+          console.warn('[getCognitoTokens] Error accessing localStorage:', error);
+          return { accessToken: null, idToken: null, username: null };
         }
       }
 
-      const { jwsToken, accessToken, username } = getJWSTokens();
+      const { accessToken, idToken, username } = getCognitoTokens();
       frame.contentWindow.postMessage(
-        { type: "CREDS", payload: { username, accessToken: jwsToken, jwsToken } },
+        { type: "CREDS", payload: { username, accessToken, idToken } },
         APP_ORIGIN
       );
     }
