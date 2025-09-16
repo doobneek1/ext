@@ -3695,98 +3695,147 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
     // Get current page UUID for highlighting
     const currentPageUuid = getCurrentPageUuid();
 
-    // Fetch location details for each UUID using the same function as connectionsdiv
-    progress.textContent = `Fetching details for ${locationUuids.size} locations...`;
-
+    // Initialize location details - start empty, populate as fetched
     const locationDetails = {};
-    const fetchPromises = Array.from(locationUuids).map(async (uuid) => {
-      try {
-        console.log(`[Edit History] Fetching details for UUID: ${uuid}`);
-        const data = await fetchLocationDetails(uuid);
-        locationDetails[uuid] = {
-          orgName: data.org || 'Unknown Org',
-          locationName: data.name || 'Unknown Location',
-          isCurrentPage: uuid === currentPageUuid
-        };
-        console.log(`[Edit History] Got details for ${uuid}:`, locationDetails[uuid]);
-      } catch (err) {
-        console.warn(`[Edit History] Could not fetch details for ${uuid}:`, err);
-        locationDetails[uuid] = {
-          orgName: 'Fetch Failed',
-          locationName: 'Unknown Location',
-          isCurrentPage: uuid === currentPageUuid
-        };
-      }
+    const loadedUuids = new Set();
+    Array.from(locationUuids).forEach(uuid => {
+      locationDetails[uuid] = {
+        orgName: null,
+        locationName: null,
+        isCurrentPage: uuid === currentPageUuid,
+        isLoading: true
+      };
     });
 
-    // Wait for all location details to be fetched
-    await Promise.allSettled(fetchPromises);
-    console.log('[Edit History] All location details fetched:', locationDetails);
+    // Show initial content immediately with placeholders
+    progress.textContent = 'Loading location details...';
+    console.log('[Edit History] Initial render with placeholders');
 
-    // Group edits by date and location
-    const editsByDate = {};
-    userEdits.forEach(edit => {
-      const dateStr = edit.date.toLocaleDateString();
-      if (!editsByDate[dateStr]) {
-        editsByDate[dateStr] = {};
-      }
-
-      // Group by location UUID, but track different page types
-      const key = edit.locationUuid;
-      if (!editsByDate[dateStr][key]) {
-        editsByDate[dateStr][key] = {
-          locationUuid: edit.locationUuid,
-          totalCount: 0,
-          latestDate: edit.date,
-          pageTypes: {}
-        };
-      }
-
-      // Track edits by page type within this location
-      if (!editsByDate[dateStr][key].pageTypes[edit.pageType]) {
-        editsByDate[dateStr][key].pageTypes[edit.pageType] = {
-          count: 0,
-          notes: [],
-          fullPath: edit.fullPath
-        };
-      }
-
-      editsByDate[dateStr][key].totalCount++;
-      editsByDate[dateStr][key].pageTypes[edit.pageType].count++;
-      editsByDate[dateStr][key].pageTypes[edit.pageType].notes.push(edit.note);
-
-      if (edit.date > editsByDate[dateStr][key].latestDate) {
-        editsByDate[dateStr][key].latestDate = edit.date;
-      }
-    });
-
-    // Clear loading and display results
+    // Clear loading and show initial content
     modal.removeChild(loading);
     modal.removeChild(progress);
 
-    if (Object.keys(editsByDate).length === 0) {
-      const noEdits = document.createElement('div');
-      noEdits.textContent = 'No edit history found for your account.';
-      noEdits.style.textAlign = 'center';
-      noEdits.style.padding = '20px';
-      noEdits.style.color = '#666';
-      modal.appendChild(noEdits);
-      return;
+    // Group edits first with placeholder data
+    const editsByDate = groupEditsByDate(userEdits, locationDetails);
+
+    // Render initial content
+    renderEditHistory(editsByDate, locationDetails, modal, currentPageUuid);
+
+    // Now fetch details progressively and update UI
+    const fetchPromises = Array.from(locationUuids).map(async (uuid) => {
+      console.log(`[Edit History] 🔄 Fetching details for UUID: ${uuid}`);
+      const data = await fetchLocationDetails(uuid);
+
+      console.log(`[Edit History] 📦 Raw data for ${uuid}:`, data);
+      console.log(`[Edit History] 🏢 Org: "${data.org}", Name: "${data.name}"`);
+
+      // Check if we got valid data (fetchLocationDetails returns empty strings on error)
+      const hasValidData = data.org && data.name;
+
+      // Update the location details
+      locationDetails[uuid] = {
+        orgName: hasValidData ? data.org : null,
+        locationName: hasValidData ? data.name : null,
+        isCurrentPage: uuid === currentPageUuid,
+        isLoading: false,
+        hasData: hasValidData
+      };
+
+      if (hasValidData) {
+        console.log(`[Edit History] ✅ Got valid data for ${uuid}: "${data.org}" - "${data.name}"`);
+        loadedUuids.add(uuid);
+        addLocationToUI(uuid, locationDetails[uuid]);
+      } else {
+        console.warn(`[Edit History] ⚠️ No valid data for ${uuid} - org:"${data.org}" name:"${data.name}"`);
+        console.warn(`[Edit History] 🔍 This could be due to:`);
+        console.warn(`[Edit History]   - API timeout (504)`);
+        console.warn(`[Edit History]   - CORS errors`);
+        console.warn(`[Edit History]   - Missing organization/name in database`);
+        console.warn(`[Edit History]   - Invalid UUID`);
+      }
+    });
+
+    // Function to add a location to the UI when it's successfully loaded
+    function addLocationToUI(uuid, details) {
+      // Re-render the entire edit history with updated data
+      const editsByDate = groupEditsByDate(userEdits, locationDetails);
+      renderEditHistory(editsByDate, locationDetails, modal, currentPageUuid);
     }
 
-    // Separate current page edits from others
+    // Helper function to group edits by date
+    function groupEditsByDate(userEdits, locationDetails) {
+      const editsByDate = {};
+      userEdits.forEach(edit => {
+        const dateStr = edit.date.toLocaleDateString();
+        if (!editsByDate[dateStr]) {
+          editsByDate[dateStr] = {};
+        }
+
+        // Group by location UUID, but track different page types
+        const key = edit.locationUuid;
+        if (!editsByDate[dateStr][key]) {
+          editsByDate[dateStr][key] = {
+            locationUuid: edit.locationUuid,
+            totalCount: 0,
+            latestDate: edit.date,
+            pageTypes: {}
+          };
+        }
+
+        // Track edits by page type within this location
+        if (!editsByDate[dateStr][key].pageTypes[edit.pageType]) {
+          editsByDate[dateStr][key].pageTypes[edit.pageType] = {
+            count: 0,
+            notes: [],
+            fullPath: edit.fullPath
+          };
+        }
+
+        editsByDate[dateStr][key].totalCount++;
+        editsByDate[dateStr][key].pageTypes[edit.pageType].count++;
+        editsByDate[dateStr][key].pageTypes[edit.pageType].notes.push(edit.note);
+
+        if (edit.date > editsByDate[dateStr][key].latestDate) {
+          editsByDate[dateStr][key].latestDate = edit.date;
+        }
+      });
+      return editsByDate;
+    }
+
+    // Helper function to render the complete edit history
+    function renderEditHistory(editsByDate, locationDetails, modal, currentPageUuid) {
+      // Clear any existing content (except header)
+      while (modal.children.length > 1) {
+        modal.removeChild(modal.lastChild);
+      }
+
+      if (Object.keys(editsByDate).length === 0) {
+        const noEdits = document.createElement('div');
+        noEdits.textContent = 'No edit history found for your account.';
+        noEdits.style.textAlign = 'center';
+        noEdits.style.padding = '20px';
+        noEdits.style.color = '#666';
+        modal.appendChild(noEdits);
+        return;
+      }
+
+    // Separate current page edits from others - only include loaded locations
     const currentPageEdits = {};
     const otherEdits = {};
 
     Object.entries(editsByDate).forEach(([dateStr, locations]) => {
       Object.entries(locations).forEach(([uuid, data]) => {
         const details = locationDetails[uuid];
-        if (details && details.isCurrentPage) {
-          if (!currentPageEdits[dateStr]) currentPageEdits[dateStr] = {};
-          currentPageEdits[dateStr][uuid] = data;
-        } else {
-          if (!otherEdits[dateStr]) otherEdits[dateStr] = {};
-          otherEdits[dateStr][uuid] = data;
+
+        // Only include locations that have been successfully loaded with names
+        if (details && details.orgName && details.locationName) {
+          if (details.isCurrentPage) {
+            if (!currentPageEdits[dateStr]) currentPageEdits[dateStr] = {};
+            currentPageEdits[dateStr][uuid] = data;
+          } else {
+            if (!otherEdits[dateStr]) otherEdits[dateStr] = {};
+            otherEdits[dateStr][uuid] = data;
+          }
         }
       });
     });
@@ -3836,12 +3885,13 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
           locationDiv.style.alignItems = 'center';
           locationDiv.style.padding = '8px';
 
-          // Hyperlinked Org-Location name (no UUID shown)
-          const details = locationDetails[uuid] || { orgName: 'Unknown Org', locationName: 'Unknown Location' };
+          // Hyperlinked Org-Location name (no UUID shown) - only loaded items shown
+          const details = locationDetails[uuid];
           const nameLink = document.createElement('a');
           nameLink.href = `https://gogetta.nyc/team/location/${uuid}`;
           nameLink.target = '_blank';
           nameLink.textContent = `${details.orgName} - ${details.locationName}`;
+          nameLink.setAttribute('data-uuid', uuid);
           nameLink.style.flex = '1';
           nameLink.style.fontSize = '14px';
           nameLink.style.color = '#0066cc';
@@ -3908,15 +3958,20 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
       });
     }
 
-    // Render current page edits first (highlighted)
-    renderEditsSection(currentPageEdits, 'Your Edits on This Location', true);
+      // Render current page edits first (highlighted)
+      renderEditsSection(currentPageEdits, 'Your Edits on This Location', true);
 
-    // Render other edits in chronological order
-    renderEditsSection(otherEdits, 'Your Other Location Edits', false);
+      // Render other edits in chronological order
+      renderEditsSection(otherEdits, 'Your Other Location Edits', false);
+    }
 
   } catch (err) {
     console.error('[Edit History] Error loading data:', err);
-    modal.removeChild(loading);
+
+    // Clear modal content except header
+    while (modal.children.length > 1) {
+      modal.removeChild(modal.lastChild);
+    }
 
     const errorDiv = document.createElement('div');
     errorDiv.textContent = `Error loading edit history: ${err.message}`;

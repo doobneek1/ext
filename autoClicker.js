@@ -171,10 +171,9 @@ function waitForElement(selector, timeout = 10000) {
 if ( /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)) {
   const yesButtonSelector = 'button.Button.mt-2.Button-primary.Button-fluid';
   const nextButtonSelectors = [
-    'button.Button.mt-4.Button-primary.Button-fluid',
-    'button.Button-primary.Button-fluid[contains(text(), "GO TO NEXT")]',
-    'button:contains("GO TO NEXT SECTION")',
-    'button.Button-primary:contains("NEXT")'
+    'button.Button.mt-4.Button-primary.Button-fluid'
+    // Note: CSS selectors don't support text content matching
+    // We'll use the fallback text search instead
   ];
 
   console.log(`[YP] 🎯 Processing ${currentUrl}`);
