@@ -8,7 +8,7 @@
     document.querySelectorAll('a[href^="tel:"]').forEach(link => {
       if (link.closest(`#${EMBED_WRAPPER_ID}`)) return; // 🚫 skip inside embed
 
-      const tel = link.getAttribute('href').replace('tel:', '');
+      const tel = link.getAttribute('href').replace(/^tel:/, ''); // Remove tel: prefix safely
       const [mainPart, extension] = tel.split(/[,;]/);
       let digits = mainPart.replace(/\D/g, '').slice(-10);
       if (digits.length !== 10) return;

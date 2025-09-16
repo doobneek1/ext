@@ -180,7 +180,39 @@
     document.head.appendChild(script);
   }
 
-  function createStreetViewPicker(locationData, apiKey) {
+  async function createStreetViewPicker(locationData, apiKey) {
+    // First fetch location details to get address and org/location names
+    let streetAddress = '';
+    let headerTitle = 'Street View Picker';
+
+    // Extract UUID from current URL to fetch location details
+    const currentUrl = window.location.href;
+    const uuidMatch = currentUrl.match(/\/team\/location\/([a-f0-9-]+)/);
+
+    if (uuidMatch && uuidMatch[1]) {
+      try {
+        const uuid = uuidMatch[1];
+        const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+        if (res.ok) {
+          const data = await res.json();
+          // Build street address from API data
+          streetAddress = data.address?.street || '';
+          // Build header title like in gghost notepad: locname/orgname
+          const orgName = data.Organization?.name || '';
+          const locName = data.name || '';
+          if (orgName && locName) {
+            headerTitle = `${locName} / ${orgName}`;
+          } else if (orgName) {
+            headerTitle = orgName;
+          } else if (locName) {
+            headerTitle = locName;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch location details:', error);
+      }
+    }
+
     const modal = document.createElement('div');
     Object.assign(modal.style, {
       position: 'fixed',
@@ -206,7 +238,7 @@
     header.style.display = 'flex';
     header.style.justifyContent = 'space-between';
     header.style.alignItems = 'center';
-    header.innerHTML = '<span style="font-weight:bold; font-size:16px;">Street View Picker</span>';
+    header.innerHTML = `<span style="font-weight:bold; font-size:16px;">${headerTitle}</span>`;
 
     const closeButton = document.createElement('button');
     closeButton.textContent = '✕';
@@ -246,6 +278,10 @@
     });
     searchInput.type = 'text';
     searchInput.placeholder = 'Search for a location...';
+    // Pre-fill with street address if available
+    if (streetAddress) {
+      searchInput.value = streetAddress;
+    }
 
     searchContainer.appendChild(searchInput);
     modal.appendChild(searchContainer);
@@ -557,75 +593,78 @@
             createBubble('Street View URL Set!');
           });
 
-          // Auto-click OK button when user clicks it
-          document.addEventListener('click', function autoClickHandler(e) {
-            const okButton = e.target.closest('button.Button-primary');
-            if (okButton && okButton.textContent.trim() === 'OK') {
-              console.log('OK button clicked, setting up auto-clickers');
-              
-              // Remove this listener since we only want it once
-              document.removeEventListener('click', autoClickHandler);
-              
-              // Click YES after delay
-              setTimeout(() => {
-                console.log('=== AUTO-CLICKING YES BUTTON ===');
-                
-                const yesButton = document.querySelector('button.Button-primary.Button-fluid');
-                if (yesButton && yesButton.textContent.trim() === 'YES') {
-                  console.log('Clicking YES button');
-                  yesButton.click();
-                  createBubble('YES Clicked!');
-                } else {
-                  const anyYesButton = Array.from(document.querySelectorAll('button')).find(btn => 
-                    btn.textContent.trim().toUpperCase() === 'YES'
-                  );
-                  if (anyYesButton) {
-                    anyYesButton.click();
-                    createBubble('YES Clicked!');
-                  }
-                }
-                
-                // Click "Go to Next Section" after YES
+          // Auto-click OK button when user clicks it - set up persistent listener
+          if (!window.doobneekOkClickerActive) {
+            window.doobneekOkClickerActive = true;
+
+            document.addEventListener('click', function globalAutoClickHandler(e) {
+              const okButton = e.target.closest('button.Button-primary');
+              if (okButton && okButton.textContent.trim() === 'OK') {
+                console.log('OK button clicked, setting up auto-clickers');
+
+                // Click YES after delay
                 setTimeout(() => {
-                  console.log('=== AUTO-CLICKING GO TO NEXT SECTION ===');
-                  
-                  const nextButtonSelectors = [
-                    'button.Button.mt-4.Button-primary.Button-fluid',
-                    'button.Button-primary.Button-fluid'
-                  ];
+                  console.log('=== AUTO-CLICKING YES BUTTON ===');
 
-                  let nextButton = null;
-                  for (const selector of nextButtonSelectors) {
-                    nextButton = document.querySelector(selector);
-                    if (nextButton) {
-                      const text = nextButton.textContent.trim().toUpperCase();
-                      if (text.includes('NEXT') || text.includes('GO TO') || text.includes('CONTINUE')) {
-                        break;
-                      }
-                      nextButton = null;
-                    }
-                  }
-
-                  if (nextButton) {
-                    console.log('Clicking Go to Next Section button');
-                    nextButton.click();
-                    createBubble('Go to Next Section Clicked!');
+                  const yesButton = document.querySelector('button.Button-primary.Button-fluid');
+                  if (yesButton && yesButton.textContent.trim() === 'YES') {
+                    console.log('Clicking YES button');
+                    yesButton.click();
+                    createBubble('YES Clicked!');
                   } else {
-                    const allButtons = document.querySelectorAll('button, a');
-                    for (const btn of allButtons) {
-                      const text = btn.textContent.trim().toLowerCase();
-                      if (text.includes('go to next') || text.includes('next section') || text.includes('continue')) {
-                        console.log('Clicking next button (fallback):', text);
-                        btn.click();
-                        createBubble('Next Button Found!');
-                        break;
-                      }
+                    const anyYesButton = Array.from(document.querySelectorAll('button')).find(btn =>
+                      btn.textContent.trim().toUpperCase() === 'YES'
+                    );
+                    if (anyYesButton) {
+                      console.log('Clicking YES button (fallback)');
+                      anyYesButton.click();
+                      createBubble('YES Clicked!');
                     }
                   }
-                }, 1500); // Wait 1.5s after YES
-              }, 1000); // Wait 1s after OK
-            }
-          }, { once: false }); // Keep listening until OK is clicked
+
+                  // Click "Go to Next Section" after YES
+                  setTimeout(() => {
+                    console.log('=== AUTO-CLICKING GO TO NEXT SECTION ===');
+
+                    const nextButtonSelectors = [
+                      'button.Button.mt-4.Button-primary.Button-fluid',
+                      'button.Button-primary.Button-fluid'
+                    ];
+
+                    let nextButton = null;
+                    for (const selector of nextButtonSelectors) {
+                      const buttons = document.querySelectorAll(selector);
+                      for (const btn of buttons) {
+                        const text = btn.textContent.trim().toUpperCase();
+                        if (text.includes('NEXT') || text.includes('GO TO') || text.includes('CONTINUE')) {
+                          nextButton = btn;
+                          break;
+                        }
+                      }
+                      if (nextButton) break;
+                    }
+
+                    if (nextButton) {
+                      console.log('Clicking Go to Next Section button');
+                      nextButton.click();
+                      createBubble('Go to Next Section Clicked!');
+                    } else {
+                      const allButtons = document.querySelectorAll('button, a');
+                      for (const btn of allButtons) {
+                        const text = btn.textContent.trim().toLowerCase();
+                        if (text.includes('go to next') || text.includes('next section') || text.includes('continue')) {
+                          console.log('Clicking next button (fallback):', text);
+                          btn.click();
+                          createBubble('Next Button Found!');
+                          break;
+                        }
+                      }
+                    }
+                  }, 1500); // Wait 1.5s after YES
+                }, 1000); // Wait 1s after OK
+              }
+            });
+          }
 
           modal.remove();
         }

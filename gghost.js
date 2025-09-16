@@ -2332,9 +2332,11 @@ function pickServiceHash(services, preferId){
    ========================================== */
 function digitsOnly(s){ return (s||"").replace(/\D/g, ""); }
 function buildGVUrl(raw){
+  // Sanitize input - remove any tel: prefixes that might be present
+  const sanitized = String(raw).replace(/^tel:/i, '');
   // Allow formats like (212) 941-9090 x123, +1 212-941-9090 ext 55, etc.
-  const m = String(raw).match(/^\s*(.+?)(?:\s*(?:x|ext\.?|extension|#)\s*(\d+))?\s*$/i);
-  let main = m ? m[1] : String(raw);
+  const m = sanitized.match(/^\s*(.+?)(?:\s*(?:x|ext\.?|extension|#)\s*(\d+))?\s*$/i);
+  let main = m ? m[1] : sanitized;
   const ext  = m && m[2] ? m[2] : "";
   let digits = digitsOnly(main);
   // Use last 10 digits for US numbers; adjust if you need intl routing
@@ -3098,23 +3100,7 @@ function setupClosureAutoClicks(mode) {
       }
 
       // Step 3: Click "BACK TO THE MAP"
-      if (hasClickedYes) {
-        const backToMapBtn = Array.from(document.querySelectorAll('button')).find(btn => 
-          btn.textContent.trim() === "BACK TO THE MAP" && 
-          btn.classList.contains('Button-primary') &&
-          btn.classList.contains('Button-fluid')
-        );
-        
-        if (backToMapBtn) {
-          console.log('[Closure] 🖱️ Clicking "BACK TO THE MAP"');
-          backToMapBtn.click();
-          setTimeout(() => {
-            createBubble('BACK TO THE MAP Clicked!');
-            cleanup();
-          }, 100);
-          return;
-        }
-      }
+  
       
     } else if (mode === 'change') {
       // CHANGE SEQUENCE: NO, LET'S EDIT IT → (wait for user OK) → YES
@@ -3157,6 +3143,23 @@ function setupClosureAutoClicks(mode) {
         }
       }
     }
+        if (hasClickedYes) {
+        const backToMapBtn = Array.from(document.querySelectorAll('button')).find(btn => 
+          btn.textContent.trim() === "BACK TO THE MAP" && 
+          btn.classList.contains('Button-primary') &&
+          btn.classList.contains('Button-fluid')
+        );
+        
+        if (backToMapBtn) {
+          console.log('[Closure] 🖱️ Clicking "BACK TO THE MAP"');
+          backToMapBtn.click();
+          setTimeout(() => {
+            createBubble('BACK TO THE MAP Clicked!');
+            cleanup();
+          }, 100);
+          return;
+        }
+      }
   };
 
   // Monitor URL changes and DOM mutations

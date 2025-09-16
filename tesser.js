@@ -197,30 +197,5 @@ if (!isGoogleVoice) {
       document.body._tesserObserverAttached = true;
   }
 
-  // Add right-click functionality to copy actual number/email/address
-  document.addEventListener('contextmenu', (e) => {
-    const link = e.target.closest('a');
-    if (!link) return;
-    
-    const href = link.href;
-    let textToCopy = '';
-    
-    if (href.startsWith('tel:')) {
-      textToCopy = href.replace('tel:', '');
-    } else if (href.startsWith('mailto:')) {
-      textToCopy = href.replace('mailto:', '');
-    } else if (href.startsWith('http')) {
-      textToCopy = href;
-    }
-    
-    if (textToCopy) {
-      e.preventDefault();
-      navigator.clipboard.writeText(textToCopy).then(() => {
-        console.log('Copied to clipboard:', textToCopy);
-      }).catch(err => {
-        console.error('Failed to copy:', err);
-      });
-    }
-  });
 
 })();
