@@ -321,6 +321,10 @@
     const urlDisplay = document.createElement('span');
     urlDisplay.style.fontSize = '12px';
     urlDisplay.style.color = '#666';
+    urlDisplay.style.maxWidth = '60%';
+    urlDisplay.style.overflow = 'hidden';
+    urlDisplay.style.textOverflow = 'ellipsis';
+    urlDisplay.style.whiteSpace = 'nowrap';
     urlDisplay.textContent = 'Click on the map to select a Street View location';
 
     const setButton = document.createElement('button');
@@ -345,6 +349,24 @@
     modal.appendChild(bottomBar);
 
     document.body.appendChild(modal);
+
+    // Helper function to truncate URL for display
+    const truncateUrl = (url) => {
+      if (!url) return '';
+      if (url.length <= 80) return url;
+
+      // For Street View URLs, show domain + coordinates + ellipsis
+      if (url.includes('google.com/maps/@')) {
+        const coordPart = url.split('/@')[1]?.split('/')[0];
+        if (coordPart) {
+          const coords = coordPart.split(',').slice(0, 2).join(',');
+          return `google.com/maps/@${coords}...`;
+        }
+      }
+
+      // Generic truncation
+      return url.substring(0, 80) + '...';
+    };
 
     loadGoogleMapsAPI(apiKey, () => {
       let currentStreetViewUrl = '';
@@ -404,20 +426,53 @@
         return `https://www.google.com/maps/@${lat},${lng},3a,75y,${pov.heading}h,${pov.pitch}t/data=!3m6!1e1!3m4!1s${panorama.getLocation()?.pano || 'unknown'}!2e0!7i16384!8i8192`;
       };
 
-      // Set initial URL and enable button
-      setTimeout(() => {
+      // Enhanced URL generation - try multiple approaches to always enable the button
+      const tryGenerateUrl = () => {
         if (initialStreetViewUrl) {
           currentStreetViewUrl = initialStreetViewUrl;
-          urlDisplay.textContent = currentStreetViewUrl;
+          urlDisplay.textContent = truncateUrl(currentStreetViewUrl);
           setButton.disabled = false;
           setButton.style.opacity = '1';
-        } else if (panorama.getLocation()) {
-          currentStreetViewUrl = generateStreetViewURL(panorama.getLocation().latLng, panorama.getPov());
-          urlDisplay.textContent = currentStreetViewUrl;
-          setButton.disabled = false;
-          setButton.style.opacity = '1';
+          console.log('Using initial Street View URL:', currentStreetViewUrl);
+          return true;
         }
-      }, 1000);
+
+        if (panorama.getLocation()) {
+          currentStreetViewUrl = generateStreetViewURL(panorama.getLocation().latLng, panorama.getPov());
+          urlDisplay.textContent = truncateUrl(currentStreetViewUrl);
+          setButton.disabled = false;
+          setButton.style.opacity = '1';
+          console.log('Generated URL from panorama location:', currentStreetViewUrl);
+          return true;
+        }
+
+        // Fallback: generate URL from default center even without Street View data
+        const lat = defaultCenter.lat;
+        const lng = defaultCenter.lng;
+        const heading = initialPov.heading;
+        const pitch = initialPov.pitch;
+        currentStreetViewUrl = `https://www.google.com/maps/@${lat},${lng},3a,75y,${heading}h,${pitch}t/data=!3m6!1e1!3m4!1s-fallback-pano!2e0!7i16384!8i8192`;
+        urlDisplay.textContent = truncateUrl(currentStreetViewUrl);
+        setButton.disabled = false;
+        setButton.style.opacity = '1';
+        console.log('Generated fallback URL from coordinates:', currentStreetViewUrl);
+        return true;
+      };
+
+      // Try immediately
+      setTimeout(() => {
+        if (!tryGenerateUrl()) {
+          // Try again after a longer delay if first attempt failed
+          setTimeout(tryGenerateUrl, 2000);
+        }
+      }, 500);
+
+      // Also try when panorama loads
+      panorama.addListener('position_changed', () => {
+        if (!currentStreetViewUrl || currentStreetViewUrl.includes('fallback')) {
+          tryGenerateUrl();
+        }
+      });
 
       // Search functionality
       const autocomplete = new google.maps.places.Autocomplete(searchInput);
@@ -472,7 +527,7 @@
 
             currentStreetViewUrl = `https://www.google.com/maps/@${lat},${lng},3a,75y,${pov.heading}h,${pov.pitch}t/data=!3m6!1e1!3m4!1s${data.location.pano}!2e0!7i16384!8i8192`;
 
-            urlDisplay.textContent = currentStreetViewUrl;
+            urlDisplay.textContent = truncateUrl(currentStreetViewUrl);
             setButton.disabled = false;
             setButton.style.opacity = '1';
           } else {
@@ -499,7 +554,7 @@
 
               currentStreetViewUrl = `https://www.google.com/maps/@${lat},${lng},3a,75y,${pov.heading}h,${pov.pitch}t/data=!3m6!1e1!3m4!1s${data.location.pano}!2e0!7i16384!8i8192`;
 
-              urlDisplay.textContent = currentStreetViewUrl;
+              urlDisplay.textContent = truncateUrl(currentStreetViewUrl);
               setButton.disabled = false;
               setButton.style.opacity = '1';
             }
@@ -516,12 +571,17 @@
           const lng = position.lng();
 
           currentStreetViewUrl = `https://www.google.com/maps/@${lat},${lng},3a,75y,${pov.heading}h,${pov.pitch}t/data=!3m6!1e1!3m4!1s${panorama.getLocation().pano}!2e0!7i16384!8i8192`;
-          urlDisplay.textContent = currentStreetViewUrl;
+          urlDisplay.textContent = truncateUrl(currentStreetViewUrl);
         }
       });
 
       // Set button click handler
       setButton.onclick = () => {
+        // Ensure we always have a URL before proceeding
+        if (!currentStreetViewUrl) {
+          tryGenerateUrl();
+        }
+
         if (currentStreetViewUrl) {
           // Debug: List all input and textarea elements
           console.log('=== DEBUG: All input elements ===');
@@ -549,7 +609,7 @@
             });
           });
           
-          // Find and fill the input field
+          // Find and fill the input field using bubble paste method
           const streetViewInput = document.querySelector(
             'input[placeholder*="google map streetview url"], ' +
             'input[placeholder*="streetview"], ' +
@@ -560,7 +620,7 @@
             'textarea.TextArea-fluid[placeholder*="Enter the google map streetview url"], ' +
             'textarea.TextArea-fluid'
           );
-          
+
           console.log('=== DEBUG: Selected element ===');
           console.log('streetViewInput found:', !!streetViewInput);
           if (streetViewInput) {
@@ -577,21 +637,81 @@
             });
           }
 
-      
           if (streetViewInput) {
-            streetViewInput.value = '';
+            // Comprehensive approach for React-controlled or special input fields
+            streetViewInput.focus();
+
+            // Try React-style property setting if available
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+
+            // Clear the field first
+            nativeInputValueSetter.call(streetViewInput, '');
             streetViewInput.dispatchEvent(new Event('input', { bubbles: true }));
-            streetViewInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+            // Set the new value using native setter
+            nativeInputValueSetter.call(streetViewInput, currentStreetViewUrl);
+
+            // Simulate user editing by adding a character and removing it
+            setTimeout(() => {
+              // Add a space at the end (simulating user typing)
+              const currentValue = streetViewInput.value;
+              nativeInputValueSetter.call(streetViewInput, currentValue + ' ');
+              streetViewInput.dispatchEvent(new Event('input', { bubbles: true }));
+              streetViewInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: ' ' }));
+
+              // Remove the space (simulating user deleting)
+              setTimeout(() => {
+                nativeInputValueSetter.call(streetViewInput, currentValue);
+                streetViewInput.dispatchEvent(new Event('input', { bubbles: true }));
+                streetViewInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Backspace' }));
+
+                // Fire all events after the edit simulation
+                const events = [
+                  new Event('input', { bubbles: true }),
+                  new Event('change', { bubbles: true }),
+                  new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }),
+                  new KeyboardEvent('keyup', { bubbles: true, key: 'Enter' }),
+                  new Event('blur', { bubbles: true })
+                ];
+
+                events.forEach(event => streetViewInput.dispatchEvent(event));
+              }, 100);
+            }, 50);
+
+            createBubble('Street View URL Pasted!');
+            console.log('Street View URL pasted with React-style setter and comprehensive events:', currentStreetViewUrl);
+
+            // Auto-click OK button after a short delay to make it stick
+            setTimeout(() => {
+              const okButton = document.querySelector('button.Button-primary');
+              if (okButton && okButton.textContent.trim() === 'OK') {
+                console.log('Auto-clicking OK button to make URL stick');
+                okButton.click();
+                createBubble('OK Clicked!');
+              }
+            }, 500);
+
+            // Close the modal after successful paste
+            setTimeout(() => {
+              modal.remove();
+              console.log('Street View modal closed after successful paste');
+            }, 1000);
+          } else {
+            // Fallback to clipboard if input not found
+            navigator.clipboard.writeText(currentStreetViewUrl).then(() => {
+              createBubble('Copied to clipboard!');
+              console.log('Street View URL copied to clipboard:', currentStreetViewUrl);
+            }).catch(err => {
+              console.error('Failed to copy to clipboard:', err);
+              createBubble('Street View URL Set!');
+            });
+
+            // Close the modal even in fallback case
+            setTimeout(() => {
+              modal.remove();
+              console.log('Street View modal closed after clipboard copy');
+            }, 1500);
           }
-          
-          // Copy to clipboard and show feedback
-          navigator.clipboard.writeText(currentStreetViewUrl).then(() => {
-            createBubble('Copied to clipboard!');
-            console.log('Street View URL copied to clipboard:', currentStreetViewUrl);
-          }).catch(err => {
-            console.error('Failed to copy to clipboard:', err);
-            createBubble('Street View URL Set!');
-          });
 
           // Auto-click OK button when user clicks it - set up persistent listener
           if (!window.doobneekOkClickerActive) {

@@ -168,26 +168,42 @@ if (msg.type === 'getAddressSuggestions') {
 if (msg.type === 'showStreetView') {
     const uuid = msg.uuid;
     const apiUrl = `https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`;
-    
+
+    console.log('[Background] Fetching Street View data for UUID:', uuid);
+
     fetch(apiUrl)
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch location data');
         return res.json();
       })
       .then(data => {
+        console.log('[Background] Location data fetched, injecting Street View script');
+
+        // Inject script with error handling
         chrome.scripting.executeScript({
           target: { tabId: sender.tab.id },
           files: ['streetview.js'],
           world: 'MAIN'
-        }, () => {
-          chrome.scripting.executeScript({
-            target: { tabId: sender.tab.id },
-            function: (locationData, apiKey) => {
-              createStreetViewPicker(locationData, apiKey);
-            },
-            args: [data, 'AIzaSyBFIrEjge5TMx-Zz-GAFhwFnrmkECLd28k'],
-            world: 'MAIN'
-          });
+        }).then(() => {
+          // Wait a bit for script to load before executing function
+          setTimeout(() => {
+            chrome.scripting.executeScript({
+              target: { tabId: sender.tab.id },
+              function: (locationData, apiKey) => {
+                if (typeof createStreetViewPicker === 'function') {
+                  createStreetViewPicker(locationData, apiKey);
+                } else {
+                  console.error('createStreetViewPicker function not found');
+                }
+              },
+              args: [data, 'AIzaSyBFIrEjge5TMx-Zz-GAFhwFnrmkECLd28k'],
+              world: 'MAIN'
+            }).catch(err => {
+              console.error('[Background] Street View function execution failed:', err);
+            });
+          }, 100);
+        }).catch(err => {
+          console.error('[Background] Street View script injection failed:', err);
         });
       })
       .catch(err => {

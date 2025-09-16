@@ -2334,16 +2334,29 @@ function digitsOnly(s){ return (s||"").replace(/\D/g, ""); }
 function buildGVUrl(raw){
   // Sanitize input - remove any tel: prefixes that might be present
   const sanitized = String(raw).replace(/^tel:/i, '');
-  // Allow formats like (212) 941-9090 x123, +1 212-941-9090 ext 55, etc.
-  const m = sanitized.match(/^\s*(.+?)(?:\s*(?:x|ext\.?|extension|#)\s*(\d+))?\s*$/i);
+  console.log('[buildGVUrl] Processing:', raw, '-> sanitized:', sanitized); // Debug log
+
+  // More robust extension parsing
+  const m = sanitized.match(/^\s*(.+?)(?:\s*(?:[,;]|x|ext\.?|extension|#)\s*(\d+))?\s*$/i);
   let main = m ? m[1] : sanitized;
-  const ext  = m && m[2] ? m[2] : "";
+  const ext = m && m[2] ? m[2] : "";
+
+  console.log('[buildGVUrl] Main part before digits extraction:', main); // Debug log
+
   let digits = digitsOnly(main);
+  console.log('[buildGVUrl] Digits extracted:', digits); // Debug log
+
   // Use last 10 digits for US numbers; adjust if you need intl routing
   if (digits.length > 10) digits = digits.slice(-10);
-  if (digits.length !== 10) return null;
+  if (digits.length !== 10) {
+    console.log('[buildGVUrl] Invalid digit count:', digits.length); // Debug log
+    return null;
+  }
+
   const extSuffix = ext ? `,${ext}` : "";
-  return `https://voice.google.com/u/0/calls?a=nc,%2B1${digits}${extSuffix}`;
+  const result = `https://voice.google.com/u/0/calls?a=nc,%2B1${digits}${extSuffix}`;
+  console.log('[buildGVUrl] Generated URL:', result); // Debug log
+  return result;
 }
 function buildGmailUrl(email){
   return `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(email.trim())}`;
@@ -4190,19 +4203,41 @@ function buildFutureOrgKey({ phone, website, email }) {
 
   // Function to check if current URL is a street-view page and trigger modal
   const checkAndShowStreetView = (url) => {
-    if (url.endsWith('/street-view')) {
-      const match = url.match(/\/team\/location\/([a-f0-9-]+)\/questions\/street-view/);
-      if (match && match[1]) {
-        const uuid = match[1];
-        try {
-          if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
-            chrome.runtime.sendMessage({ type: 'showStreetView', uuid });
-          } else {
-            console.warn('Extension context invalidated, cannot send message');
-          }
-        } catch (error) {
-          console.warn('Extension context error:', error.message);
+    // Strict URL matching - must end exactly with /questions/street-view or /questions/street-view/
+    const streetViewPattern = /\/team\/location\/([a-f0-9-]+)\/questions\/street-view\/?$/;
+    const match = url.match(streetViewPattern);
+
+    if (match && match[1]) {
+      const uuid = match[1];
+      console.log('[gghost] Triggering Street View for UUID:', uuid, 'from URL:', url);
+
+      try {
+        if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
+          chrome.runtime.sendMessage({ type: 'showStreetView', uuid }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.warn('[gghost] Street View message error:', chrome.runtime.lastError.message);
+              // Retry once after a short delay
+              setTimeout(() => {
+                try {
+                  chrome.runtime.sendMessage({ type: 'showStreetView', uuid });
+                } catch (retryError) {
+                  console.error('[gghost] Street View retry failed:', retryError);
+                }
+              }, 1000);
+            } else {
+              console.log('[gghost] Street View message sent successfully');
+            }
+          });
+        } else {
+          console.warn('Extension context invalidated, cannot send message');
         }
+      } catch (error) {
+        console.warn('Extension context error:', error.message);
+      }
+    } else {
+      // Only log if the URL contains street-view but doesn't match (for debugging)
+      if (url.includes('street-view')) {
+        console.log('[gghost] URL contains street-view but doesn\'t match pattern:', url);
       }
     }
   };

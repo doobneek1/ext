@@ -9,12 +9,29 @@
       if (link.closest(`#${EMBED_WRAPPER_ID}`)) return; // 🚫 skip inside embed
 
       const tel = link.getAttribute('href').replace(/^tel:/, ''); // Remove tel: prefix safely
-      const [mainPart, extension] = tel.split(/[,;]/);
+      console.log('Processing tel link:', tel); // Debug log
+
+      // More robust parsing: handle extensions marked with various patterns
+      const extMatch = tel.match(/^(.+?)(?:[,;]|ext\.?|x|extension)\s*(\d+)$/i);
+      let mainPart, extension;
+
+      if (extMatch) {
+        mainPart = extMatch[1];
+        extension = extMatch[2];
+      } else {
+        mainPart = tel;
+        extension = null;
+      }
+
+      // Extract only digits from the main part
       let digits = mainPart.replace(/\D/g, '').slice(-10);
+      console.log('Extracted digits:', digits, 'from mainPart:', mainPart); // Debug log
+
       if (digits.length !== 10) return;
       const ext = extension?.replace(/\D/g, '');
       const extSuffix = ext ? `,${ext}` : '';
       const voiceUrl = `https://voice.google.com/u/0/calls?a=nc,%2B1${digits}${extSuffix}`;
+      console.log('Generated voice URL:', voiceUrl); // Debug log
       link.href = voiceUrl;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
