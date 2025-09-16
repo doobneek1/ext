@@ -8,10 +8,55 @@
   let lastStreetViewUrl = '';
   let hasClickedNoLetsEdit = false;
   let bannerShown = false;
+  let lastUrl = window.location.href;
 
   // Check if yourpeerredirect is enabled
   function isYourPeerRedirectEnabled() {
     return localStorage.getItem('yourpeerredirect') === 'true';
+  }
+
+  // URL change detection function
+  function handleUrlChange() {
+    const currentUrl = window.location.href;
+    if (currentUrl !== lastUrl) {
+      console.log('URL changed from:', lastUrl, 'to:', currentUrl);
+      lastUrl = currentUrl;
+
+      // Reset flags when URL changes
+      hasClickedNoLetsEdit = false;
+      bannerShown = false;
+
+      // Run street view logic if on street-view page
+      if (currentUrl.includes('/questions/street-view')) {
+        showLoadingBanner();
+        setTimeout(clickNoLetsEditIfNeeded, 500);
+      }
+    }
+  }
+
+  // Set up URL change monitoring using multiple methods
+  function setupUrlChangeListener() {
+    // Method 1: Override pushState and replaceState
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+
+    history.pushState = function() {
+      originalPushState.apply(history, arguments);
+      setTimeout(handleUrlChange, 0);
+    };
+
+    history.replaceState = function() {
+      originalReplaceState.apply(history, arguments);
+      setTimeout(handleUrlChange, 0);
+    };
+
+    // Method 2: Listen for popstate events
+    window.addEventListener('popstate', handleUrlChange);
+
+    // Method 3: Periodic checking as fallback
+    setInterval(handleUrlChange, 1000);
+
+    console.log('URL change listener setup complete');
   }
 
   // Show loading banner immediately on street-view URL
@@ -89,6 +134,9 @@
       }
     }
   }
+
+  // Initialize URL change listener
+  setupUrlChangeListener();
 
   // Show loading banner immediately on initial load if on street-view page
   showLoadingBanner();
@@ -742,9 +790,16 @@
                     }
                   }
 
-                  // Click "Go to Next Section" after YES
+                  // Click "Go to Next Section" after YES - only if URL ends with /thanks
                   setTimeout(() => {
                     console.log('=== AUTO-CLICKING GO TO NEXT SECTION ===');
+
+                    // Check if current URL ends with /thanks
+                    const currentUrl = window.location.href;
+                    if (!currentUrl.endsWith('/thanks')) {
+                      console.log('Skipping Go to Next Section - URL does not end with /thanks. Current URL:', currentUrl);
+                      return;
+                    }
 
                     const nextButtonSelectors = [
                       'button.Button.mt-4.Button-primary.Button-fluid',
@@ -765,7 +820,7 @@
                     }
 
                     if (nextButton) {
-                      console.log('Clicking Go to Next Section button');
+                      console.log('Clicking Go to Next Section button - URL ends with /thanks');
                       nextButton.click();
                       createBubble('Go to Next Section Clicked!');
                     } else {
@@ -773,7 +828,7 @@
                       for (const btn of allButtons) {
                         const text = btn.textContent.trim().toLowerCase();
                         if (text.includes('go to next') || text.includes('next section') || text.includes('continue')) {
-                          console.log('Clicking next button (fallback):', text);
+                          console.log('Clicking next button (fallback) - URL ends with /thanks:', text);
                           btn.click();
                           createBubble('Next Button Found!');
                           break;

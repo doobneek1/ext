@@ -1413,6 +1413,23 @@ async function fetchLocationDetails(uuid) {
       await recordLocationStat(uuid, lastValidated);
     }
 
+    // Determine if location is closed based on HolidaySchedules
+    const isLocationClosed = (() => {
+      if (!Array.isArray(data.Services) || data.Services.length === 0) {
+        return false; // No services means we can't determine closure
+      }
+
+      // Check if ALL services have closed: true in their HolidaySchedules
+      return data.Services.every(service => {
+        if (!Array.isArray(service.HolidaySchedules) || service.HolidaySchedules.length === 0) {
+          return false; // No holiday schedules means not closed
+        }
+
+        // Check if any holiday schedule has closed: true
+        return service.HolidaySchedules.some(schedule => schedule.closed === true);
+      });
+    })();
+
     return {
       org: data.Organization?.name || "",
       name: data.name || "",
@@ -1422,7 +1439,8 @@ async function fetchLocationDetails(uuid) {
       state: data.address?.state || "",
       zip: data.address?.postalCode || "",
       services: Array.isArray(data.Services) ? data.Services.map(s => s.name).filter(Boolean) : [],
-      lastValidated
+      lastValidated,
+      isClosed: isLocationClosed
     };
   } catch (err) {
     console.warn("Failed to fetch location:", err);
@@ -1434,7 +1452,8 @@ async function fetchLocationDetails(uuid) {
       city: "",
       state: "",
       zip: "",
-      services: []
+      services: [],
+      isClosed: false
     };
   }
 }
@@ -2595,8 +2614,8 @@ function remountYourPeerEmbed() {
 /* Kick off linkifying for host page */
 installLinkObservers();
 
-// --- Remount (preserving coords) ---
-function remountYourPeerEmbed(slug) {
+// --- Recreate (preserving coords) ---
+function recreateYourPeerEmbed(slug, services = []) {
   // Prefer current live coords if window exists; else saved; else defaults inside create
   const existing = document.getElementById("yp-embed-wrapper");
   const pos = getCurrentYPPos(existing) || getSavedYPPos() || null;
@@ -2969,7 +2988,18 @@ const futureBtn = createButton(
 
 
 // Closure handling functionality
-function createClosureDialog() {
+async function createClosureDialog(locationUuid = null) {
+  // Fetch current location status if UUID is provided
+  let isCurrentlyClosed = false;
+  if (locationUuid) {
+    try {
+      const locationData = await fetchLocationDetails(locationUuid);
+      isCurrentlyClosed = locationData.isClosed;
+    } catch (err) {
+      console.warn('[Closure] Failed to fetch location status:', err);
+    }
+  }
+
   const overlay = document.createElement('div');
   overlay.style.cssText = `
     position: fixed;
@@ -2994,14 +3024,39 @@ function createClosureDialog() {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   `;
 
+  // Smart questions based on current closure status
+  const title = isCurrentlyClosed ? "Location Currently Closed" : "Location Management";
+  const message = isCurrentlyClosed
+    ? "This location is currently marked as closed. What would you like to do?"
+    : "What would you like to do with this location?";
+
+  const primaryButtonText = isCurrentlyClosed ? "Reopen Location" : "Close Location";
+  const primaryButtonColor = isCurrentlyClosed ? "#28a745" : "#dc3545";
+  const primaryButtonAction = isCurrentlyClosed ? "open" : "close";
+
+  // Only show change closure notice button for closed locations
+  const showChangeButton = isCurrentlyClosed;
+  const changeButtonHtml = showChangeButton ? `
+    <button id="change-closure-btn" style="
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+    ">Update Closure Notice</button>
+  ` : '';
+
   dialog.innerHTML = `
-    <h3 style="margin: 0 0 16px 0; color: #333;">Location Action</h3>
+    <h3 style="margin: 0 0 16px 0; color: #333;">${title}</h3>
     <p style="margin: 0 0 24px 0; color: #666; line-height: 1.4;">
-      What would you like to do with this location?
+      ${message}
     </p>
     <div style="display: flex; gap: 12px; justify-content: center;">
-      <button id="close-location-btn" style="
-        background: #dc3545;
+      <button id="primary-action-btn" data-action="${primaryButtonAction}" style="
+        background: ${primaryButtonColor};
         color: white;
         border: none;
         padding: 12px 20px;
@@ -3009,17 +3064,8 @@ function createClosureDialog() {
         cursor: pointer;
         font-size: 14px;
         font-weight: bold;
-      ">Close Location</button>
-      <button id="change-closure-btn" style="
-        background: #007bff;
-        color: white;
-        border: none;
-        padding: 12px 20px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: bold;
-      ">Change Closure Notice</button>
+      ">${primaryButtonText}</button>
+      ${changeButtonHtml}
     </div>
     <div style="margin-top: 16px; text-align: center;">
       <button id="cancel-navigation-btn" style="
@@ -3038,15 +3084,20 @@ function createClosureDialog() {
   document.body.appendChild(overlay);
 
   return new Promise((resolve) => {
-    document.getElementById('close-location-btn').addEventListener('click', () => {
+    document.getElementById('primary-action-btn').addEventListener('click', (e) => {
+      const action = e.target.getAttribute('data-action');
       overlay.remove();
-      resolve('close');
+      resolve(action); // Will be 'open' or 'close'
     });
-    
-    document.getElementById('change-closure-btn').addEventListener('click', () => {
-      overlay.remove();
-      resolve('change');
-    });
+
+    // Only add event listener if the button exists (for closed locations)
+    const changeBtn = document.getElementById('change-closure-btn');
+    if (changeBtn) {
+      changeBtn.addEventListener('click', () => {
+        overlay.remove();
+        resolve('change');
+      });
+    }
 
     document.getElementById('cancel-navigation-btn').addEventListener('click', () => {
       overlay.remove();
@@ -3113,8 +3164,64 @@ function setupClosureAutoClicks(mode) {
       }
 
       // Step 3: Click "BACK TO THE MAP"
-  
-      
+      if (hasClickedYes) {
+        const backToMapBtn = Array.from(document.querySelectorAll('button')).find(btn =>
+          btn.textContent.trim() === "BACK TO THE MAP" &&
+          btn.classList.contains('Button-primary') &&
+          btn.classList.contains('Button-fluid')
+        );
+
+        if (backToMapBtn) {
+          console.log('[Closure] 🖱️ Clicking "BACK TO THE MAP"');
+          backToMapBtn.click();
+          setTimeout(() => {
+            createBubble('BACK TO THE MAP Clicked!');
+            cleanup();
+          }, 100);
+          return;
+        }
+      }
+
+    } else if (mode === 'open') {
+      // OPEN SEQUENCE: YES, IT'S OPEN → BACK TO THE MAP
+
+      // Step 1: Click "YES, IT'S OPEN" on isClosed page
+      if (!hasClickedFirst && path.includes('/isClosed')) {
+        const yesItsOpenBtn = Array.from(document.querySelectorAll('button')).find(btn =>
+          btn.textContent.trim() === "YES, IT'S OPEN" &&
+          btn.classList.contains('Button-primary')
+        );
+
+        if (yesItsOpenBtn) {
+          console.log('[Closure] 🖱️ Clicking "YES, IT\'S OPEN"');
+          yesItsOpenBtn.click();
+          hasClickedFirst = true;
+          setTimeout(() => {
+            createBubble('YES, IT\'S OPEN Clicked!');
+          }, 100);
+          return;
+        }
+      }
+
+      // Step 2: Click "BACK TO THE MAP"
+      if (hasClickedFirst) {
+        const backToMapBtn = Array.from(document.querySelectorAll('button')).find(btn =>
+          btn.textContent.trim() === "BACK TO THE MAP" &&
+          btn.classList.contains('Button-primary') &&
+          btn.classList.contains('Button-fluid')
+        );
+
+        if (backToMapBtn) {
+          console.log('[Closure] 🖱️ Clicking "BACK TO THE MAP"');
+          backToMapBtn.click();
+          setTimeout(() => {
+            createBubble('BACK TO THE MAP Clicked!');
+            cleanup();
+          }, 100);
+          return;
+        }
+      }
+
     } else if (mode === 'change') {
       // CHANGE SEQUENCE: NO, LET'S EDIT IT → (wait for user OK) → YES
       
@@ -3156,23 +3263,6 @@ function setupClosureAutoClicks(mode) {
         }
       }
     }
-        if (hasClickedYes) {
-        const backToMapBtn = Array.from(document.querySelectorAll('button')).find(btn => 
-          btn.textContent.trim() === "BACK TO THE MAP" && 
-          btn.classList.contains('Button-primary') &&
-          btn.classList.contains('Button-fluid')
-        );
-        
-        if (backToMapBtn) {
-          console.log('[Closure] 🖱️ Clicking "BACK TO THE MAP"');
-          backToMapBtn.click();
-          setTimeout(() => {
-            createBubble('BACK TO THE MAP Clicked!');
-            cleanup();
-          }, 100);
-          return;
-        }
-      }
   };
 
   // Monitor URL changes and DOM mutations
@@ -3227,12 +3317,17 @@ if (location.hostname === "gogetta.nyc") {
     
     console.log('[Closure] 🔙 Navigation detected, showing closure dialog');
     
-    const choice = await createClosureDialog();
+    const choice = await createClosureDialog(uuid);
     
     if (choice === 'close') {
-      console.log('[Closure] 🔄 User chose to close location, navigating to isClosed');
+      console.log('[Closure] 🔄 User chose to close location, navigating to isClosed then clicking NO');
       setupClosureAutoClicks('close');
-      // Allow navigation by navigating directly
+      // Navigate to isClosed page where we'll auto-click NO
+      window.location.replace(`https://gogetta.nyc/team/location/${uuid}/isClosed`);
+    } else if (choice === 'open') {
+      console.log('[Closure] 🔄 User chose to open location, navigating to isClosed then clicking YES');
+      setupClosureAutoClicks('open');
+      // Navigate to isClosed page where we'll auto-click YES
       window.location.replace(`https://gogetta.nyc/team/location/${uuid}/isClosed`);
     } else if (choice === 'change') {
       console.log('[Closure] 🔄 User chose to change closure notice, redirecting to closureInfo');
@@ -3324,10 +3419,16 @@ function setupClosureBackButtonClicks() {
         
         console.log('[Closure] 🔙 Back button click detected, showing closure dialog');
         
-        createClosureDialog().then(choice => {
+        createClosureDialog(currentUuid).then(choice => {
           if (choice === 'close') {
-            console.log('[Closure] 🔄 User chose to close location, navigating to isClosed');
+            console.log('[Closure] 🔄 User chose to close location, navigating to isClosed then clicking NO');
             setupClosureAutoClicks('close');
+            // Navigate to isClosed page where we'll auto-click NO
+            window.location.replace(`https://gogetta.nyc/team/location/${currentUuid}/isClosed`);
+          } else if (choice === 'open') {
+            console.log('[Closure] 🔄 User chose to open location, navigating to isClosed then clicking YES');
+            setupClosureAutoClicks('open');
+            // Navigate to isClosed page where we'll auto-click YES
             window.location.replace(`https://gogetta.nyc/team/location/${currentUuid}/isClosed`);
           } else if (choice === 'change') {
             console.log('[Closure] 🔄 User chose to change closure notice, redirecting to closureInfo');
@@ -3386,6 +3487,486 @@ initializeClosureForCurrentPage();
 window.addEventListener('locationchange', () => {
   console.log('[Closure] 🔄 URL changed, reinitializing closure handling');
   initializeClosureForCurrentPage();
+});
+
+// Parse dateKey or value for a timestamp. Return { date: Date, dateOnly: boolean } or null
+function parseWhen(dateKey, noteVal) {
+  if (!dateKey) return null;
+
+  // Prefer timestamps inside the value if present
+  if (noteVal && typeof noteVal === "object") {
+    const ts = noteVal.ts ?? noteVal.timestamp ?? noteVal.updatedAt;
+    if (ts != null) {
+      if (typeof ts === "number") {
+        // Handle both seconds and milliseconds
+        const ms = ts < 1e12 ? ts * 1000 : ts;
+        const d = new Date(ms);
+        if (!isNaN(d)) return { date: d, dateOnly: false };
+      } else {
+        const d = new Date(String(ts));
+        if (!isNaN(d)) return { date: d, dateOnly: false };
+      }
+    }
+  }
+
+  // ISO with time
+  if (/^\d{4}-\d{2}-\d{2}T/.test(dateKey)) {
+    const d = new Date(dateKey);
+    if (!isNaN(d)) return { date: d, dateOnly: false };
+  }
+
+  // Epoch seconds / ms in the KEY
+  if (/^\d{10}$/.test(dateKey)) return { date: new Date(Number(dateKey) * 1000), dateOnly: false };
+  if (/^\d{13}$/.test(dateKey)) return { date: new Date(Number(dateKey)), dateOnly: false };
+
+  // YYYY-MM-DD (day only) — interpret at local midnight
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    const [y, m, d] = dateKey.split("-").map(Number);
+    const localMidnight = new Date(y, m - 1, d);
+    if (!isNaN(localMidnight)) return { date: localMidnight, dateOnly: true };
+  }
+
+  // Fallback: try native parse
+  const d = new Date(dateKey);
+  if (!isNaN(d)) return { date: d, dateOnly: false };
+  return null;
+}
+
+// Edit History Overlay Function
+async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
+  // Remove existing overlay if present
+  const existingOverlay = document.getElementById('edit-history-overlay');
+  if (existingOverlay) {
+    existingOverlay.remove();
+  }
+
+  // Create overlay container
+  const overlay = document.createElement('div');
+  overlay.id = 'edit-history-overlay';
+  Object.assign(overlay.style, {
+    position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
+    backgroundColor: 'rgba(0,0,0,0.8)', zIndex: '2147483647',
+    display: 'flex', alignItems: 'center', justifyContent: 'center'
+  });
+
+  const modal = document.createElement('div');
+  Object.assign(modal.style, {
+    backgroundColor: '#fff', borderRadius: '8px', padding: '20px',
+    maxWidth: '600px', maxHeight: '80vh', width: '90%',
+    overflowY: 'auto', boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+  });
+
+  // Header
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.justifyContent = 'space-between';
+  header.style.alignItems = 'center';
+  header.style.marginBottom = '20px';
+
+  const title = document.createElement('h2');
+  title.textContent = 'Your Edit History';
+  title.style.margin = '0';
+  title.style.fontSize = '20px';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '×';
+  Object.assign(closeBtn.style, {
+    background: 'none', border: 'none', fontSize: '24px',
+    cursor: 'pointer', padding: '0', color: '#666'
+  });
+  closeBtn.addEventListener('click', () => overlay.remove());
+
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+
+  // Loading message
+  const loading = document.createElement('div');
+  loading.textContent = 'Loading your edit history...';
+  loading.style.textAlign = 'center';
+  loading.style.padding = '20px';
+  loading.style.color = '#666';
+
+  const progress = document.createElement('div');
+  progress.style.textAlign = 'center';
+  progress.style.padding = '10px';
+  progress.style.color = '#999';
+  progress.style.fontSize = '12px';
+
+  modal.appendChild(header);
+  modal.appendChild(loading);
+  modal.appendChild(progress);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Close on overlay click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  // Helper function to get current page UUID
+  function getCurrentPageUuid() {
+    const fullServiceMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
+    const teamMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
+    const findMatch = location.pathname.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
+    return (fullServiceMatch || teamMatch || findMatch)?.[1] || null;
+  }
+
+  try {
+    // Fetch all notes data
+    const baseURL = window.gghost?.baseURL;
+    console.log('[Edit History] Base URL:', baseURL);
+    if (!baseURL) {
+      throw new Error('Base URL not available');
+    }
+
+    const jsonUrl = `${baseURL}locationNotes.json`;
+    console.log('[Edit History] Fetching from:', jsonUrl);
+    const res = await fetch(jsonUrl, { cache: 'no-store' });
+    console.log('[Edit History] Fetch response:', res.status, res.ok);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch: ${res.status}`);
+    }
+
+    const allData = await res.json();
+    console.log('[Edit History] Data received:', allData);
+    if (!allData || typeof allData !== 'object') {
+      throw new Error('Invalid data format');
+    }
+
+    // Filter user's edits and collect location UUIDs
+    const userEdits = [];
+    const locationUuids = new Set();
+
+    console.log('[Edit History] Current user:', currentUser);
+    console.log('[Edit History] All data keys:', Object.keys(allData));
+
+    progress.textContent = 'Analyzing your edits...';
+
+    for (const [locationKey, userMap] of Object.entries(allData)) {
+      if (!userMap || typeof userMap !== 'object') continue;
+
+      // Check if current user has edits for this location
+      const userKey = `${currentUser}-futurenote`;
+      console.log('[Edit History] Checking location:', locationKey, 'for users:', Object.keys(userMap));
+      if (userMap[userKey] || userMap[currentUser]) {
+        const dateMap = userMap[userKey] || userMap[currentUser];
+        if (dateMap && typeof dateMap === 'object') {
+
+          // Extract UUID from location key (decode if needed)
+          let decodedPath = locationKey;
+          try {
+            decodedPath = decodeURIComponent(locationKey);
+          } catch {}
+
+          // Extract location UUID from paths like /team/location/{uuid} or /team/location/{uuid}/services/{serviceId}/other-info
+          const locationMatch = decodedPath.match(/\/team\/location\/([a-f0-9-]+)/);
+          const locationUuid = locationMatch ? locationMatch[1] : null;
+
+          if (locationUuid && locationUuid.match(/^[a-f0-9-]+$/)) {
+            locationUuids.add(locationUuid);
+
+            // Determine the page type from the path
+            let pageType = 'Location';
+            if (decodedPath.includes('/services/')) {
+              pageType = 'Service';
+            } else if (decodedPath.includes('/other-info')) {
+              pageType = 'Other Info';
+            }
+
+            // Process each edit date
+            for (const [dateKey, noteVal] of Object.entries(dateMap)) {
+              const info = parseWhen(dateKey, noteVal);
+              if (info) {
+                userEdits.push({
+                  locationUuid,
+                  fullPath: decodedPath,
+                  pageType,
+                  date: info.date,
+                  dateOnly: info.dateOnly,
+                  note: typeof noteVal === 'string' ? noteVal : (noteVal?.note || 'Edit')
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Get current page UUID for highlighting
+    const currentPageUuid = getCurrentPageUuid();
+
+    // Fetch location details for each UUID using the same function as connectionsdiv
+    progress.textContent = `Fetching details for ${locationUuids.size} locations...`;
+
+    const locationDetails = {};
+    const fetchPromises = Array.from(locationUuids).map(async (uuid) => {
+      try {
+        console.log(`[Edit History] Fetching details for UUID: ${uuid}`);
+        const data = await fetchLocationDetails(uuid);
+        locationDetails[uuid] = {
+          orgName: data.org || 'Unknown Org',
+          locationName: data.name || 'Unknown Location',
+          isCurrentPage: uuid === currentPageUuid
+        };
+        console.log(`[Edit History] Got details for ${uuid}:`, locationDetails[uuid]);
+      } catch (err) {
+        console.warn(`[Edit History] Could not fetch details for ${uuid}:`, err);
+        locationDetails[uuid] = {
+          orgName: 'Fetch Failed',
+          locationName: 'Unknown Location',
+          isCurrentPage: uuid === currentPageUuid
+        };
+      }
+    });
+
+    // Wait for all location details to be fetched
+    await Promise.allSettled(fetchPromises);
+    console.log('[Edit History] All location details fetched:', locationDetails);
+
+    // Group edits by date and location
+    const editsByDate = {};
+    userEdits.forEach(edit => {
+      const dateStr = edit.date.toLocaleDateString();
+      if (!editsByDate[dateStr]) {
+        editsByDate[dateStr] = {};
+      }
+
+      // Group by location UUID, but track different page types
+      const key = edit.locationUuid;
+      if (!editsByDate[dateStr][key]) {
+        editsByDate[dateStr][key] = {
+          locationUuid: edit.locationUuid,
+          totalCount: 0,
+          latestDate: edit.date,
+          pageTypes: {}
+        };
+      }
+
+      // Track edits by page type within this location
+      if (!editsByDate[dateStr][key].pageTypes[edit.pageType]) {
+        editsByDate[dateStr][key].pageTypes[edit.pageType] = {
+          count: 0,
+          notes: [],
+          fullPath: edit.fullPath
+        };
+      }
+
+      editsByDate[dateStr][key].totalCount++;
+      editsByDate[dateStr][key].pageTypes[edit.pageType].count++;
+      editsByDate[dateStr][key].pageTypes[edit.pageType].notes.push(edit.note);
+
+      if (edit.date > editsByDate[dateStr][key].latestDate) {
+        editsByDate[dateStr][key].latestDate = edit.date;
+      }
+    });
+
+    // Clear loading and display results
+    modal.removeChild(loading);
+    modal.removeChild(progress);
+
+    if (Object.keys(editsByDate).length === 0) {
+      const noEdits = document.createElement('div');
+      noEdits.textContent = 'No edit history found for your account.';
+      noEdits.style.textAlign = 'center';
+      noEdits.style.padding = '20px';
+      noEdits.style.color = '#666';
+      modal.appendChild(noEdits);
+      return;
+    }
+
+    // Separate current page edits from others
+    const currentPageEdits = {};
+    const otherEdits = {};
+
+    Object.entries(editsByDate).forEach(([dateStr, locations]) => {
+      Object.entries(locations).forEach(([uuid, data]) => {
+        const details = locationDetails[uuid];
+        if (details && details.isCurrentPage) {
+          if (!currentPageEdits[dateStr]) currentPageEdits[dateStr] = {};
+          currentPageEdits[dateStr][uuid] = data;
+        } else {
+          if (!otherEdits[dateStr]) otherEdits[dateStr] = {};
+          otherEdits[dateStr][uuid] = data;
+        }
+      });
+    });
+
+    // Function to render edits section
+    function renderEditsSection(editsData, title, isHighlighted = false) {
+      if (Object.keys(editsData).length === 0) return;
+
+      if (title) {
+        const sectionTitle = document.createElement('h2');
+        sectionTitle.textContent = title;
+        sectionTitle.style.fontSize = '18px';
+        sectionTitle.style.margin = '20px 0 15px 0';
+        sectionTitle.style.color = isHighlighted ? '#0066cc' : '#333';
+        sectionTitle.style.borderBottom = '2px solid ' + (isHighlighted ? '#0066cc' : '#eee');
+        sectionTitle.style.paddingBottom = '5px';
+        modal.appendChild(sectionTitle);
+      }
+
+      const sortedDates = Object.keys(editsData).sort((a, b) => new Date(b) - new Date(a));
+
+      sortedDates.forEach(dateStr => {
+        const dateGroup = document.createElement('div');
+        dateGroup.style.marginBottom = '20px';
+
+        const dateHeader = document.createElement('h3');
+        dateHeader.textContent = dateStr;
+        dateHeader.style.fontSize = '16px';
+        dateHeader.style.margin = '0 0 10px 0';
+        dateHeader.style.color = '#333';
+        dateHeader.style.borderBottom = '1px solid #eee';
+        dateHeader.style.paddingBottom = '5px';
+
+        dateGroup.appendChild(dateHeader);
+
+        const locations = editsData[dateStr];
+        Object.entries(locations).forEach(([uuid, data]) => {
+          const locationContainer = document.createElement('div');
+          locationContainer.style.marginBottom = '8px';
+          locationContainer.style.border = '1px solid #e0e0e0';
+          locationContainer.style.borderRadius = '4px';
+          locationContainer.style.backgroundColor = isHighlighted ? '#f0f8ff' : '#f9f9f9';
+
+          // Main location row
+          const locationDiv = document.createElement('div');
+          locationDiv.style.display = 'flex';
+          locationDiv.style.alignItems = 'center';
+          locationDiv.style.padding = '8px';
+
+          // Hyperlinked Org-Location name (no UUID shown)
+          const details = locationDetails[uuid] || { orgName: 'Unknown Org', locationName: 'Unknown Location' };
+          const nameLink = document.createElement('a');
+          nameLink.href = `https://gogetta.nyc/team/location/${uuid}`;
+          nameLink.target = '_blank';
+          nameLink.textContent = `${details.orgName} - ${details.locationName}`;
+          nameLink.style.flex = '1';
+          nameLink.style.fontSize = '14px';
+          nameLink.style.color = '#0066cc';
+          nameLink.style.textDecoration = 'none';
+          nameLink.style.marginRight = '10px';
+
+          nameLink.addEventListener('mouseenter', () => {
+            nameLink.style.textDecoration = 'underline';
+          });
+
+          nameLink.addEventListener('mouseleave', () => {
+            nameLink.style.textDecoration = 'none';
+          });
+
+          // Total edit count and latest date
+          const statsDiv = document.createElement('div');
+          statsDiv.textContent = `${data.totalCount} edit${data.totalCount > 1 ? 's' : ''} • ${data.latestDate.toLocaleTimeString()}`;
+          statsDiv.style.fontSize = '12px';
+          statsDiv.style.color = '#666';
+          statsDiv.style.textAlign = 'right';
+          statsDiv.style.minWidth = '120px';
+
+          locationDiv.appendChild(nameLink);
+          locationDiv.appendChild(statsDiv);
+          locationContainer.appendChild(locationDiv);
+
+        // Page type breakdown
+        if (Object.keys(data.pageTypes).length > 1 || Object.keys(data.pageTypes)[0] !== 'Location') {
+          Object.entries(data.pageTypes).forEach(([pageType, pageData]) => {
+            const pageDiv = document.createElement('div');
+            pageDiv.style.display = 'flex';
+            pageDiv.style.alignItems = 'center';
+            pageDiv.style.padding = '4px 8px 4px 220px'; // Indent to align with location name
+            pageDiv.style.fontSize = '12px';
+            pageDiv.style.color = '#666';
+            pageDiv.style.backgroundColor = '#fff';
+            pageDiv.style.borderTop = '1px solid #eee';
+
+            const pageTypeSpan = document.createElement('span');
+            pageTypeSpan.textContent = `${pageType}: ${pageData.count} edit${pageData.count > 1 ? 's' : ''}`;
+            pageTypeSpan.style.flex = '1';
+
+            // If it's a service page, show link to that specific page
+            if (pageData.fullPath && pageData.fullPath.includes('/services/')) {
+              const serviceLink = document.createElement('a');
+              serviceLink.href = `https://gogetta.nyc${pageData.fullPath}`;
+              serviceLink.target = '_blank';
+              serviceLink.textContent = '→';
+              serviceLink.style.color = '#0066cc';
+              serviceLink.style.textDecoration = 'none';
+              serviceLink.style.marginLeft = '8px';
+              pageDiv.appendChild(serviceLink);
+            }
+
+            pageDiv.appendChild(pageTypeSpan);
+            locationContainer.appendChild(pageDiv);
+          });
+        }
+
+          dateGroup.appendChild(locationContainer);
+        });
+
+        modal.appendChild(dateGroup);
+      });
+    }
+
+    // Render current page edits first (highlighted)
+    renderEditsSection(currentPageEdits, 'Your Edits on This Location', true);
+
+    // Render other edits in chronological order
+    renderEditsSection(otherEdits, 'Your Other Location Edits', false);
+
+  } catch (err) {
+    console.error('[Edit History] Error loading data:', err);
+    modal.removeChild(loading);
+
+    const errorDiv = document.createElement('div');
+    errorDiv.textContent = `Error loading edit history: ${err.message}`;
+    errorDiv.style.textAlign = 'center';
+    errorDiv.style.padding = '20px';
+    errorDiv.style.color = '#d32f2f';
+    modal.appendChild(errorDiv);
+  }
+}
+
+// Add Edit History button
+createButton('Edit History', async () => {
+  console.log('[Edit History] 🖱️ Button clicked for UUID:', uuid);
+  try {
+    let currentUser = null;
+
+    // Try multiple methods to get the username
+    try {
+      const { accessToken, username: cognitoUsername } = getCognitoTokens();
+      currentUser = accessToken ? cognitoUsername : null;
+      console.log('[Edit History] Got user from getCognitoTokens:', currentUser);
+    } catch (err) {
+      console.warn('[Edit History] getCognitoTokens failed:', err);
+    }
+
+    // Fallback: try the snackbar method
+    if (!currentUser) {
+      try {
+        if (window.gghostUserName) {
+          currentUser = window.gghostUserName;
+          console.log('[Edit History] Got user from window.gghostUserName:', currentUser);
+        } else if (typeof window.getUserNameSafely === "function") {
+          currentUser = await window.getUserNameSafely();
+          console.log('[Edit History] Got user from getUserNameSafely:', currentUser);
+        }
+      } catch (err) {
+        console.warn('[Edit History] Fallback username methods failed:', err);
+      }
+    }
+
+    if (!currentUser) {
+      alert('Edit History: Unable to determine your username. Please make sure you are logged in.');
+      return;
+    }
+
+    await showEditHistoryOverlay(uuid, currentUser);
+  } catch (err) {
+    console.error('[Edit History] 🛑 Error:', err);
+    alert(`Edit History error: ${err.message}`);
+  }
 });
 
 console.log('[YP Mini] 🔧 Creating YP Mini button for UUID:', uuid);
