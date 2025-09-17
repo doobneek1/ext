@@ -1,4 +1,25 @@
 (function () {
+  // Aggressive script re-execution prevention
+  if (window.doobneekStreetViewActive) {
+    console.log('[streetview.js] Script already active, preventing re-execution');
+    return;
+  }
+
+  // Check if we're coming from browser back/forward navigation
+  if (performance.navigation && performance.navigation.type === 2) {
+    console.log('[streetview.js] Back/forward navigation detected, deferring script activation');
+    // Wait longer before activating to ensure previous cleanup is complete
+    setTimeout(() => {
+      if (!window.doobneekStreetViewActive) {
+        window.doobneekStreetViewActive = true;
+        console.log('[streetview.js] Script activated after navigation delay');
+      }
+    }, 1000);
+    return;
+  }
+
+  window.doobneekStreetViewActive = true;
+
   // Use EXACT same bubble paste method as text formatter in injector.js
   function dispatchInput(el) {
     el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -9,10 +30,25 @@
   let hasClickedNoLetsEdit = false;
   let bannerShown = false;
   let lastUrl = window.location.href;
+  let urlCheckInterval = null;
+  let observer = null;
+  let globalClickHandler = null;
+  let popstateHandler = null;
+  let beforeunloadHandler = null;
+  let visibilityHandler = null;
+  let pagehideHandler = null;
+  let activeModals = [];
+  let mapsInstances = [];
+  let injectedScripts = [];
 
   // Check if yourpeerredirect is enabled
   function isYourPeerRedirectEnabled() {
     return localStorage.getItem('yourpeerredirect') === 'true';
+  }
+
+  // Check if we're on street-view page with proper regex
+  function isStreetViewPage(url) {
+    return /\/questions\/street-view\/?$/.test(url);
   }
 
   // URL change detection function
@@ -20,6 +56,21 @@
     const currentUrl = window.location.href;
     if (currentUrl !== lastUrl) {
       console.log('URL changed from:', lastUrl, 'to:', currentUrl);
+
+      // Clean up observers when leaving street view pages
+      const wasStreetView = isStreetViewPage(lastUrl);
+      const isStreetView = isStreetViewPage(currentUrl);
+
+      if (wasStreetView && !isStreetView) {
+        console.log('[streetview.js] Leaving street view page, cleaning up resources');
+        if (observer) {
+          observer.disconnect();
+          observer = null;
+        }
+        // Clean up any active modals and maps when leaving street view
+        cleanupMapsAndModals();
+      }
+
       lastUrl = currentUrl;
 
       // Reset flags when URL changes
@@ -27,15 +78,35 @@
       bannerShown = false;
 
       // Run street view logic if on street-view page
-      if (currentUrl.includes('/questions/street-view')) {
+      if (isStreetView) {
         showLoadingBanner();
         setTimeout(clickNoLetsEditIfNeeded, 500);
+
+        // Reinitialize observer if needed
+        if (!observer) {
+          observer = new MutationObserver(clickNoLetsEditIfNeeded);
+          const targetContainer = document.querySelector('main') || document.body;
+          observer.observe(targetContainer, { childList: true, subtree: true });
+        }
       }
     }
   }
 
   // Set up URL change monitoring using multiple methods
   function setupUrlChangeListener() {
+    // Prevent conflicts with other scripts that might override history
+    if (window.doobneekHistoryOverridden) {
+      console.log('[streetview.js] History already overridden by another script, using fallback methods');
+      // Method 2: Listen for popstate events only
+      popstateHandler = handleUrlChange;
+      window.addEventListener('popstate', popstateHandler);
+      // Method 3: Periodic checking as fallback (reduced frequency)
+      urlCheckInterval = setInterval(handleUrlChange, 5000);
+      return;
+    }
+
+    window.doobneekHistoryOverridden = true;
+
     // Method 1: Override pushState and replaceState
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
@@ -51,10 +122,11 @@
     };
 
     // Method 2: Listen for popstate events
-    window.addEventListener('popstate', handleUrlChange);
+    popstateHandler = handleUrlChange;
+    window.addEventListener('popstate', popstateHandler);
 
-    // Method 3: Periodic checking as fallback
-    setInterval(handleUrlChange, 1000);
+    // Method 3: Periodic checking as fallback (reduced frequency)
+    urlCheckInterval = setInterval(handleUrlChange, 5000);
 
     console.log('URL change listener setup complete');
   }
@@ -62,7 +134,7 @@
   // Show loading banner immediately on street-view URL
   function showLoadingBanner() {
     const currentUrl = window.location.href;
-    if (currentUrl.includes('/questions/street-view') && !bannerShown) {
+    if (isStreetViewPage(currentUrl) && !bannerShown) {
       bannerShown = true;
       const banner = document.createElement('div');
       banner.id = 'doobneek-loading-banner';
@@ -113,7 +185,7 @@
     }
     
     // Only click if yourpeerredirect IS enabled and we haven't clicked for this URL
-    if (isYourPeerRedirectEnabled() && !hasClickedNoLetsEdit && currentUrl.includes('/questions/street-view')) {
+    if (isYourPeerRedirectEnabled() && !hasClickedNoLetsEdit && isStreetViewPage(currentUrl)) {
       // Look for button by text content since :contains() isn't valid CSS
       const buttons = document.querySelectorAll('button');
       let noLetsEditButton = null;
@@ -141,10 +213,14 @@
   // Show loading banner immediately on initial load if on street-view page
   showLoadingBanner();
 
-  // Run the check when page loads and on mutations
-  setTimeout(clickNoLetsEditIfNeeded, 500);
-  const observer = new MutationObserver(clickNoLetsEditIfNeeded);
-  observer.observe(document.body, { childList: true, subtree: true });
+  // Run the check when page loads and on mutations (only on street-view pages)
+  if (isStreetViewPage(window.location.href)) {
+    setTimeout(clickNoLetsEditIfNeeded, 500);
+    observer = new MutationObserver(clickNoLetsEditIfNeeded);
+    // Observe only specific containers instead of entire body
+    const targetContainer = document.querySelector('main') || document.body;
+    observer.observe(targetContainer, { childList: true, subtree: true });
+  }
 
   // Bubble paste functionality - create visual feedback
   function createBubble(text) {
@@ -210,6 +286,7 @@
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,streetview,geometry`;
     script.async = true;
     script.defer = true;
+    script.setAttribute('data-doobneek-script', 'true'); // Mark for cleanup
     script.onload = () => {
       // Double check that Google Maps is fully loaded
       const checkLoaded = () => {
@@ -226,6 +303,7 @@
       alert('Could not load Google Maps API.');
     };
     document.head.appendChild(script);
+    injectedScripts.push(script); // Track for cleanup
   }
 
   async function createStreetViewPicker(locationData, apiKey) {
@@ -262,6 +340,7 @@
     }
 
     const modal = document.createElement('div');
+    modal.setAttribute('data-doobneek-modal', 'true'); // Mark for cleanup
     Object.assign(modal.style, {
       position: 'fixed',
       top: '50%',
@@ -278,6 +357,7 @@
       display: 'flex',
       flexDirection: 'column'
     });
+    activeModals.push(modal); // Track for cleanup
 
     const header = document.createElement('div');
     header.style.padding = '12px 16px';
@@ -302,7 +382,12 @@
     style.textContent = '.pac-container { z-index: 100002 !important; }';
 
     closeButton.onclick = () => {
+      // Clean up maps instances before closing modal
+      cleanupModalMaps(modal);
       modal.remove();
+      // Remove from tracking array
+      const index = activeModals.indexOf(modal);
+      if (index > -1) activeModals.splice(index, 1);
       if (style.parentNode) {
         style.parentNode.removeChild(style);
       }
@@ -467,6 +552,10 @@
 
       map.setStreetView(panorama);
 
+      // Track maps instances for cleanup
+      const mapsInstance = { map, panorama, modal };
+      mapsInstances.push(mapsInstance);
+
       // Generate initial Street View URL and enable set button immediately
       const generateStreetViewURL = (position, pov) => {
         const lat = position.lat();
@@ -507,13 +596,25 @@
         return true;
       };
 
-      // Try immediately
-      setTimeout(() => {
-        if (!tryGenerateUrl()) {
-          // Try again after a longer delay if first attempt failed
-          setTimeout(tryGenerateUrl, 2000);
+      // Try immediately with retry limit
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      const attemptGenerate = () => {
+        if (tryGenerateUrl()) {
+          return; // Success, stop trying
         }
-      }, 500);
+
+        retryCount++;
+        if (retryCount < maxRetries) {
+          console.log(`[streetview.js] Retry ${retryCount}/${maxRetries} for URL generation`);
+          setTimeout(attemptGenerate, 2000);
+        } else {
+          console.warn('[streetview.js] Max retries reached for URL generation');
+        }
+      };
+
+      setTimeout(attemptGenerate, 500);
 
       // Also try when panorama loads
       panorama.addListener('position_changed', () => {
@@ -741,7 +842,11 @@
 
             // Close the modal after successful paste
             setTimeout(() => {
+              cleanupModalMaps(modal);
               modal.remove();
+              // Remove from tracking array
+              const index = activeModals.indexOf(modal);
+              if (index > -1) activeModals.splice(index, 1);
               console.log('Street View modal closed after successful paste');
             }, 1000);
           } else {
@@ -756,7 +861,11 @@
 
             // Close the modal even in fallback case
             setTimeout(() => {
+              cleanupModalMaps(modal);
               modal.remove();
+              // Remove from tracking array
+              const index = activeModals.indexOf(modal);
+              if (index > -1) activeModals.splice(index, 1);
               console.log('Street View modal closed after clipboard copy');
             }, 1500);
           }
@@ -765,7 +874,7 @@
           if (!window.doobneekOkClickerActive) {
             window.doobneekOkClickerActive = true;
 
-            document.addEventListener('click', function globalAutoClickHandler(e) {
+            globalClickHandler = function(e) {
               const okButton = e.target.closest('button.Button-primary');
               if (okButton && okButton.textContent.trim() === 'OK') {
                 console.log('OK button clicked, setting up auto-clickers');
@@ -838,15 +947,176 @@
                   }, 1500); // Wait 1.5s after YES
                 }, 1000); // Wait 1s after OK
               }
-            });
+            };
+
+            document.addEventListener('click', globalClickHandler);
           }
 
+          cleanupModalMaps(modal);
           modal.remove();
+          // Remove from tracking array
+          const index = activeModals.indexOf(modal);
+          if (index > -1) activeModals.splice(index, 1);
         }
       };
 
     });
   }
+
+  // Clean up maps instances for a specific modal
+  function cleanupModalMaps(targetModal) {
+    console.log('[streetview.js] Cleaning up maps for modal');
+    const index = mapsInstances.findIndex(instance => instance.modal === targetModal);
+    if (index > -1) {
+      const instance = mapsInstances[index];
+      try {
+        // Properly dispose of Google Maps objects
+        if (instance.panorama) {
+          google.maps.event.clearInstanceListeners(instance.panorama);
+          instance.panorama = null;
+        }
+        if (instance.map) {
+          google.maps.event.clearInstanceListeners(instance.map);
+          instance.map = null;
+        }
+      } catch (e) {
+        console.warn('[streetview.js] Error cleaning up maps:', e);
+      }
+      mapsInstances.splice(index, 1);
+    }
+  }
+
+  // Clean up all active modals and maps
+  function cleanupMapsAndModals() {
+    console.log('[streetview.js] Cleaning up all maps and modals');
+
+    // Clean up all maps instances
+    mapsInstances.forEach(instance => {
+      try {
+        if (instance.panorama) {
+          google.maps.event.clearInstanceListeners(instance.panorama);
+        }
+        if (instance.map) {
+          google.maps.event.clearInstanceListeners(instance.map);
+        }
+      } catch (e) {
+        console.warn('[streetview.js] Error cleaning up maps instance:', e);
+      }
+    });
+    mapsInstances.length = 0;
+
+    // Clean up all active modals
+    activeModals.forEach(modal => {
+      try {
+        if (modal.parentNode) {
+          modal.remove();
+        }
+      } catch (e) {
+        console.warn('[streetview.js] Error removing modal:', e);
+      }
+    });
+    activeModals.length = 0;
+
+    // Clean up injected scripts
+    injectedScripts.forEach(script => {
+      try {
+        if (script.parentNode) {
+          script.remove();
+        }
+      } catch (e) {
+        console.warn('[streetview.js] Error removing script:', e);
+      }
+    });
+    injectedScripts.length = 0;
+
+    // Remove any remaining doobneek elements
+    document.querySelectorAll('[data-doobneek-modal]').forEach(el => el.remove());
+    document.querySelectorAll('[data-doobneek-script]').forEach(el => el.remove());
+    document.querySelectorAll('#doobneek-loading-banner').forEach(el => el.remove());
+  }
+
+  // Cleanup function to prevent memory leaks
+  function cleanup() {
+    console.log('[streetview.js] Cleaning up all resources');
+
+    if (observer) {
+      observer.disconnect();
+      observer = null;
+    }
+
+    if (urlCheckInterval) {
+      clearInterval(urlCheckInterval);
+      urlCheckInterval = null;
+    }
+
+    if (globalClickHandler) {
+      document.removeEventListener('click', globalClickHandler);
+      globalClickHandler = null;
+    }
+
+    if (popstateHandler) {
+      window.removeEventListener('popstate', popstateHandler);
+      popstateHandler = null;
+    }
+
+    if (beforeunloadHandler) {
+      window.removeEventListener('beforeunload', beforeunloadHandler);
+      beforeunloadHandler = null;
+    }
+
+    if (visibilityHandler) {
+      document.removeEventListener('visibilitychange', visibilityHandler);
+      visibilityHandler = null;
+    }
+
+    if (pagehideHandler) {
+      window.removeEventListener('pagehide', pagehideHandler);
+      pagehideHandler = null;
+    }
+
+    // Clean up all maps and modals
+    cleanupMapsAndModals();
+
+    // Reset global flags
+    window.doobneekOkClickerActive = false;
+    window.doobneekHistoryOverridden = false;
+
+    // Clear global references
+    if (window.createStreetViewPicker) {
+      delete window.createStreetViewPicker;
+    }
+    window.doobneekStreetViewActive = false;
+  }
+
+  // Add cleanup on page unload
+  beforeunloadHandler = cleanup;
+  window.addEventListener('beforeunload', beforeunloadHandler);
+
+  // Add cleanup on page visibility change (helps with back/forward navigation)
+  visibilityHandler = () => {
+    if (document.hidden) {
+      console.log('[streetview.js] Page hidden, cleaning up resources');
+      cleanupMapsAndModals();
+    }
+  };
+  document.addEventListener('visibilitychange', visibilityHandler);
+
+  // Add cleanup on page hide (iOS Safari and some mobile browsers)
+  pagehideHandler = cleanup;
+  window.addEventListener('pagehide', pagehideHandler);
+
+  // Force cleanup on navigation start
+  window.addEventListener('beforeunload', () => {
+    console.log('[streetview.js] beforeunload triggered, forcing cleanup');
+    cleanup();
+  });
+
+  // Add cleanup on extension unload (if content script is reinjected)
+  if (window.doobneekStreetViewLoaded) {
+    console.log('[streetview.js] Script already loaded, cleaning up previous instance');
+    cleanup();
+  }
+  window.doobneekStreetViewLoaded = true;
 
   window.createStreetViewPicker = createStreetViewPicker;
 })();
