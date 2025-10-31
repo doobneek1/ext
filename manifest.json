@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "doobneek feat YourPeer",
-  "version": "5.9.83",
+  "version": "5.9.91",
   "description": "Injects text formatting buttons and redirect logic.",
   "permissions": [
     "storage",
@@ -67,9 +67,9 @@
         "recenter.js",
         "autoClicker.js",
         "gghost.js",
-        "yphost.js",
         "lastpage.js",
-        "snackbar.js"
+        "snackbar.js",
+        "linkValidator.js"
       ],
       "css": [
         "style.css"
@@ -103,11 +103,22 @@
     },
     {
       "matches": [
+        "https://yourpeer.nyc/locations*"
+      ],
+      "js": [
+        "yphost.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": [
         "<all_urls>"
       ],
       "js": [
         "tel.js",
-        "tesser.js"
+        "tesser.js",
+        "linkHighlighter.js"
       ],
       "run_at": "document_idle"
     }

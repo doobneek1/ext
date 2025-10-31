@@ -66,7 +66,7 @@ const today = new Date().toISOString().slice(0, 10);
     // Use getAuthHeaders() from gghost.js for JWT authentication
     const authHeaders = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
     console.log("[YP] 🔑 Using auth headers:", authHeaders);
-    
+
     const res = await fetch(NOTE_API_URL, {
       method: "POST",
       headers: authHeaders,
@@ -147,7 +147,7 @@ function waitForElement(selector, timeout = 10000) {
     let timeElapsed = 0;
 
     console.log(`[YP] 🔍 Looking for element: ${selector}`);
-    
+
     const interval = setInterval(() => {
       const el = document.querySelector(selector);
       if (el) {
@@ -169,20 +169,27 @@ function waitForElement(selector, timeout = 10000) {
 }
 
 if ( /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)) {
-  const yesButtonSelector = 'button.Button.mt-2.Button-primary.Button-fluid';
-  const nextButtonSelectors = [
-    'button.Button.mt-4.Button-primary.Button-fluid'
-    // Note: CSS selectors don't support text content matching
-    // We'll use the fallback text search instead
-  ];
+  // Check if redirect is enabled before proceeding
+  chrome.storage.local.get('redirectEnabled', (data) => {
+    if (!data.redirectEnabled) {
+      console.log('[YP] 🛑 Skipping other-info auto-click — redirect not enabled');
+      return;
+    }
 
-  console.log(`[YP] 🎯 Processing ${currentUrl}`);
-  
-  waitForElement(yesButtonSelector)
-    .then((yesButton) => {
-      console.warn('[YP] ✅ Found and clicking "YES" button', yesButton);
-      console.warn('[YP] Button text:', yesButton.textContent.trim());
-      yesButton.click();
+    const yesButtonSelector = 'button.Button.mt-2.Button-primary.Button-fluid';
+    const nextButtonSelectors = [
+      'button.Button.mt-4.Button-primary.Button-fluid'
+      // Note: CSS selectors don't support text content matching
+      // We'll use the fallback text search instead
+    ];
+
+    console.log(`[YP] 🎯 Processing ${currentUrl}`);
+
+    waitForElement(yesButtonSelector)
+      .then((yesButton) => {
+        console.warn('[YP] ✅ Found and clicking "YES" button', yesButton);
+        console.warn('[YP] Button text:', yesButton.textContent.trim());
+        yesButton.click();
 
       // Try multiple selectors for the next button
       const tryNextSelector = (index = 0) => {
@@ -192,7 +199,7 @@ if ( /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)) {
             setTimeout(() => {
               const buttons = document.querySelectorAll('button');
               for (let btn of buttons) {
-                if (btn.textContent.toUpperCase().includes('NEXT') || 
+                if (btn.textContent.toUpperCase().includes('NEXT') ||
                     btn.textContent.toUpperCase().includes('GO TO')) {
                   console.warn('[YP] 🎯 Found next button via text search:', btn);
                   resolve(btn);
@@ -203,7 +210,7 @@ if ( /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)) {
             }, 1000);
           });
         }
-        
+
         return waitForElement(nextButtonSelectors[index], 3000)
           .catch(() => tryNextSelector(index + 1));
       };
@@ -214,7 +221,7 @@ if ( /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)) {
       console.warn('[YP] ✅ Found "GO TO NEXT SECTION" button:', nextButton);
       console.warn('[YP] Button text:', nextButton.textContent.trim());
       console.warn('[YP] Button classes:', nextButton.className);
-      
+
       setTimeout(() => {
         console.warn('[YP] 🖱️ Clicking "GO TO NEXT SECTION" button now...');
         nextButton.click();
@@ -230,6 +237,7 @@ if ( /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)) {
         classes: b.className
       })));
     });
+  }); // Close chrome.storage.local.get callback
 
   return;
 }
@@ -249,7 +257,7 @@ if ( /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)) {
 
     if (arrowButton && !arrowButton.disabled) {
       arrowButton.click();
-    } 
+    }
   }, 500);
 });
 
@@ -268,21 +276,45 @@ document.addEventListener('click', (e) => {
 });
 
 
-// ✅ Try click YES button only if dropdown item clicked ≤ 2s ago
+// Delay before triggering an automated YES click to give React time to wire handlers
+const YES_CLICK_DELAY_MS = 350;
+let yesClickTimer = null;
+
+// ✅ Try click YES button only if dropdown item clicked ≤ 10s ago AND redirect is enabled
 function tryClickYesButton() {
   const yesBtn = document.querySelector('button.Button-primary.Button-fluid');
   if (!yesBtn || yesBtn.textContent.trim().toUpperCase() !== 'YES' || yesBtn.disabled) return;
 
-  chrome.storage.local.get('recentDropdownClick', (data) => {
+  chrome.storage.local.get(['recentDropdownClick', 'redirectEnabled'], (data) => {
+    // Skip if redirect is not enabled
+    if (!data.redirectEnabled) {
+      console.log('[YP] ⏳ Skipping YES click — redirect not enabled');
+      return;
+    }
+
     const lastClick = data.recentDropdownClick || 0;
     const now = Date.now();
     const elapsed = now - lastClick;
 
     if (elapsed <= 10000) {
-      console.log('[YP] ✅ YES button found & recent dropdown click detected — clicking YES');
-      yesBtn.click();
+      if (yesClickTimer) {
+        console.log('[YP] Pending YES click already scheduled; skipping duplicate trigger');
+        return;
+      }
+
+      console.log(`[YP] YES button found after recent dropdown click; scheduling click in ${YES_CLICK_DELAY_MS}ms`);
+      yesClickTimer = setTimeout(() => {
+        yesClickTimer = null;
+        const latestYesBtn = document.querySelector('button.Button-primary.Button-fluid');
+        if (!latestYesBtn || latestYesBtn.textContent.trim().toUpperCase() !== 'YES' || latestYesBtn.disabled) {
+          console.log('[YP] Skipping delayed YES click: button missing or disabled');
+          return;
+        }
+        console.log('[YP] Triggering delayed YES click now');
+        latestYesBtn.click();
+      }, YES_CLICK_DELAY_MS);
     } else {
-      console.log(`[YP] ⏳ Skipping YES click — no recent dropdown activity (Δ ${elapsed}ms)`);
+      console.log(`[YP] Skipping YES click: no recent dropdown activity (Δ ${elapsed}ms)`);
     }
   });
 }
@@ -309,15 +341,19 @@ chrome.storage.local.get("redirectEnabled", (data) => {
   // Always run on street-view pages, even if redirect is disabled
   const currentUrl = window.location.href;
   const isStreetViewPage = /\/questions\/street-view\/?$/.test(currentUrl);
-  
+
   if (!data.redirectEnabled && !isStreetViewPage) return;
 
   const observer = new MutationObserver(() => {
     tryClickNoLetsEdit();
     // tryClickOkOnProofsRequired();
     autoClickServiceTabs();
-      tryClickYesButton(); // 👈 Add this line
 
+    // Only call tryClickYesButton if redirect is enabled
+    if (data.redirectEnabled) {
+      tryClickYesButton();
+      handleWhoDoesItServePage();
+    }
   });
 
   observer.observe(document.body, {
@@ -331,7 +367,7 @@ if (cancelBtn && cancelBtn.textContent.trim().toUpperCase() === 'CANCEL') {
   // Check if we're on a questions page to prevent unwanted closureinfo redirect
   const currentUrl = window.location.href;
   const isQuestionsPage = /\/questions\//.test(currentUrl);
-  
+
   if (isQuestionsPage) {
     // Navigate directly to location page instead of using history.back()
     // to avoid triggering the popstate handler that redirects to closureinfo
@@ -356,7 +392,7 @@ if (cancelBtn && cancelBtn.textContent.trim().toUpperCase() === 'CANCEL') {
 
 //   // ✅ Only proceed if on /questions/website
 // if (/\/questions\/website$/.test(currentUrl) || /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)||/\/closureInfo\/?$/.test(currentUrl)) {
- 
+
 //   const lastOkClickTime = parseInt(localStorage.getItem('ypLastOkClickTime') || '0', 10);
 //     const now = Date.now();
 
@@ -369,7 +405,7 @@ if (cancelBtn && cancelBtn.textContent.trim().toUpperCase() === 'CANCEL') {
 //       btn.click();
 //       console.log("[YP] Clicked 'NO, LET'S EDIT IT'");
 //     }
-   
+
 //   } else if (btn && btn.textContent.trim().toUpperCase().includes("NO, LET'S EDIT IT")) {
 //       btn.click();
 //       console.log("[YP] Clicked 'NO, LET'S EDIT IT'");
@@ -411,9 +447,192 @@ function tryClickNoLetsEdit() {
 
   // Streetview functionality for questions/street-view page
 
+  // Track when we last clicked buttons to prevent infinite loops
+  let lastNoLetsEditClickTime = 0;
+  let lastAddGroupClickTime = 0;
+  let lastProcessedWhoDoesItServeUrl = '';
+  let currentWhoDoesItServeUrl = '';
+
+  // ✅ "who-does-it-serve" page automation
+  function handleWhoDoesItServePage() {
+    const currentUrl = window.location.href.replace(/\/$/, '');
+
+    // Check if we're on a who-does-it-serve page
+    if (!/\/who-does-it-serve\/?$/.test(currentUrl)) {
+      // Reset tracking when we leave the page
+      if (currentWhoDoesItServeUrl) {
+        console.log('[YP] 🔄 Left who-does-it-serve page - resetting tracking');
+        lastProcessedWhoDoesItServeUrl = '';
+        currentWhoDoesItServeUrl = '';
+      }
+      return;
+    }
+
+    // Detect URL change (including coming back to the same URL)
+    if (currentWhoDoesItServeUrl !== currentUrl) {
+      console.log('[YP] 🔄 URL changed - resetting processing state');
+      lastProcessedWhoDoesItServeUrl = '';
+      currentWhoDoesItServeUrl = currentUrl;
+    }
+
+    // Only process once per page load (URL change)
+    if (lastProcessedWhoDoesItServeUrl === currentUrl) {
+      return;
+    }
+
+    console.log('[YP] 🎯 Detected who-does-it-serve page (new URL)');
+    lastProcessedWhoDoesItServeUrl = currentUrl;
+
+    const now = Date.now();
+
+    // ALWAYS check for "NO, LET'S EDIT IT" button first and click it
+    const noLetsEditBtn = document.querySelector('button.Button.mt-2.Button-primary.Button-fluid.Button-basic');
+    if (noLetsEditBtn && noLetsEditBtn.textContent.trim().toUpperCase().includes("NO, LET'S EDIT IT")) {
+      // Only click if we haven't clicked in the last 2 seconds
+      if (now - lastNoLetsEditClickTime > 2000) {
+        console.log('[YP] ✅ Clicking "NO, LET\'S EDIT IT" button');
+        lastNoLetsEditClickTime = now;
+        noLetsEditBtn.click();
+
+        // After clicking, wait for DOM to update, then check for "+ Add another group" button
+        setTimeout(() => {
+          checkAndClickAddGroupButton();
+        }, 500);
+      } else {
+        console.log('[YP] ⏳ Skipping "NO, LET\'S EDIT IT" - clicked recently');
+      }
+      return;
+    }
+
+    // If "NO, LET'S EDIT IT" button not found, check for "+ Add another group" button
+    checkAndClickAddGroupButton();
+  }
+
+const SPECIFIC_AGES_LABEL = 'Specific ages in this group';
+
+function findSpecificAgesOption() {
+  const options = document.querySelectorAll('ul li[role="presentation"]');
+  for (const option of options) {
+    const span = option.querySelector('span');
+    if (span && span.textContent.trim().toLowerCase() === SPECIFIC_AGES_LABEL.toLowerCase()) {
+      const input = option.querySelector('input[type="radio"][name="ages"]');
+      if (input) {
+        return { option, input };
+      }
+    }
+  }
+  return null;
+}
+
+function primeAgeInputs() {
+  setTimeout(() => {
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+      console.log('[YP] Typing space in currently focused field');
+      activeEl.value = ' ';
+      activeEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    setTimeout(() => {
+      const inputContainer = document.querySelector('.inputContainer');
+      if (inputContainer) {
+        const fromInput = inputContainer.querySelector('input[type="number"]');
+        if (fromInput) {
+          console.log('[YP] Focusing on "From:" input field');
+          fromInput.focus();
+          fromInput.select();
+        }
+      }
+    }, 200);
+  }, 100);
+}
+
+function activateSpecificAgesOption() {
+  const match = findSpecificAgesOption();
+  if (!match || !match.input) {
+    return false;
+  }
+
+  if (!match.input.checked) {
+    console.log('[YP] Using existing "Specific ages in this group" radio button');
+    match.input.click();
+  } else {
+    console.log('[YP] "Specific ages in this group" already selected');
+  }
+
+  primeAgeInputs();
+  return true;
+}
+
+// Helper function to check and click "+ Add another group" button
+function checkAndClickAddGroupButton(retryCount = 0) {
+  const now = Date.now();
+
+  if (document.querySelector('svg.fa-check')) {
+    console.log('[YP] Found check icon - group already selected, doing nothing');
+    return;
+  }
+
+  if (activateSpecificAgesOption()) {
+    return;
+  }
+
+  const existingOptions = document.querySelectorAll('ul li[role="presentation"] input[type="radio"][name="ages"]');
+  if (existingOptions.length > 0) {
+    if (retryCount < 10) {
+      console.log(`[YP] Waiting for "${SPECIFIC_AGES_LABEL}" option (retry ${retryCount + 1}/10)`);
+      setTimeout(() => checkAndClickAddGroupButton(retryCount + 1), 200);
+    } else {
+      console.log(`[YP] "${SPECIFIC_AGES_LABEL}" option not available after retries`);
+    }
+    return;
+  }
+
+  const addGroupText = document.querySelector('.addAnotherGroup');
+  if (addGroupText && addGroupText.textContent.includes('+ Add another group')) {
+    const addGroupBtn = addGroupText.closest('button');
+    if (addGroupBtn) {
+      if (now - lastAddGroupClickTime > 2000) {
+        console.log('[YP] Clicking "+ Add another group" button');
+        lastAddGroupClickTime = now;
+        addGroupBtn.click();
+
+        const attemptActivate = (attempt = 0) => {
+          if (activateSpecificAgesOption()) {
+            return;
+          }
+          if (attempt < 5) {
+            setTimeout(() => attemptActivate(attempt + 1), 200);
+          } else {
+            console.log(`[YP] Unable to locate "${SPECIFIC_AGES_LABEL}" after adding a group`);
+          }
+        };
+
+        setTimeout(() => attemptActivate(), 400);
+      } else {
+        console.log('[YP] Skipping "+ Add another group" - clicked recently');
+      }
+    }
+    return;
+  }
+
+  if (retryCount < 10) {
+    console.log(`[YP] "+ Add another group" button not found - retrying (${retryCount + 1}/10)`);
+    setTimeout(() => {
+      checkAndClickAddGroupButton(retryCount + 1);
+    }, 200);
+  } else {
+    console.log('[YP] "+ Add another group" button not found after retries - giving up');
+  }
+}
 
 
 
 
+
+  // Run who-does-it-serve handler on page load
+  if (data.redirectEnabled) {
+    handleWhoDoesItServePage();
+  }
 
 });

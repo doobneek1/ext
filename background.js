@@ -234,7 +234,244 @@ if (msg.type === 'getPlaceDetails') {
   return true;
 }
 
+  // Check URL status for link validator using Cloud Function
+  if (msg.type === 'CHECK_URL_STATUS') {
+    const url = msg.url;
+    console.log('[LinkValidator] Checking URL via Cloud Function:', url);
+
+    // Note: Cloud Run URLs are case-sensitive, use exact URL from deployment
+    const CLOUD_FUNCTION_URL = 'https://checkwebsitestatus-iygwucy2fa-uc.a.run.app';
+
+    // Retry logic with progressive timeouts
+    const attemptCheck = async (retryCount = 0, timeout = 10000) => {
+      const maxRetries = 2;
+
+      try {
+        console.log(`[LinkValidator] Attempt ${retryCount + 1}/${maxRetries + 1} with ${timeout}ms timeout for:`, url);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        const res = await fetch(CLOUD_FUNCTION_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ url, timeout }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        // Check if response is JSON
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await res.text();
+          console.error('[LinkValidator] Cloud Function returned non-JSON response:', text.substring(0, 200));
+          throw new Error('Cloud Function returned HTML instead of JSON.');
+        }
+
+        const data = await res.json();
+        console.log('[LinkValidator] URL check result:', data);
+
+        sendResponse({
+          status: data.ok ? 'valid' : 'broken',
+          isHttps: data.isHttps,
+          workingUrl: data.url || url,
+          httpStatus: data.status
+        });
+      } catch (err) {
+        console.warn(`[LinkValidator] Attempt ${retryCount + 1} failed:`, err.message);
+
+        // Retry with longer timeout if we haven't exceeded max retries
+        if (retryCount < maxRetries) {
+          const nextTimeout = timeout + 5000; // Add 5 seconds for each retry
+          console.log(`[LinkValidator] Retrying with ${nextTimeout}ms timeout...`);
+          await attemptCheck(retryCount + 1, nextTimeout);
+        } else {
+          console.error('[LinkValidator] All retry attempts failed for:', url);
+          sendResponse({ status: 'unknown', isHttps: false, workingUrl: url });
+        }
+      }
+    };
+
+    attemptCheck();
+    return true;
+  }
+
+  // Proxy website for link validator preview
+  if (msg.type === 'PROXY_WEBSITE') {
+    const url = msg.url;
+    console.log('[LinkValidator] Proxying website:', url);
+
+    // Note: Cloud Run URLs are case-sensitive, use exact URL from deployment
+    const PROXY_URL = 'https://proxywebsite-iygwucy2fa-uc.a.run.app';
+    const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(url)}`;
+
+    fetch(proxyUrl)
+      .then(async res => {
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('[LinkValidator] Proxy endpoint error:', res.status, text.substring(0, 200));
+          throw new Error(`Proxy returned ${res.status}`);
+        }
+
+        // Check content type
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          // Error response in JSON format
+          const json = await res.json();
+          throw new Error(json.error || 'Proxy failed');
+        }
+
+        return res.text();
+      })
+      .then(html => {
+        console.log('[LinkValidator] Website proxied successfully');
+        sendResponse({ success: true, html });
+      })
+      .catch(err => {
+        console.error('[LinkValidator] Proxy failed:', err);
+        sendResponse({ success: false, error: err.toString() });
+      });
+
+    return true;
+  }
+
+
+  // AI-powered page content analysis for link validator
+  if (msg.type === 'ANALYZE_PAGE_CONTENT') {
+    const url = msg.url;
+    console.log('[LinkValidator] Analyzing page content with AI:', url);
+
+    fetch(url)
+      .then(res => res.text())
+      .then(html => {
+        // Extract text content from HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        // Remove script and style tags
+        doc.querySelectorAll('script, style').forEach(el => el.remove());
+
+        // Get text content
+        const text = doc.body.textContent.toLowerCase();
+
+        // AI-powered analysis using pattern matching
+        const analysis = analyzePageText(text, url);
+
+        console.log('[LinkValidator] AI Analysis result:', analysis);
+        sendResponse({ success: true, analysis });
+      })
+      .catch(err => {
+        console.error('[LinkValidator] Page analysis failed:', err);
+        sendResponse({ success: false, analysis: null });
+      });
+
+    return true;
+  }
 
   // Fallback — prevent "port closed" errors if no handler matched
   return false;
 });
+
+/**
+ * Analyzes page text content to detect if page is invalid/closed
+ * Uses pattern matching to identify common phrases
+ */
+function analyzePageText(text, url) {
+  const patterns = {
+    closed: [
+      /form (is|has been)?\s*(no longer|closed|not)\s*(accepting|available)/i,
+      /no longer accepting (responses|applications|submissions)/i,
+      /this (form|page|survey) (is|has been)?\s*(closed|disabled|deactivated)/i,
+      /applications? (are|is)?\s*(closed|not being accepted)/i,
+      /(registration|enrollment|signup)\s*(has|is)?\s*(closed|ended)/i,
+      /deadline has passed/i,
+      /submissions? (are|is)?\s*closed/i
+    ],
+    invalid: [
+      /page (not found|cannot be found|does not exist)/i,
+      /404\s*error/i,
+      /(content|page|resource)\s*(was|has been)?\s*(removed|deleted)/i,
+      /this page (is|has been)?\s*discontinued/i,
+      /link (is|has)?\s*(expired|invalid|broken)/i,
+      /(access|permission)\s*denied/i,
+      /unauthorized/i
+    ],
+    unavailable: [
+      /temporarily unavailable/i,
+      /under maintenance/i,
+      /service unavailable/i,
+      /site (is|has been)?\s*down/i
+    ]
+  };
+
+  let matchedType = null;
+  let matchedPattern = null;
+
+  // Check for closed forms/pages
+  for (const pattern of patterns.closed) {
+    if (pattern.test(text)) {
+      matchedType = 'closed';
+      matchedPattern = pattern.source;
+      break;
+    }
+  }
+
+  // Check for invalid/removed pages
+  if (!matchedType) {
+    for (const pattern of patterns.invalid) {
+      if (pattern.test(text)) {
+        matchedType = 'invalid';
+        matchedPattern = pattern.source;
+        break;
+      }
+    }
+  }
+
+  // Check for temporarily unavailable
+  if (!matchedType) {
+    for (const pattern of patterns.unavailable) {
+      if (pattern.test(text)) {
+        matchedType = 'unavailable';
+        matchedPattern = pattern.source;
+        break;
+      }
+    }
+  }
+
+  if (matchedType) {
+    let reason = '';
+    let isClosed = false;
+    let isInvalid = false;
+
+    if (matchedType === 'closed') {
+      reason = 'Form/page is no longer accepting responses';
+      isClosed = true;
+    } else if (matchedType === 'invalid') {
+      reason = 'Page not found or has been removed';
+      isInvalid = true;
+    } else if (matchedType === 'unavailable') {
+      reason = 'Page is temporarily unavailable';
+      isInvalid = true;
+    }
+
+    return {
+      isClosed,
+      isInvalid,
+      reason,
+      confidence: 'high',
+      summary: `Detected pattern: ${matchedPattern.substring(0, 50)}...`
+    };
+  }
+
+  // No problematic patterns found
+  return {
+    isClosed: false,
+    isInvalid: false,
+    reason: null,
+    confidence: 'medium',
+    summary: 'Page appears to be active and accessible'
+  };
+}

@@ -40,10 +40,27 @@
   let activeModals = [];
   let mapsInstances = [];
   let injectedScripts = [];
+  let originalPushState = null;
+  let originalReplaceState = null;
 
   // Check if yourpeerredirect is enabled
+  let cachedRedirectEnabled = localStorage.getItem('redirectEnabled') === 'true';
+
+  // Try to load from chrome.storage if available (content script context)
+  // Otherwise fall back to localStorage (MAIN world context)
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get("redirectEnabled", (data) => {
+      cachedRedirectEnabled = !!data.redirectEnabled;
+      // Sync to localStorage for MAIN world access
+      localStorage.setItem('redirectEnabled', cachedRedirectEnabled ? 'true' : 'false');
+      console.log('[streetview.js] Redirect enabled loaded from chrome.storage:', cachedRedirectEnabled);
+    });
+  }
+
   function isYourPeerRedirectEnabled() {
-    return localStorage.getItem('yourpeerredirect') === 'true';
+    // Double-check localStorage in case cache is stale
+    const lsValue = localStorage.getItem('redirectEnabled') === 'true';
+    return cachedRedirectEnabled || lsValue;
   }
 
   // Check if we're on street-view page with proper regex
@@ -71,6 +88,12 @@
         cleanupMapsAndModals();
       }
 
+      // Also clean up modals if navigating to ANY non-street-view page
+      if (!isStreetView && activeModals.length > 0) {
+        console.log('[streetview.js] Not on street-view page, cleaning up any lingering modals');
+        cleanupMapsAndModals();
+      }
+
       lastUrl = currentUrl;
 
       // Reset flags when URL changes
@@ -79,14 +102,32 @@
 
       // Run street view logic if on street-view page
       if (isStreetView) {
-        showLoadingBanner();
-        setTimeout(clickNoLetsEditIfNeeded, 500);
+        // Prevent back navigation when entering street view
+        preventBackNavigation();
 
-        // Reinitialize observer if needed
+        clickNoLetsEditIfNeeded(); // Execute immediately without delay
+
+        // Reinitialize observer if needed (with throttling to prevent excessive calls)
         if (!observer) {
-          observer = new MutationObserver(clickNoLetsEditIfNeeded);
+          let lastCallTime = 0;
+          const throttledCallback = () => {
+            const now = Date.now();
+            if (now - lastCallTime > 250) { // Throttle to max 4 calls per second
+              lastCallTime = now;
+              clickNoLetsEditIfNeeded();
+            }
+          };
+          observer = new MutationObserver(throttledCallback);
           const targetContainer = document.querySelector('main') || document.body;
-          observer.observe(targetContainer, { childList: true, subtree: true });
+          observer.observe(targetContainer, {
+            childList: true,
+            subtree: true,
+            // Reduce observer sensitivity to prevent excessive triggering
+            attributes: false,
+            attributeOldValue: false,
+            characterData: false,
+            characterDataOldValue: false
+          });
         }
       }
     }
@@ -100,16 +141,14 @@
       // Method 2: Listen for popstate events only
       popstateHandler = handleUrlChange;
       window.addEventListener('popstate', popstateHandler);
-      // Method 3: Periodic checking as fallback (reduced frequency)
-      urlCheckInterval = setInterval(handleUrlChange, 5000);
       return;
     }
 
     window.doobneekHistoryOverridden = true;
 
     // Method 1: Override pushState and replaceState
-    const originalPushState = history.pushState;
-    const originalReplaceState = history.replaceState;
+    originalPushState = history.pushState;
+    originalReplaceState = history.replaceState;
 
     history.pushState = function() {
       originalPushState.apply(history, arguments);
@@ -125,67 +164,35 @@
     popstateHandler = handleUrlChange;
     window.addEventListener('popstate', popstateHandler);
 
-    // Method 3: Periodic checking as fallback (reduced frequency)
-    urlCheckInterval = setInterval(handleUrlChange, 5000);
-
     console.log('URL change listener setup complete');
   }
 
-  // Show loading banner immediately on street-view URL
-  function showLoadingBanner() {
-    const currentUrl = window.location.href;
-    if (isStreetViewPage(currentUrl) && !bannerShown) {
-      bannerShown = true;
-      const banner = document.createElement('div');
-      banner.id = 'doobneek-loading-banner';
-      banner.textContent = 'doobneek is loading';
-      Object.assign(banner.style, {
-        position: 'fixed',
-        top: '0',
-        left: '0',
-        width: '100%',
-        height: '100%',
-        backgroundColor: '#4CAF50',
-        color: '#fff',
-        fontSize: '2rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: '9999',
-        opacity: '1',
-        transition: 'opacity 2s ease-in-out',
-      });
-      document.body.appendChild(banner);
-      console.log('[ℹ️] doobneek loading banner shown immediately.');
 
-      // Fade out after 2 seconds
-      setTimeout(() => {
-        banner.style.opacity = '0';
-        setTimeout(() => {
-          if (banner.parentNode) {
-            banner.remove();
-          }
-        }, 2000); // Wait for fade transition to complete
-      }, 2000);
-    }
-  }
 
   // Click "NO, LET'S EDIT IT" button if not already clicked for this URL
   function clickNoLetsEditIfNeeded() {
     const currentUrl = window.location.href;
-    
+
     // Reset flags if URL changed
     if (lastStreetViewUrl !== currentUrl) {
       hasClickedNoLetsEdit = false;
       bannerShown = false;
       lastStreetViewUrl = currentUrl;
-      
-      // Show banner immediately on URL change to street-view
-      showLoadingBanner();
     }
-    
-    // Only click if yourpeerredirect IS enabled and we haven't clicked for this URL
-    if (isYourPeerRedirectEnabled() && !hasClickedNoLetsEdit && isStreetViewPage(currentUrl)) {
+
+    // Check if OK was recently clicked and skip if so
+    const lastOkClickTime = parseInt(localStorage.getItem('ypLastOkClickTime') || '0', 10);
+    const now = Date.now();
+    const elapsed = now - lastOkClickTime;
+
+    if (isStreetViewPage(currentUrl) && elapsed < 10000) {
+      console.log(`[streetview.js] ⏳ Skipping 'NO, LET'S EDIT IT' — recent OK click (${elapsed}ms ago)`);
+      return;
+    }
+
+    // Always click on street-view pages if we haven't clicked for this URL yet
+    // (regardless of redirect setting - redirect only controls YES button and navigation)
+    if (!hasClickedNoLetsEdit && isStreetViewPage(currentUrl)) {
       // Look for button by text content since :contains() isn't valid CSS
       const buttons = document.querySelectorAll('button');
       let noLetsEditButton = null;
@@ -207,19 +214,69 @@
     }
   }
 
-  // Initialize URL change listener
-  setupUrlChangeListener();
+  // Prevent back navigation on street view pages
+  function preventBackNavigation() {
+    if (isStreetViewPage(window.location.href)) {
+      // Add a dummy state to history to prevent going back
+      if (!window.doobneekHistoryBlocked) {
+        window.doobneekHistoryBlocked = true;
+        history.pushState({ doobneekBlock: true }, '', window.location.href);
 
-  // Show loading banner immediately on initial load if on street-view page
-  showLoadingBanner();
+        // Override back button behavior
+        const handlePopstate = (event) => {
+          if (isStreetViewPage(window.location.href)) {
+            // Push forward again to stay on the page
+            history.pushState({ doobneekBlock: true }, '', window.location.href);
+            console.log('[streetview.js] Back navigation prevented on street view page');
+          }
+        };
 
-  // Run the check when page loads and on mutations (only on street-view pages)
-  if (isStreetViewPage(window.location.href)) {
-    setTimeout(clickNoLetsEditIfNeeded, 500);
-    observer = new MutationObserver(clickNoLetsEditIfNeeded);
-    // Observe only specific containers instead of entire body
-    const targetContainer = document.querySelector('main') || document.body;
-    observer.observe(targetContainer, { childList: true, subtree: true });
+        window.addEventListener('popstate', handlePopstate);
+
+        // Store the handler for cleanup
+        window.doobneekPopstateHandler = handlePopstate;
+      }
+    }
+  }
+
+  function init() {
+    console.log('[streetview.js] Initializing script');
+    // Initialize URL change listener
+    setupUrlChangeListener();
+
+    // Loading banner removed
+
+    // Prevent back navigation on street view pages
+    preventBackNavigation();
+
+    // Run the check when page loads and on mutations (only on street-view pages)
+    if (isStreetViewPage(window.location.href)) {
+      clickNoLetsEditIfNeeded(); // Execute immediately without delay
+
+      // Only create observer if one doesn't already exist
+      if (!observer) {
+        let lastCallTime = 0;
+        const throttledCallback = () => {
+          const now = Date.now();
+          if (now - lastCallTime > 250) { // Throttle to max 4 calls per second
+            lastCallTime = now;
+            clickNoLetsEditIfNeeded();
+          }
+        };
+        observer = new MutationObserver(throttledCallback);
+        // Observe only specific containers instead of entire body
+        const targetContainer = document.querySelector('main') || document.body;
+        observer.observe(targetContainer, {
+          childList: true,
+          subtree: true,
+          // Reduce observer sensitivity to prevent excessive triggering
+          attributes: false,
+          attributeOldValue: false,
+          characterData: false,
+          characterDataOldValue: false
+        });
+      }
+    }
   }
 
   // Bubble paste functionality - create visual feedback
@@ -267,38 +324,72 @@
       return;
     }
 
-    // Check if script is already loading
-    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
-    if (existingScript) {
-      // Wait for existing script to load
+    // Prevent multiple script injections using a global flag
+    if (window.doobneekMapsLoading) {
+      // Wait for existing load to complete
       const checkGoogle = () => {
         if (window.google && window.google.maps && window.google.maps.StreetViewPanorama) {
           callback();
+        } else if (!window.doobneekMapsLoading) {
+          // Loading failed, retry
+          loadGoogleMapsAPI(apiKey, callback);
         } else {
-          setTimeout(checkGoogle, 100);
+          setTimeout(checkGoogle, 200);
         }
       };
       checkGoogle();
       return;
     }
 
+    // Check if script is already loading
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+    if (existingScript) {
+      window.doobneekMapsLoading = true;
+      // Wait for existing script to load with timeout
+      let attempts = 0;
+      const maxAttempts = 50; // 10 seconds max
+      const checkGoogle = () => {
+        attempts++;
+        if (window.google && window.google.maps && window.google.maps.StreetViewPanorama) {
+          window.doobneekMapsLoading = false;
+          callback();
+        } else if (attempts >= maxAttempts) {
+          window.doobneekMapsLoading = false;
+          console.error('Google Maps API load timeout.');
+        } else {
+          setTimeout(checkGoogle, 200);
+        }
+      };
+      checkGoogle();
+      return;
+    }
+
+    window.doobneekMapsLoading = true;
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,streetview,geometry`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,streetview,geometry&v=weekly`;
     script.async = true;
     script.defer = true;
     script.setAttribute('data-doobneek-script', 'true'); // Mark for cleanup
     script.onload = () => {
-      // Double check that Google Maps is fully loaded
+      // Double check that Google Maps is fully loaded with timeout
+      let attempts = 0;
+      const maxAttempts = 25; // 5 seconds max
       const checkLoaded = () => {
+        attempts++;
         if (window.google && window.google.maps && window.google.maps.StreetViewPanorama) {
+          window.doobneekMapsLoading = false;
           callback();
+        } else if (attempts >= maxAttempts) {
+          window.doobneekMapsLoading = false;
+          console.error('Google Maps API loaded but objects not available.');
         } else {
-          setTimeout(checkLoaded, 50);
+          setTimeout(checkLoaded, 200);
         }
       };
       checkLoaded();
     };
     script.onerror = () => {
+      window.doobneekMapsLoading = false;
       console.error('Google Maps API failed to load.');
       alert('Could not load Google Maps API.');
     };
@@ -307,12 +398,18 @@
   }
 
   async function createStreetViewPicker(locationData, apiKey) {
+    // Only show modal on street-view pages
+    const currentUrl = window.location.href;
+    if (!isStreetViewPage(currentUrl)) {
+      console.log('[streetview.js] Skipping modal - not on street-view page');
+      return;
+    }
+
     // First fetch location details to get address and org/location names
     let streetAddress = '';
     let headerTitle = 'Street View Picker';
 
     // Extract UUID from current URL to fetch location details
-    const currentUrl = window.location.href;
     const uuidMatch = currentUrl.match(/\/team\/location\/([a-f0-9-]+)/);
 
     if (uuidMatch && uuidMatch[1]) {
@@ -504,6 +601,7 @@
     loadGoogleMapsAPI(apiKey, () => {
       let currentStreetViewUrl = '';
       let map, panorama, marker;
+      let hasAppliedInitialSuggestion = false;
 
       // Initialize map center - use existing streetview_url if available, otherwise use position or default
       let defaultCenter = { lat: 40.7128, lng: -74.0060 }; // NYC default
@@ -623,56 +721,27 @@
         }
       });
 
-      // Search functionality
-      const autocomplete = new google.maps.places.Autocomplete(searchInput);
-      autocomplete.bindTo('bounds', map);
+      const streetViewService = new google.maps.StreetViewService();
 
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        if (!place.geometry) return;
+      const requestPanorama = (targetLatLng, referenceLatLng = targetLatLng) => {
+        if (!targetLatLng) return;
 
-        if (place.geometry.viewport) {
-          map.fitBounds(place.geometry.viewport);
-        } else {
-          map.setCenter(place.geometry.location);
-          map.setZoom(17);
-        }
-
-        if (marker) marker.setMap(null);
-        marker = new google.maps.Marker({
-          position: place.geometry.location,
-          map: map
-        });
-      });
-
-      // Click on map to set Street View
-      map.addListener('click', (event) => {
-        const clickedLocation = event.latLng;
-
-        if (marker) marker.setMap(null);
-        marker = new google.maps.Marker({
-          position: clickedLocation,
-          map: map,
-          draggable: true
-        });
-
-        // Check if Street View is available at this location
-        const streetViewService = new google.maps.StreetViewService();
         streetViewService.getPanorama({
-          location: clickedLocation,
+          location: targetLatLng,
           radius: 50,
           source: google.maps.StreetViewSource.OUTDOOR
         }, (data, status) => {
           if (status === 'OK') {
             panorama.setPosition(data.location.latLng);
-            const heading = google.maps.geometry.spherical.computeHeading(data.location.latLng, clickedLocation);
-            panorama.setPov({ heading: heading, pitch: 0 });
+            let heading = panorama.getPov().heading;
+            if (google.maps.geometry?.spherical?.computeHeading) {
+              heading = google.maps.geometry.spherical.computeHeading(data.location.latLng, referenceLatLng);
+            }
+            panorama.setPov({ heading, pitch: 0 });
 
-            // Generate Street View URL
             const lat = data.location.latLng.lat();
             const lng = data.location.latLng.lng();
             const pov = panorama.getPov();
-            const zoom = panorama.getZoom();
 
             currentStreetViewUrl = `https://www.google.com/maps/@${lat},${lng},3a,75y,${pov.heading}h,${pov.pitch}t/data=!3m6!1e1!3m4!1s${data.location.pano}!2e0!7i16384!8i8192`;
 
@@ -680,35 +749,95 @@
             setButton.disabled = false;
             setButton.style.opacity = '1';
           } else {
-            panorama.setPosition(clickedLocation);
+            panorama.setPosition(referenceLatLng);
             urlDisplay.textContent = 'Street View not available at this location';
             setButton.disabled = true;
             setButton.style.opacity = '0.5';
           }
         });
+      };
 
-        // Update marker position when dragged
-        marker.addListener('dragend', () => {
-          const newPosition = marker.getPosition();
-          streetViewService.getPanorama({
-            location: newPosition,
-            radius: 50,
-            source: google.maps.StreetViewSource.OUTDOOR
-          }, (data, status) => {
-            if (status === 'OK') {
-              panorama.setPosition(data.location.latLng);
-              const lat = data.location.latLng.lat();
-              const lng = data.location.latLng.lng();
-              const pov = panorama.getPov();
+      const updateStreetViewForLocation = (referenceLatLng, { draggable = false } = {}) => {
+        if (!referenceLatLng) return;
 
-              currentStreetViewUrl = `https://www.google.com/maps/@${lat},${lng},3a,75y,${pov.heading}h,${pov.pitch}t/data=!3m6!1e1!3m4!1s${data.location.pano}!2e0!7i16384!8i8192`;
+        if (marker) {
+          google.maps.event.clearInstanceListeners(marker);
+          marker.setMap(null);
+        }
 
-              urlDisplay.textContent = truncateUrl(currentStreetViewUrl);
-              setButton.disabled = false;
-              setButton.style.opacity = '1';
+        marker = new google.maps.Marker({
+          position: referenceLatLng,
+          map,
+          draggable
+        });
+
+        requestPanorama(referenceLatLng);
+
+        if (draggable) {
+          marker.addListener('dragend', () => {
+            const newPosition = marker.getPosition();
+            requestPanorama(newPosition);
+          });
+        }
+      };
+
+      const handlePlaceSelection = (place) => {
+        if (!place || !place.geometry) return;
+
+        if (place.geometry.viewport) {
+          map.fitBounds(place.geometry.viewport);
+        } else if (place.geometry.location) {
+          map.setCenter(place.geometry.location);
+          map.setZoom(17);
+        }
+
+        if (place.geometry.location) {
+          updateStreetViewForLocation(place.geometry.location, { draggable: true });
+        }
+      };
+
+      const isPlacesStatusOk = (status) => {
+        const okStatus = google.maps.places?.PlacesServiceStatus?.OK;
+        return status === okStatus || status === 'OK';
+      };
+
+      const placesService = new google.maps.places.PlacesService(map);
+
+      const selectFirstSuggestion = (query) => {
+        if (!query) return;
+        const autocompleteService = new google.maps.places.AutocompleteService();
+        autocompleteService.getPlacePredictions({ input: query }, (predictions, status) => {
+          if (!isPlacesStatusOk(status) || !predictions || !predictions.length) {
+            return;
+          }
+
+          const [firstPrediction] = predictions;
+          placesService.getDetails({ placeId: firstPrediction.place_id }, (place, detailStatus) => {
+            if (!isPlacesStatusOk(detailStatus) || !place) {
+              return;
             }
+            handlePlaceSelection(place);
           });
         });
+      };
+
+      // Search functionality
+      const autocomplete = new google.maps.places.Autocomplete(searchInput);
+      autocomplete.bindTo('bounds', map);
+
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        handlePlaceSelection(place);
+      });
+
+      if (streetAddress && !hasAppliedInitialSuggestion) {
+        hasAppliedInitialSuggestion = true;
+        setTimeout(() => selectFirstSuggestion(streetAddress), 500);
+      }
+
+      // Click on map to set Street View
+      map.addListener('click', (event) => {
+        updateStreetViewForLocation(event.latLng, { draggable: true });
       });
 
       // Update URL when Street View changes
@@ -828,15 +957,20 @@
             }, 50);
 
             createBubble('Street View URL Pasted!');
-            console.log('Street View URL pasted with React-style setter and comprehensive events:', currentStreetViewUrl);
+            console.log('[streetview.js] Street View URL pasted with React-style setter and comprehensive events:', currentStreetViewUrl);
 
             // Auto-click OK button after a short delay to make it stick
+            console.log('[streetview.js] Setting up OK button auto-click timeout');
             setTimeout(() => {
+              console.log('[streetview.js] OK button timeout fired, searching for button...');
               const okButton = document.querySelector('button.Button-primary');
+              console.log('[streetview.js] Looking for OK button:', okButton, okButton?.textContent);
               if (okButton && okButton.textContent.trim() === 'OK') {
-                console.log('Auto-clicking OK button to make URL stick');
+                console.log('[streetview.js] Auto-clicking OK button to make URL stick');
                 okButton.click();
                 createBubble('OK Clicked!');
+              } else {
+                console.warn('[streetview.js] OK button not found or text mismatch');
               }
             }, 500);
 
@@ -879,8 +1013,13 @@
               if (okButton && okButton.textContent.trim() === 'OK') {
                 console.log('OK button clicked, setting up auto-clickers');
 
-                // Click YES after delay
+                // Click YES after delay - only if redirect is enabled
                 setTimeout(() => {
+                  if (!isYourPeerRedirectEnabled()) {
+                    console.log('=== SKIPPING YES BUTTON — redirect not enabled ===');
+                    return;
+                  }
+
                   console.log('=== AUTO-CLICKING YES BUTTON ===');
 
                   const yesButton = document.querySelector('button.Button-primary.Button-fluid');
@@ -1077,9 +1216,26 @@
     // Clean up all maps and modals
     cleanupMapsAndModals();
 
+    // Restore history methods
+    if (originalPushState) {
+      history.pushState = originalPushState;
+      originalPushState = null;
+    }
+    if (originalReplaceState) {
+      history.replaceState = originalReplaceState;
+      originalReplaceState = null;
+    }
+
     // Reset global flags
     window.doobneekOkClickerActive = false;
     window.doobneekHistoryOverridden = false;
+    window.doobneekHistoryBlocked = false;
+
+    // Clean up back navigation prevention
+    if (window.doobneekPopstateHandler) {
+      window.removeEventListener('popstate', window.doobneekPopstateHandler);
+      window.doobneekPopstateHandler = null;
+    }
 
     // Clear global references
     if (window.createStreetViewPicker) {
@@ -1117,6 +1273,19 @@
     cleanup();
   }
   window.doobneekStreetViewLoaded = true;
+
+  // Add pageshow handler for bfcache
+  window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+      console.log('[streetview.js] Page restored from bfcache, re-initializing.');
+      // Clean up any previous state and re-initialize
+      cleanup();
+      init();
+    }
+  });
+
+  // Initial execution
+  init();
 
   window.createStreetViewPicker = createStreetViewPicker;
 })();

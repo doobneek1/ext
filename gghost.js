@@ -21,6 +21,7 @@ window.gghost.getCognitoTokens = function getCognitoTokens() {
     const storage = localStorage;
     let accessToken = null;
     let idToken = null;
+    let refreshToken = null;
     let username = null;
 
     // Debug: Log all localStorage keys
@@ -38,6 +39,9 @@ window.gghost.getCognitoTokens = function getCognitoTokens() {
         } else if (key.includes('.idToken')) {
           idToken = storage.getItem(key);
           console.log('[getCognitoTokens] Found idToken');
+        } else if (key.includes('.refreshToken')) {
+          refreshToken = storage.getItem(key);
+          console.log('[getCognitoTokens] Found refreshToken');
         } else if (key.includes('.LastAuthUser')) {
           username = storage.getItem(key);
           console.log('[getCognitoTokens] Found username:', username);
@@ -49,13 +53,14 @@ window.gghost.getCognitoTokens = function getCognitoTokens() {
     console.log('[getCognitoTokens] Result:', { 
       hasAccessToken: !!accessToken, 
       hasIdToken: !!idToken, 
+      hasRefreshToken: !!refreshToken,
       username 
     });
 
-    return { accessToken, idToken, username };
+    return { accessToken, idToken, refreshToken, username };
   } catch (error) {
     console.warn('[getCognitoTokens] Error accessing localStorage:', error);
-    return { accessToken: null, idToken: null, username: null };
+    return { accessToken: null, idToken: null, refreshToken: null, username: null };
   }
 };
 
@@ -580,9 +585,9 @@ function showSiteVisitEmbed({ uuid, onClose = () => {} }) {
       const ok = !payload?.nonce || payload.nonce === nonce;
       if (!ok) return;
       
-      const { accessToken, idToken, username } = getCognitoTokens();
+      const { accessToken, idToken, refreshToken, username } = getCognitoTokens();
       iframe.contentWindow.postMessage(
-        { type: "CREDS", payload: { username, accessToken, idToken, nonce } },
+        { type: "CREDS", payload: { username, accessToken, idToken, refreshToken, nonce } },
         EMBED_ORIGIN
       );
     } else if (type === "CLOSE_EMBED") {
@@ -2346,6 +2351,151 @@ function pickServiceHash(services, preferId){
   return "#" + svc.name.trim().replace(/\s+/g, "-");
 }
 
+/* =========================
+   Helpers: service taxonomy
+   ========================= */
+const locationRecordCache = new Map();
+
+async function fetchFullLocationRecord(uuid, { refresh = false } = {}) {
+  if (!uuid) return null;
+  if (!refresh && locationRecordCache.has(uuid)) {
+    return locationRecordCache.get(uuid);
+  }
+
+  try {
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    locationRecordCache.set(uuid, data);
+    return data;
+  } catch (err) {
+    console.error('[Service Taxonomy] Failed to fetch location record', uuid, err);
+    return null;
+  }
+}
+
+function findServiceRecord(locationData, serviceId) {
+  if (!locationData || !serviceId) return null;
+  const services = coerceServicesArray(locationData.Services || locationData.services);
+  return services.find(service => service?.id === serviceId) || null;
+}
+
+function removeServiceTaxonomyBanner() {
+  document.querySelectorAll('[data-gghost-service-taxonomy]').forEach(node => node.remove());
+}
+
+function renderServiceTaxonomyBanner(taxonomies) {
+  if (!Array.isArray(taxonomies) || taxonomies.length === 0) return;
+
+  const banner = document.createElement('div');
+  banner.setAttribute('data-gghost-service-taxonomy', 'true');
+  Object.assign(banner.style, {
+    position: 'fixed',
+    top: '88px',
+    right: '20px',
+    background: '#fffef5',
+    border: '1px solid #d4c79a',
+    borderRadius: '8px',
+    padding: '12px 16px',
+    boxShadow: '0 6px 18px rgba(0, 0, 0, 0.12)',
+    maxWidth: '320px',
+    fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    color: '#1f1f1f',
+    zIndex: '9999',
+    lineHeight: '1.4'
+  });
+
+  const heading = document.createElement('div');
+  heading.textContent = 'Service taxonomy';
+  Object.assign(heading.style, {
+    fontSize: '13px',
+    fontWeight: '600',
+    letterSpacing: '0.02em',
+    textTransform: 'uppercase',
+    marginBottom: '6px'
+  });
+  banner.appendChild(heading);
+
+  const list = document.createElement('ul');
+  Object.assign(list.style, {
+    margin: '0',
+    padding: '0',
+    listStyle: 'none',
+    fontSize: '13px'
+  });
+
+  taxonomies.forEach(({ parent_name: parentName, name }) => {
+    if (!parentName && !name) return;
+
+    const item = document.createElement('li');
+    item.style.display = 'flex';
+    item.style.alignItems = 'center';
+    item.style.gap = '6px';
+    item.style.padding = '4px 0';
+
+    if (parentName) {
+      const parent = document.createElement('span');
+      parent.textContent = parentName;
+      parent.style.fontWeight = '500';
+      parent.style.color = '#5f4b00';
+      item.appendChild(parent);
+    }
+
+    if (parentName && name) {
+      const separator = document.createElement('span');
+      separator.textContent = '›';
+      separator.style.color = '#a38300';
+      separator.style.fontSize = '12px';
+      item.appendChild(separator);
+    }
+
+    if (name) {
+      const child = document.createElement('span');
+      child.textContent = name;
+      child.style.color = '#2f2f2f';
+      item.appendChild(child);
+    }
+
+    list.appendChild(item);
+  });
+
+  if (!list.children.length) {
+    const empty = document.createElement('div');
+    empty.textContent = 'No taxonomy data available for this service.';
+    empty.style.fontSize = '12px';
+    empty.style.color = '#6f6f6f';
+    banner.appendChild(empty);
+  } else {
+    banner.appendChild(list);
+  }
+
+  document.body.appendChild(banner);
+}
+
+async function showServiceTaxonomy(locationId, serviceId) {
+  const locationData = await fetchFullLocationRecord(locationId, { refresh: true });
+  if (!locationData) return;
+
+  const service = findServiceRecord(locationData, serviceId);
+  if (!service) {
+    console.warn('[Service Taxonomy] Service not found in location payload', { locationId, serviceId });
+    return;
+  }
+
+  const taxonomies = Array.isArray(service.Taxonomies)
+    ? service.Taxonomies.filter(tax => tax && (tax.parent_name || tax.name))
+    : [];
+
+  if (!taxonomies.length) {
+    console.log('[Service Taxonomy] No taxonomy entries to display for service', serviceId);
+    return;
+  }
+
+  renderServiceTaxonomyBanner(taxonomies);
+}
+
 /* ==========================================
    Helpers: Google Voice / Gmail link builders
    ========================================== */
@@ -2749,8 +2899,29 @@ document.addEventListener("DOMContentLoaded", () => {
   initializeSpeechRecognition(); 
 });
 async function injectGoGettaButtons() {
-if (document.body.dataset.gghostRendered === 'true') return;
-document.body.dataset.gghostRendered = 'true';
+  removeServiceTaxonomyBanner();
+  const host = location.hostname;
+  if (!host.includes('gogetta.nyc')) {
+    return;
+  }
+  const path = location.pathname;
+  const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
+  const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
+  const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
+  const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
+
+  if (fullServiceMatch) {
+    const locationId = fullServiceMatch[1];
+    const serviceId = fullServiceMatch[2];
+    showServiceTaxonomy(locationId, serviceId).catch(err => {
+      console.error('[Service Taxonomy] Failed to render taxonomy banner', err);
+    });
+  }
+
+  if (document.body.dataset.gghostRendered === 'true') {
+    return;
+  }
+  document.body.dataset.gghostRendered = 'true';
   document.querySelectorAll('[data-gghost-container]').forEach(container => container.remove());
   globalButtonDropdown = null;
   buttonActions.length = 0;
@@ -2758,9 +2929,6 @@ document.body.dataset.gghostRendered = 'true';
   if (existingGoToYpBtn) {
     existingGoToYpBtn.remove();
   }
-  const host = location.hostname;
-  const path = location.pathname;
-  if (!host.includes('gogetta.nyc')) return;
   // Global dropdown system for all gghost buttons
 
   const createHoverDropdown = () => {
@@ -2869,10 +3037,6 @@ document.body.dataset.gghostRendered = 'true';
     buttonActions.push({ text, onClick, element: option });
     return { remove: () => option.remove(), element: option };
   };
-const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
-const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
-const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
-const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
 if (uuid === "connections") {
   console.warn("[Notes] Skipping rendering for reserved UUID: connections");
   return;
@@ -4974,6 +5138,7 @@ document.addEventListener('visibilitychange', () => {
       console.log("[gghost.js] Sending tokens to popup:", { 
         hasAccessToken: !!tokens.accessToken, 
         hasIdToken: !!tokens.idToken, 
+        hasRefreshToken: !!tokens.refreshToken,
         username: tokens.username 
       });
       sendResponse(tokens);

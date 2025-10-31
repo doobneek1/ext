@@ -52,10 +52,14 @@ function getValidationColor(dateStr) {
   return 'red';
 }
 (async function () {
+  // Detect if running in iframe
+  const isInIframe = (window.top !== window.self);
+  console.log('[YPHost] Running in iframe:', isInIframe);
+
   function normalize(str) {
     return str?.toLowerCase()?.replace(/[^a-z0-9]+/g, '').trim();
   }
-  async function injectServiceEditButtons(slug, locationId, services) {
+  async function injectServiceEditButtons(slug, locationId, services, skipLinks = false) {
     const serviceMap = {};
     for (const svc of services) {
       if (svc?.name && svc?.id) {
@@ -74,20 +78,25 @@ document.querySelectorAll('div[id]').forEach(section => {
   const statusText = formatTimeAgo(firstValid);
   const color = getValidationColor(firstValid);
   const pTag = section.querySelector('p.text-dark.text-sm span');
- const alreadyInjected = section.querySelector('a[data-holiday-link]');
+ const alreadyInjected = section.querySelector('[data-holiday-link]');
 if (pTag && !alreadyInjected) {
   const dash = document.createTextNode(' – ');
-  const link = document.createElement('a');
-  link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/opening-hours`;
-  link.textContent = statusText;
-  link.setAttribute('data-holiday-link', 'true'); 
-  Object.assign(link.style, {
+  const element = skipLinks ? document.createElement('span') : document.createElement('a');
+  if (!skipLinks) {
+    element.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/opening-hours`;
+  }
+  element.textContent = statusText;
+  element.setAttribute('data-holiday-link', 'true');
+  Object.assign(element.style, {
     color: color,
     fontWeight: 'bold',
     marginLeft: '2px',
-    textDecoration: 'underline',
+    textDecoration: skipLinks ? 'none' : 'underline',
+    pointerEvents: skipLinks ? 'none' : 'auto',
+    display: 'inline',
+    position: 'relative',
   });
-  pTag.after(dash, link);
+  pTag.after(dash, element);
 }
 });
 document.querySelectorAll('div[id]').forEach(section => {
@@ -103,20 +112,25 @@ document.querySelectorAll('div[id]').forEach(section => {
   if (!firstValid || !locationId || !serviceId) return;
   const statusText = formatTimeAgo(firstValid);
   const color = getValidationColor(firstValid);
- const alreadyInjected = section.querySelector('a[data-otherinfo-link]');
+ const alreadyInjected = section.querySelector('[data-otherinfo-link]');
 if (infoBlock && !alreadyInjected) {
   const dashText = document.createTextNode(' – ');
-  const link = document.createElement('a');
-  link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/other-info`;
-  link.textContent = statusText;
-  link.setAttribute('data-otherinfo-link', 'true'); 
-  Object.assign(link.style, {
+  const element = skipLinks ? document.createElement('span') : document.createElement('a');
+  if (!skipLinks) {
+    element.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/other-info`;
+  }
+  element.textContent = statusText;
+  element.setAttribute('data-otherinfo-link', 'true');
+  Object.assign(element.style, {
     color: color,
     fontWeight: 'bold',
     marginLeft: '2px',
-    textDecoration: 'underline',
+    textDecoration: skipLinks ? 'none' : 'underline',
+    pointerEvents: skipLinks ? 'none' : 'auto',
+    display: 'inline',
+    position: 'relative',
   });
-  infoBlock.after(dashText, link);
+  infoBlock.after(dashText, element);
 }
 });
 document.querySelectorAll('div[id]').forEach(async section => {
@@ -150,27 +164,32 @@ document.querySelectorAll('div[id]').forEach(async section => {
     if (!pTag) return;
 
     // Remove duplicates (optional safety net)
-    const links = section.querySelectorAll('a[data-description-link]');
-    links.forEach((link, i) => {
-      if (i > 0) link.remove(); // remove all but the first
+    const existing = section.querySelectorAll('[data-description-link]');
+    existing.forEach((el, i) => {
+      if (i > 0) el.remove(); // remove all but the first
     });
 
-    const alreadyInjected = links.length > 0;
+    const alreadyInjected = existing.length > 0;
     if (!alreadyInjected) {
       const statusText = formatTimeAgo(lastDescriptionUpdate);
       const color = getValidationColor(lastDescriptionUpdate);
       const dash = document.createTextNode(' – ');
-      const link = document.createElement('a');
-      link.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/description`;
-      link.textContent = statusText;
-      link.setAttribute('data-description-link', 'true');
-      Object.assign(link.style, {
+      const element = skipLinks ? document.createElement('span') : document.createElement('a');
+      if (!skipLinks) {
+        element.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/description`;
+      }
+      element.textContent = statusText;
+      element.setAttribute('data-description-link', 'true');
+      Object.assign(element.style, {
         color: color,
         fontWeight: 'bold',
         marginLeft: '2px',
-        textDecoration: 'underline',
+        textDecoration: skipLinks ? 'none' : 'underline',
+        pointerEvents: skipLinks ? 'none' : 'auto',
+        display: 'inline',
+        position: 'relative',
       });
-      pTag.after(dash, link);
+      pTag.after(dash, element);
     }
 
   } catch (err) {
@@ -178,6 +197,8 @@ document.querySelectorAll('div[id]').forEach(async section => {
   }
 });
 
+    // Only add edit buttons if not skipping links (i.e., not in iframe)
+    if (!skipLinks) {
     document.querySelectorAll('div[id]').forEach(section => {
       const rawId = section.id;
       const normalized = normalize(rawId);
@@ -202,6 +223,7 @@ document.querySelectorAll('div[id]').forEach(async section => {
       const header = section.querySelector('h2');
       if (header) header.appendChild(btn);
     });
+    }
   }
   async function injectButtons() {
     const host = location.hostname;
@@ -575,7 +597,7 @@ Object.assign(note.style, {
             const finalUrl = {
               edit: `${baseUrl}`,
               services: `${baseUrl}/services`,
-              recap: `${baseUrl}/services/recap`,
+              recap: `${baseUrl}/services/recap`, 
               closure: `${baseUrl}/closureInfo`
             }[data.target] || baseUrl;
             chrome.storage?.local?.set?.({ redirectEnabled: false }, () => {
@@ -631,8 +653,43 @@ Object.assign(note.style, {
       console.error('[YP] ❌ Failed to inject buttons:', err);
     }
   }
-  await injectButtons();
-  onUrlChange(() => {
-    injectButtons();
-  });
+  // If in iframe, only inject validation recency (no buttons)
+  if (isInIframe) {
+    console.log('[YPHost] In iframe mode - showing validation recency only');
+    async function injectValidationRecencyOnly() {
+      const pathMatch = location.pathname.match(/\/locations\/([^\/]+)/);
+      const slug = pathMatch?.[1]?.split('#')[0]; // Remove hash if present
+      console.log('[YPHost] Extracted slug:', slug, 'from path:', location.pathname);
+      if (!slug) {
+        console.warn('[YPHost] No slug found in path:', location.pathname);
+        return;
+      }
+
+      try {
+        console.log('[YPHost] Fetching location data for:', slug);
+        const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${slug}`);
+        const json = await res.json();
+        const locationId = json.id;
+        const services = json?.Services || [];
+        console.log('[YPHost] Found', services.length, 'services for location', locationId);
+
+        await injectServiceEditButtons(slug, locationId, services, true); // true = skip links in iframe
+        console.log('[YPHost] Validation recency injected');
+      } catch (err) {
+        console.error('[YP] ❌ Failed to inject validation recency:', err);
+      }
+    }
+
+    await injectValidationRecencyOnly();
+    onUrlChange(() => {
+      console.log('[YPHost] URL changed in iframe, re-injecting validation recency');
+      injectValidationRecencyOnly();
+    });
+  } else {
+    // Only inject buttons if not in iframe
+    await injectButtons();
+    onUrlChange(() => {
+      injectButtons();
+    });
+  }
 })();

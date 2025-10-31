@@ -4,6 +4,7 @@ function getCognitoTokens() {
     const storage = localStorage;
     let accessToken = null;
     let idToken = null;
+    let refreshToken = null;
     let username = null;
 
     // Find Cognito tokens by scanning localStorage
@@ -14,16 +15,18 @@ function getCognitoTokens() {
           accessToken = storage.getItem(key);
         } else if (key.includes('.idToken')) {
           idToken = storage.getItem(key);
+        } else if (key.includes('.refreshToken')) {
+          refreshToken = storage.getItem(key);
         } else if (key.includes('.LastAuthUser')) {
           username = storage.getItem(key);
         }
       }
     }
 
-    return { accessToken, idToken, username };
+    return { accessToken, idToken, refreshToken, username };
   } catch (error) {
     console.warn('[getCognitoTokens] Error accessing localStorage:', error);
-    return { accessToken: null, idToken: null, username: null };
+    return { accessToken: null, idToken: null, refreshToken: null, username: null };
   }
 }
 

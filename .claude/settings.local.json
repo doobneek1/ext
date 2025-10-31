@@ -3,7 +3,9 @@
     "allow": [
       "WebFetch(domain:w6pkliozjh.execute-api.us-east-1.amazonaws.com)",
       "Bash(find:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Read(//c/Users/doobneek/doobneek/doobneek-backup/functions/**)",
+      "Read(//c/Users/doobneek/doobneek/doobneek-backup/**)"
     ],
     "deny": [],
     "ask": []
