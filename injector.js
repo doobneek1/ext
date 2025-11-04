@@ -305,6 +305,30 @@
       let selectionRange = null;
       let overlayVisible = false;
       let lastSelectionSignature = null;
+      let suppressedSelectionSignature = null;
+
+      const selectionInsideExistingAnchor = (content, start, end) => {
+        if (!content || start == null || end == null) return false;
+        if (start >= end) return false;
+
+        const openTagRegex = /<a\b[^>]*>/gi;
+        let lastOpen = null;
+        let match;
+        while ((match = openTagRegex.exec(content)) !== null) {
+          if (match.index >= start) break;
+          lastOpen = { start: match.index, end: openTagRegex.lastIndex };
+        }
+        if (!lastOpen || lastOpen.end > start) {
+          return false;
+        }
+
+        const closeTagRegex = /<\/a\s*>/gi;
+        closeTagRegex.lastIndex = lastOpen.end;
+        const closingMatch = closeTagRegex.exec(content);
+        if (!closingMatch) return false;
+
+        return closingMatch.index >= end;
+      };
 
       const setError = (message) => {
         if (message) {
@@ -320,7 +344,11 @@
         }
       };
 
-      const hideOverlay = () => {
+      const hideOverlay = (options = {}) => {
+        const { suppress = false } = options;
+        if (suppress && selectionRange) {
+          suppressedSelectionSignature = `${selectionRange.start}:${selectionRange.end}`;
+        }
         overlayVisible = false;
         linkOverlay.style.display = 'none';
         selectionRange = null;
@@ -458,6 +486,11 @@
         }
 
         const signature = `${start}:${end}`;
+        if (suppressedSelectionSignature && signature === suppressedSelectionSignature) {
+          return;
+        }
+        suppressedSelectionSignature = null;
+
         if (signature === lastSelectionSignature && overlayVisible) {
           positionOverlay();
           return;
@@ -473,6 +506,10 @@
           hideOverlay();
           return;
         }
+        if (selectionInsideExistingAnchor(textarea.value, start, end)) {
+          hideOverlay();
+          return;
+        }
 
         selectionRange = { start, end };
         updateSelectionLabel(selectedText);
@@ -484,13 +521,13 @@
       const onDocumentPointerDown = (event) => {
         if (!overlayVisible) return;
         if (linkOverlay.contains(event.target) || textarea.contains(event.target)) return;
-        hideOverlay();
+        hideOverlay({ suppress: true });
       };
 
       linkInput.addEventListener('input', () => setError(''));
       confirmButton.addEventListener('click', applyLink);
       cancelButton.addEventListener('click', () => {
-        hideOverlay();
+        hideOverlay({ suppress: true });
         if (selectionRange) {
           textarea.focus();
           textarea.selectionStart = selectionRange.start;
@@ -503,7 +540,7 @@
           applyLink();
         } else if (event.key === 'Escape') {
           event.preventDefault();
-          hideOverlay();
+          hideOverlay({ suppress: true });
           textarea.focus();
         }
       });
@@ -535,7 +572,7 @@
       cancelButton.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          hideOverlay();
+          hideOverlay({ suppress: true });
           textarea.focus();
         }
       });
@@ -1671,7 +1708,7 @@ function processText(input) {
     output.push(safeHyperlink(formatted));
   });
 
-  return output.join('\n');
+  return output.join('\n').replace(/\n<br>/g, '<br>');
 }
 
 })();

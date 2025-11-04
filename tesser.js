@@ -1,156 +1,226 @@
 (() => {
-  const isGmail = location.hostname.includes('mail.google.com');
-  const isGoogleVoice = location.hostname.includes('voice.google.com');
-  const isYourPeer = location.hostname.includes('yourpeer.nyc');
-  const isGoGetta = location.hostname.includes('gogetta.nyc');
-  
+  const hostname = location.hostname.toLowerCase();
+  const isGmail = hostname.includes('mail.google.com');
+  const isGoogleVoice = hostname.includes('voice.google.com');
+  const isYourPeer = hostname.includes('yourpeer.nyc');
+  const isGoGetta = hostname.includes('gogetta.nyc');
+
   // Skip hyperlink functionality entirely on Gmail only
   if (isGmail) {
     return;
   }
 
   const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?(?:\(\d{1,4}\)|\d{1,4})[-.\s]?\d{1,4}[-.\s]?\d{1,9}(?:\s?(?:ext|x|extension)\.?\s?\d+)?/gi;
-  const emailRegex = /[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?/g;
-  const urlRegex = /\b(?:(?:https?|ftp):\/\/|www\.)[-a-zA-Z0-9+&@#\/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#\/%=~_|]/g;
+  const emailRegex = /[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?/gi;
+  const urlRegex = /\b(?:(?:https?|ftp):\/\/|www\.)[-a-zA-Z0-9+&@#\/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#\/%=~_|]/gi;
 
-  function isInsideLinkOrEditable(node) {
+  const AUTO_TEXT_FLAG = '__tesserAutoText';
+  const processedNodes = new WeakSet();
+
+  const SKIP_TAGS = new Set([
+    'A', 'TEXTAREA', 'CODE', 'PRE', 'SCRIPT', 'STYLE', 'NOSCRIPT', 'OPTION', 'BUTTON',
+    'INPUT', 'SELECT', 'LABEL', 'CANVAS', 'SVG', 'TITLE', 'HEAD', 'IFRAME'
+  ]);
+
+  const hyperlinkPatterns = [];
+
+  if (!isYourPeer && !isGoGetta) {
+    hyperlinkPatterns.push({
+      type: 'url',
+      getRegex: () => new RegExp(urlRegex.source, 'gi'),
+      build(match) {
+        const raw = match[0];
+        if (!raw) return null;
+        const href = /^https?:\/\//i.test(raw) || /^ftp:\/\//i.test(raw) ? raw : `https://${raw}`;
+        const anchor = document.createElement('a');
+        anchor.href = href;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer';
+        anchor.textContent = raw;
+        anchor.dataset.ypAutoLink = 'true';
+        return anchor;
+      }
+    });
+  }
+
+  hyperlinkPatterns.push({
+    type: 'email',
+    getRegex: () => new RegExp(emailRegex.source, 'gi'),
+    build(match) {
+      const address = match[0];
+      if (!address || !address.includes('@')) return null;
+      const anchor = document.createElement('a');
+      anchor.href = `mailto:${address}`;
+      anchor.textContent = address;
+      anchor.dataset.ypAutoLink = 'true';
+      return anchor;
+    }
+  });
+
+  if (!isGoogleVoice) {
+    hyperlinkPatterns.push({
+      type: 'phone',
+      getRegex: () => new RegExp(phoneRegex.source, 'gi'),
+      build(match) {
+        const raw = match[0];
+        if (!raw || /[a-z]/i.test(raw)) return null;
+        const digitsOnly = raw.replace(/\D+/g, '');
+        if (digitsOnly.length < 10 || digitsOnly.length > 15) return null;
+        const anchor = document.createElement('a');
+        anchor.href = `tel:${digitsOnly}`;
+        anchor.textContent = raw;
+        anchor.dataset.ypAutoLink = 'true';
+        return anchor;
+      }
+    });
+  }
+
+  if (!hyperlinkPatterns.length) {
+    return;
+  }
+
+  function shouldSkipNode(node) {
     let current = node.parentNode;
     while (current) {
-      if (
-        current.nodeName === 'TEXTAREA' ||
-        current.isContentEditable ||
-        current.id === 'yp-embed-wrapper'
-      ) {
-        return true;
+      if (current.nodeType === Node.ELEMENT_NODE) {
+        const tagName = current.tagName;
+        if (SKIP_TAGS.has(tagName)) return true;
+        if (current.isContentEditable) return true;
+        if (current.id === 'yp-embed-wrapper') return true;
       }
       current = current.parentNode;
     }
     return false;
   }
 
+  function findNextMatch(text, startIndex) {
+    let best = null;
+    for (const pattern of hyperlinkPatterns) {
+      const regex = pattern.getRegex();
+      regex.lastIndex = startIndex;
+      const match = regex.exec(text);
+      if (match && (best === null || match.index < best.index)) {
+        best = { pattern, match, index: match.index, value: match[0] };
+      }
+    }
+    return best;
+  }
+
+  function createLinkifiedFragment(text) {
+    let cursor = 0;
+    let changed = false;
+    const parts = [];
+
+    while (cursor < text.length) {
+      const next = findNextMatch(text, cursor);
+      if (!next) break;
+
+      if (next.index > cursor) {
+        parts.push({ type: 'text', value: text.slice(cursor, next.index) });
+      }
+
+      const anchor = next.pattern.build(next.match);
+      if (anchor) {
+        parts.push({ type: 'node', value: anchor });
+        changed = true;
+      } else {
+        parts.push({ type: 'text', value: next.value });
+      }
+
+      const advanceBy = next.value.length || 1;
+      cursor = next.index + advanceBy;
+    }
+
+    if (!changed) {
+      return null;
+    }
+
+    if (cursor < text.length) {
+      parts.push({ type: 'text', value: text.slice(cursor) });
+    }
+
+    const fragment = document.createDocumentFragment();
+    for (const part of parts) {
+      if (part.type === 'node') {
+        fragment.appendChild(part.value);
+      } else if (part.value) {
+        const textNode = document.createTextNode(part.value);
+        textNode[AUTO_TEXT_FLAG] = true;
+        fragment.appendChild(textNode);
+      }
+    }
+    return fragment;
+  }
+
   function hyperlinkTextNodes(root) {
+    if (!root) return;
+
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
-    const textNodes = [];
+    const candidates = [];
 
     while (walker.nextNode()) {
       const node = walker.currentNode;
-      if (isInsideLinkOrEditable(node)) continue;
-      textNodes.push(node);
+      if (processedNodes.has(node)) continue;
+      if (node[AUTO_TEXT_FLAG]) {
+        processedNodes.add(node);
+        continue;
+      }
+      if (!node.nodeValue || !node.nodeValue.trim()) {
+        processedNodes.add(node);
+        continue;
+      }
+      if (shouldSkipNode(node)) {
+        processedNodes.add(node);
+        continue;
+      }
+      candidates.push(node);
     }
 
-    textNodes.forEach(node => {
-      const originalText = node.textContent;
-      let replaced = originalText;
-
-      // Only apply URL hyperlinking on domains that aren't yourpeer or gogetta
-      if (!isYourPeer && !isGoGetta) {
-        replaced = replaced.replace(urlRegex, match => {
-          const href = match.startsWith('http') ? match : `https://${match}`;
-          return `<a href="${href}" target="_blank" rel="noopener noreferrer">${match}</a>`;
-        });
+    candidates.forEach(node => {
+      const fragment = createLinkifiedFragment(node.nodeValue);
+      if (fragment) {
+        node.replaceWith(fragment);
       }
-
-      replaced = replaced.replace(emailRegex, match => {
-        return isGmail
-          ? `<a href="mailto:${match}">${match}</a>`
-          : `<a href="mailto:${match}" target="_blank" rel="noopener noreferrer">${match}</a>`;
-      });
-
-if (!isGoogleVoice) {
-  replaced = replaced.replace(phoneRegex, match => {
-    // Reject matches that contain letters
-    if (/[a-z]/i.test(match)) return match;
-
-    const digitsOnly = match.replace(/\D+/g, '');
-
-    // Require at least 10 digits to be a valid phone number
-    if (digitsOnly.length < 10) return match;
-
-    return `<a href="tel:${digitsOnly}">${match}</a>`;
-  });
-}
-
-
-
-      if (replaced !== originalText) {
-        const template = document.createElement('template');
-        template.innerHTML = replaced;
-        node.replaceWith(template.content.cloneNode(true));
-      }
+      processedNodes.add(node);
     });
   }
 
-  // Process a specific root node for hyperlinks
   function processNode(rootNode) {
-    // If the rootNode itself is a text node, we need to handle it carefully
-    // or ensure hyperlinkTextNodes can handle a single text node as its root.
-    // For simplicity, we'll assume hyperlinkTextNodes is robust enough or
-    // we primarily care about element nodes being added.
     if (rootNode.nodeType === Node.TEXT_NODE) {
-        // If it's a text node, and not inside a link/editable, try to process its parent
-        // or the node itself if it's directly added to a place where it should be hyperlinked.
-        // This case might need more refinement depending on how text nodes are added.
-        // A simple approach: if a text node is added, re-process its parent.
-        if (rootNode.parentNode && rootNode.parentNode !== document) {
-             // Avoid re-processing the entire document.body for a single text node addition
-             // Check if the parent is suitable for processing.
-             if (!isInsideLinkOrEditable(rootNode) && rootNode.parentNode.nodeName !== 'SCRIPT' && rootNode.parentNode.nodeName !== 'STYLE') {
-                hyperlinkTextNodes(rootNode.parentNode);
-             }
-        }
-    } else if (rootNode.nodeType === Node.ELEMENT_NODE) {
-        // If it's an element node, walk its text node descendants
-        hyperlinkTextNodes(rootNode);
+      if (
+        rootNode.parentNode &&
+        rootNode.parentNode !== document &&
+        !shouldSkipNode(rootNode)
+      ) {
+        hyperlinkTextNodes(rootNode.parentNode);
+      }
+      return;
+    }
+
+    if (rootNode.nodeType === Node.ELEMENT_NODE || rootNode.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+      hyperlinkTextNodes(rootNode);
     }
   }
 
-  // The main processing function, now renamed to reflect it handles shadows.
-  function processNodeAndShadows(rootNode, isInitialScan = false) {
+  function processNodeAndShadows(rootNode) {
     if (!rootNode) return;
 
-    // Determine the actual node to run TreeWalker on.
-    // TreeWalker root must be a Node, not a DocumentFragment directly if it's empty.
-    let effectiveRoot = rootNode;
-    if (rootNode.nodeType === Node.DOCUMENT_FRAGMENT_NODE) { // ShadowRoot
-        // Ensure shadow root has children to walk, otherwise TreeWalker can be problematic
-        // or simply hyperlinkTextNodes needs to be robust for empty/minimal fragments.
-        // hyperlinkTextNodes itself should handle empty roots gracefully.
-        effectiveRoot = rootNode;
-    } else if (rootNode.nodeType === Node.ELEMENT_NODE) {
-        effectiveRoot = rootNode;
-    } else if (rootNode.nodeType === Node.TEXT_NODE) {
-      // If a single text node is passed, process its parent if appropriate
-      if (rootNode.parentNode && rootNode.parentNode !== document &&
-          !isInsideLinkOrEditable(rootNode) &&
-          rootNode.parentNode.nodeName !== 'SCRIPT' && rootNode.parentNode.nodeName !== 'STYLE') {
-        hyperlinkTextNodes(rootNode.parentNode);
-      }
-      return; // No further recursion needed for a text node by itself
-    } else {
-        return; // Not an element, shadow root, or text node we can process
-    }
+    processNode(rootNode);
 
-    hyperlinkTextNodes(effectiveRoot);
+    const elementsToScan =
+      rootNode.nodeType === Node.ELEMENT_NODE || rootNode.nodeType === Node.DOCUMENT_FRAGMENT_NODE
+        ? rootNode.querySelectorAll('*')
+        : [];
 
-    // Recursively process shadow roots within the current root (if it's an element or shadow DOM)
-    // Query all elements that could host a shadow DOM.
-    const elementsToScan = effectiveRoot.nodeType === Node.ELEMENT_NODE ? effectiveRoot.querySelectorAll('*') :
-                           (effectiveRoot.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? effectiveRoot.querySelectorAll('*') : []);
-
-    for (const element of elementsToScan) {
+    elementsToScan.forEach(element => {
       if (element.shadowRoot) {
-        // Process the shadow DOM
-        processNodeAndShadows(element.shadowRoot, isInitialScan);
-        // Set up a new observer for this shadow root if it's part of the initial scan
-        // or if this shadow root itself was dynamically added (covered by outer observer).
-        // We only want to attach an observer once per shadow root.
-        // A simple way is to mark the shadow root or its host.
+        processNodeAndShadows(element.shadowRoot);
         if (!element.shadowRoot._tesserObserverAttached) {
-            observeMutations(element.shadowRoot);
-            element.shadowRoot._tesserObserverAttached = true;
+          observeMutations(element.shadowRoot);
+          element.shadowRoot._tesserObserverAttached = true;
         }
       }
-    }
+    });
   }
 
   function observeMutations(targetNode) {
@@ -158,22 +228,18 @@ if (!isGoogleVoice) {
       for (const mutation of mutationsList) {
         if (mutation.type === 'childList') {
           mutation.addedNodes.forEach(addedNode => {
-            // Basic safety checks
+            if (!addedNode) return;
             if (addedNode.nodeName === 'SCRIPT' || addedNode.nodeName === 'STYLE') {
               return;
             }
-            let container = addedNode.nodeType === Node.TEXT_NODE ? addedNode.parentNode : addedNode;
-            if (container && typeof container.closest === 'function') {
-              if (container.closest('a, textarea, [contenteditable="true"]')) {
-                return;
-              }
+            if (
+              addedNode.nodeType === Node.ELEMENT_NODE &&
+              addedNode.closest &&
+              addedNode.closest('#yp-embed-wrapper')
+            ) {
+              return;
             }
-            
-            // Process the added node and any shadow DOM it might contain or ITS CHILDREN might host
             processNodeAndShadows(addedNode);
-
-            // If the added node is an element and it *itself* hosts a shadow DOM,
-            // ensure an observer is attached to that new shadow DOM.
             if (addedNode.nodeType === Node.ELEMENT_NODE && addedNode.shadowRoot) {
               if (!addedNode.shadowRoot._tesserObserverAttached) {
                 observeMutations(addedNode.shadowRoot);
@@ -184,18 +250,14 @@ if (!isGoogleVoice) {
         }
       }
     });
+
     observer.observe(targetNode, { childList: true, subtree: true });
   }
 
-  // Initial scan of the document body and its existing shadow DOMs
-  processNodeAndShadows(document.body, true);
+  processNodeAndShadows(document.body);
 
-  // Set up the main observer for the document body (light DOM)
-  // Check if body already has observer attached by any chance (e.g. script run multiple times - though IIFE protects)
   if (!document.body._tesserObserverAttached) {
-      observeMutations(document.body);
-      document.body._tesserObserverAttached = true;
+    observeMutations(document.body);
+    document.body._tesserObserverAttached = true;
   }
-
-
 })();
