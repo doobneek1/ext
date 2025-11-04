@@ -227,6 +227,319 @@
         undoBtn.disabled = (textarea.value === lastValue);
       };
 
+      const linkOverlay = document.createElement('div');
+      linkOverlay.className = 'injector-selection-link-overlay';
+      linkOverlay.style.position = 'absolute';
+      linkOverlay.style.zIndex = '100000';
+      linkOverlay.style.display = 'none';
+      linkOverlay.style.backgroundColor = '#ffffff';
+      linkOverlay.style.border = '1px solid #94a3b8';
+      linkOverlay.style.borderRadius = '8px';
+      linkOverlay.style.boxShadow = '0 8px 24px rgba(15, 23, 42, 0.18)';
+      linkOverlay.style.padding = '8px 10px';
+      linkOverlay.style.minWidth = '240px';
+      linkOverlay.style.maxWidth = '320px';
+      linkOverlay.style.fontSize = '12px';
+      linkOverlay.style.fontFamily = 'inherit';
+
+      const overlayLabel = document.createElement('div');
+      overlayLabel.style.fontSize = '11px';
+      overlayLabel.style.marginBottom = '4px';
+      overlayLabel.style.fontWeight = '600';
+      overlayLabel.style.color = '#1f2937';
+
+      const overlayForm = document.createElement('div');
+      overlayForm.style.display = 'flex';
+      overlayForm.style.alignItems = 'center';
+      overlayForm.style.gap = '6px';
+
+      const linkInput = document.createElement('input');
+      linkInput.type = 'text';
+      linkInput.placeholder = 'Paste link';
+      linkInput.style.flex = '1';
+      linkInput.style.padding = '4px 8px';
+      linkInput.style.fontSize = '12px';
+      linkInput.style.border = '1px solid #94a3b8';
+      linkInput.style.borderRadius = '4px';
+      linkInput.setAttribute('aria-label', 'Link URL');
+
+      const confirmButton = document.createElement('button');
+      confirmButton.type = 'button';
+      confirmButton.textContent = '✓';
+      confirmButton.title = 'Insert link';
+      confirmButton.style.padding = '4px 8px';
+      confirmButton.style.border = '1px solid #10b981';
+      confirmButton.style.backgroundColor = '#d1fae5';
+      confirmButton.style.borderRadius = '4px';
+      confirmButton.style.cursor = 'pointer';
+      confirmButton.style.fontSize = '14px';
+      confirmButton.setAttribute('aria-label', 'Insert link');
+
+      const cancelButton = document.createElement('button');
+      cancelButton.type = 'button';
+      cancelButton.textContent = '×';
+      cancelButton.title = 'Cancel';
+      cancelButton.style.padding = '4px 8px';
+      cancelButton.style.border = '1px solid #cbd5f5';
+      cancelButton.style.backgroundColor = '#e2e8f0';
+      cancelButton.style.borderRadius = '4px';
+      cancelButton.style.cursor = 'pointer';
+      cancelButton.style.fontSize = '14px';
+      cancelButton.setAttribute('aria-label', 'Cancel link insertion');
+
+      const errorText = document.createElement('div');
+      errorText.style.display = 'none';
+      errorText.style.marginTop = '4px';
+      errorText.style.fontSize = '11px';
+      errorText.style.color = '#dc2626';
+
+      overlayForm.appendChild(linkInput);
+      overlayForm.appendChild(confirmButton);
+      overlayForm.appendChild(cancelButton);
+      linkOverlay.appendChild(overlayLabel);
+      linkOverlay.appendChild(overlayForm);
+      linkOverlay.appendChild(errorText);
+      document.body.appendChild(linkOverlay);
+
+      const defaultInputBorder = '#94a3b8';
+      let selectionRange = null;
+      let overlayVisible = false;
+      let lastSelectionSignature = null;
+
+      const setError = (message) => {
+        if (message) {
+          errorText.textContent = message;
+          errorText.style.display = 'block';
+          linkInput.style.borderColor = '#dc2626';
+          linkInput.setAttribute('aria-invalid', 'true');
+        } else {
+          errorText.textContent = '';
+          errorText.style.display = 'none';
+          linkInput.style.borderColor = defaultInputBorder;
+          linkInput.removeAttribute('aria-invalid');
+        }
+      };
+
+      const hideOverlay = () => {
+        overlayVisible = false;
+        linkOverlay.style.display = 'none';
+        selectionRange = null;
+        lastSelectionSignature = null;
+        setError('');
+        linkInput.value = '';
+        overlayLabel.textContent = '';
+      };
+
+      const updateSelectionLabel = (rawText) => {
+        const compact = rawText.replace(/\s+/g, ' ').trim();
+        if (!compact) {
+          overlayLabel.textContent = 'Link selection';
+          return;
+        }
+        overlayLabel.textContent = compact.length > 40
+          ? `Link \"${compact.slice(0, 37)}...\"`
+          : `Link \"${compact}\"`;
+      };
+
+      const positionOverlay = (ensureVisibility = false) => {
+        if (!overlayVisible || !selectionRange) return;
+
+        const coords = getTextareaSelectionCoords(textarea, selectionRange.end);
+        const computed = window.getComputedStyle(textarea);
+        const lineHeight = parseFloat(computed.lineHeight);
+        const fallback = parseFloat(computed.fontSize) || 16;
+        const offsetY = Number.isFinite(lineHeight) ? lineHeight : fallback * 1.2;
+
+        let top = coords.top + offsetY + 6;
+        let left = coords.left;
+
+        const rect = linkOverlay.getBoundingClientRect();
+        const overlayWidth = rect.width || 260;
+        const overlayHeight = rect.height || 64;
+
+        const viewportLeft = window.scrollX;
+        const viewportRight = viewportLeft + window.innerWidth;
+        if (left + overlayWidth > viewportRight - 12) {
+          left = viewportRight - overlayWidth - 12;
+        }
+        if (left < viewportLeft + 12) {
+          left = viewportLeft + 12;
+        }
+
+        const viewportTop = window.scrollY;
+        const viewportBottom = viewportTop + window.innerHeight;
+        if (top + overlayHeight > viewportBottom - 12) {
+          top = Math.max(viewportTop + 12, coords.top - overlayHeight - 12);
+        }
+        if (top < viewportTop + 12) {
+          top = viewportTop + 12;
+        }
+
+        linkOverlay.style.left = `${left}px`;
+        linkOverlay.style.top = `${top}px`;
+
+        if (ensureVisibility) {
+          linkOverlay.style.visibility = 'visible';
+        }
+      };
+
+      const showOverlay = () => {
+        if (!selectionRange) return;
+        overlayVisible = true;
+        linkOverlay.style.display = 'block';
+        linkOverlay.style.visibility = 'hidden';
+        positionOverlay(true);
+        requestAnimationFrame(() => {
+          if (!selectionRange) return;
+          textarea.focus();
+          textarea.selectionStart = selectionRange.start;
+          textarea.selectionEnd = selectionRange.end;
+        });
+      };
+
+      const applyLink = () => {
+        if (!selectionRange) return;
+
+        const urlObj = normalizeUserLink(linkInput.value);
+        if (!urlObj) {
+          setError('Enter a valid link.');
+          linkInput.focus();
+          linkInput.select();
+          return;
+        }
+
+        const selected = textarea.value.slice(selectionRange.start, selectionRange.end);
+        const leadingSpacesMatch = selected.match(/^\s*/);
+        const trailingSpacesMatch = selected.match(/\s*$/);
+        const leadingSpaces = leadingSpacesMatch ? leadingSpacesMatch[0] : '';
+        const trailingSpaces = trailingSpacesMatch ? trailingSpacesMatch[0] : '';
+        const coreText = selected.slice(leadingSpaces.length, selected.length - trailingSpaces.length);
+
+        if (!coreText.trim()) {
+          setError('Select text to link.');
+          textarea.focus();
+          return;
+        }
+
+        const anchorMarkup = buildInjectorLinkMarkup(coreText, urlObj, { escapeDisplay: true });
+        if (!anchorMarkup) {
+          setError('Enter a valid link.');
+          return;
+        }
+
+        const anchor = `${leadingSpaces}${anchorMarkup}${trailingSpaces}`;
+        const beforeValue = textarea.value.slice(0, selectionRange.start);
+        const afterValue = textarea.value.slice(selectionRange.end);
+        const previousValue = textarea.value;
+
+        textarea.value = `${beforeValue}${anchor}${afterValue}`;
+        dispatchInput(textarea);
+        output.innerHTML = previewText(textarea.value);
+        lastValue = previousValue;
+        updateButtonStates();
+
+        const caretPosition = beforeValue.length + anchor.length;
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = caretPosition;
+        hideOverlay();
+      };
+
+      const handleSelectionChange = () => {
+        const start = textarea.selectionStart ?? 0;
+        const end = textarea.selectionEnd ?? 0;
+
+        if (start === end) {
+          if (!linkOverlay.contains(document.activeElement)) {
+            hideOverlay();
+          } else {
+            positionOverlay();
+          }
+          return;
+        }
+
+        const signature = `${start}:${end}`;
+        if (signature === lastSelectionSignature && overlayVisible) {
+          positionOverlay();
+          return;
+        }
+        lastSelectionSignature = signature;
+
+        const selectedText = textarea.value.slice(start, end);
+        if (!selectedText.trim()) {
+          hideOverlay();
+          return;
+        }
+        if (/<\/?a\b/i.test(selectedText)) {
+          hideOverlay();
+          return;
+        }
+
+        selectionRange = { start, end };
+        updateSelectionLabel(selectedText);
+        linkInput.value = '';
+        setError('');
+        showOverlay();
+      };
+
+      const onDocumentPointerDown = (event) => {
+        if (!overlayVisible) return;
+        if (linkOverlay.contains(event.target) || textarea.contains(event.target)) return;
+        hideOverlay();
+      };
+
+      linkInput.addEventListener('input', () => setError(''));
+      confirmButton.addEventListener('click', applyLink);
+      cancelButton.addEventListener('click', () => {
+        hideOverlay();
+        if (selectionRange) {
+          textarea.focus();
+          textarea.selectionStart = selectionRange.start;
+          textarea.selectionEnd = selectionRange.end;
+        }
+      });
+      linkInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          applyLink();
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          hideOverlay();
+          textarea.focus();
+        }
+      });
+
+      textarea.addEventListener('mouseup', handleSelectionChange);
+      textarea.addEventListener('keyup', (event) => {
+        if (event.key === 'Shift') return;
+        handleSelectionChange();
+      });
+      textarea.addEventListener('select', handleSelectionChange);
+      textarea.addEventListener('scroll', () => {
+        if (overlayVisible) {
+          positionOverlay();
+        }
+      });
+      textarea.addEventListener('blur', () => {
+        setTimeout(() => {
+          if (!linkOverlay.contains(document.activeElement)) {
+            hideOverlay();
+          }
+        }, 0);
+      });
+
+      document.addEventListener('mousedown', onDocumentPointerDown);
+      document.addEventListener('touchstart', onDocumentPointerDown);
+      window.addEventListener('scroll', () => overlayVisible && positionOverlay(), true);
+      window.addEventListener('resize', () => overlayVisible && positionOverlay());
+
+      cancelButton.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          hideOverlay();
+          textarea.focus();
+        }
+      });
+
       textarea.addEventListener('input', () => {
         updateButtonStates();
         output.innerHTML = previewText(textarea.value);
@@ -270,6 +583,163 @@
   // === UTILITY FUNCTIONS (potentially shared) ===
   function dispatchInput(el) {
     el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function escapeHtml(text) {
+    if (text == null) return '';
+    return String(text).replace(/[&<>"']/g, (char) => {
+      switch (char) {
+        case '&':
+          return '&amp;';
+        case '<':
+          return '&lt;';
+        case '>':
+          return '&gt;';
+        case '"':
+          return '&quot;';
+        case '\'':
+          return '&#39;';
+        default:
+          return char;
+      }
+    });
+  }
+
+  function normalizeUserLink(input) {
+    if (!input) return null;
+    let trimmed = input.trim();
+    if (!trimmed) return null;
+
+    if (!/^https?:\/\//i.test(trimmed)) {
+      trimmed = `https://${trimmed}`;
+    }
+
+    let url;
+    try {
+      url = new URL(trimmed);
+    } catch {
+      return null;
+    }
+
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return null;
+    }
+
+    const host = url.hostname;
+    if (!host || !host.includes('.')) return null;
+
+    const segments = host.split('.').filter(Boolean);
+    if (segments.length < 2) return null;
+
+    const tld = segments[segments.length - 1];
+    const sld = segments[segments.length - 2];
+
+    if (!/^[a-z]{2,24}$/i.test(tld)) return null;
+    if (!sld || sld.length < 2) return null;
+
+    return url;
+  }
+
+  function buildInjectorLinkMarkup(displayText, urlObj, options = {}) {
+    if (!urlObj) return null;
+    const { escapeDisplay = false } = options;
+
+    const isYourPeer = urlObj.hostname.endsWith('yourpeer.nyc');
+    const attrs = [`href="${urlObj.href}"`];
+
+    if (!isYourPeer) {
+      attrs.push('target="_blank"', 'rel="noopener noreferrer"');
+    }
+
+    const textContent = escapeDisplay ? escapeHtml(displayText) : displayText;
+    return `<a ${attrs.join(' ')}>${textContent}</a>`;
+  }
+
+  function getTextareaSelectionCoords(textarea, position) {
+    const computed = window.getComputedStyle(textarea);
+    const properties = [
+      'boxSizing',
+      'width',
+      'height',
+      'overflowX',
+      'overflowY',
+      'borderTopWidth',
+      'borderRightWidth',
+      'borderBottomWidth',
+      'borderLeftWidth',
+      'paddingTop',
+      'paddingRight',
+      'paddingBottom',
+      'paddingLeft',
+      'fontStyle',
+      'fontVariant',
+      'fontWeight',
+      'fontStretch',
+      'fontSize',
+      'fontFamily',
+      'lineHeight',
+      'textAlign',
+      'textTransform',
+      'textIndent',
+      'textDecoration',
+      'letterSpacing',
+      'wordSpacing',
+      'whiteSpace',
+      'wordBreak',
+      'overflowWrap'
+    ];
+
+    const mirror = document.createElement('div');
+    mirror.className = 'injector-textarea-mirror';
+    mirror.style.position = 'absolute';
+    mirror.style.top = '0';
+    mirror.style.left = '-9999px';
+    mirror.style.visibility = 'hidden';
+    mirror.style.whiteSpace = 'pre-wrap';
+    mirror.style.wordWrap = 'break-word';
+
+    properties.forEach((prop) => {
+      mirror.style[prop] = computed[prop];
+    });
+
+    if (computed.boxSizing === 'border-box') {
+      mirror.style.width = `${textarea.offsetWidth}px`;
+    } else {
+      mirror.style.width = `${textarea.clientWidth}px`;
+    }
+
+    const textUpToPosition = textarea.value.substring(0, position);
+    const textNode = document.createTextNode(textUpToPosition);
+    mirror.appendChild(textNode);
+
+    const marker = document.createElement('span');
+    marker.textContent = '\u200b';
+    mirror.appendChild(marker);
+
+    document.body.appendChild(mirror);
+
+    const markerRect = marker.getBoundingClientRect();
+    const mirrorRect = mirror.getBoundingClientRect();
+
+    document.body.removeChild(mirror);
+
+    const textareaRect = textarea.getBoundingClientRect();
+
+    const relativeTop = markerRect.top - mirrorRect.top;
+    const relativeLeft = markerRect.left - mirrorRect.left;
+
+    return {
+      top:
+        textareaRect.top +
+        relativeTop -
+        textarea.scrollTop +
+        window.scrollY,
+      left:
+        textareaRect.left +
+        relativeLeft -
+        textarea.scrollLeft +
+        window.scrollX
+    };
   }
 
 function previewText(raw) {
@@ -406,7 +876,9 @@ function safeHyperlink(text) {
     part = part.replace(
       /(?<!href=")(?<!<a[^>]*>)(\b([\w.-]+@[\w.-]+\.\w+|((https?:\/\/)?[^\s<>()|]+\.[^\s<>()|]+(?:\/[^\s<>()|]*)?))(?:\|\(([^)]+)\))?|\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?:,\d+)?)(?![^<]*>)/g,
       (match) => {
-        // Phone
+        const originalMatch = match;
+
+        // Phone numbers with optional extension (e.g., 555-123-4567,123)
         const phoneMatch = match.match(/^(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})(?:,(\d+))?$/);
         if (phoneMatch) {
           const clean = phoneMatch[1].replace(/\D/g, '');
@@ -417,66 +889,40 @@ function safeHyperlink(text) {
             : `<a href="tel:${clean}">${formatted}</a>`;
         }
 
-        // Email
-        const emailMatch = match.match(/^[\w.-]+@[\w.-]+\.\w+$/);
-        if (emailMatch) {
+        // Email addresses
+        if (/^[\w.-]+@[\w.-]+\.\w+$/.test(match)) {
           return `<a href="mailto:${match}">${match}</a>`;
         }
 
-        // URL (with optional label)
-        const labelMatch = match.match(/^((https?:\/\/)?[^\s<>()|]+\.[^\s<>()|]+(?:\/[^\s<>()|]*)?)(?:\|\(([^)]+)\))?$/);
-        if (labelMatch) {
-          let [, rawUrl, scheme, label] = labelMatch;
-          let trailing = '';
-
-          // If no label, peel off trailing punctuation like ".", ",", etc.
-          if (!label) {
-            const forbiddenEnd = /[.,;:!?]$/;
-            if (forbiddenEnd.test(rawUrl)) {
-              trailing = rawUrl.slice(-1);
-              rawUrl = rawUrl.slice(0, -1);
-            }
-          }
-
-          // Ensure scheme
-          const urlWithScheme = scheme ? rawUrl : `https://${rawUrl}`;
-
-          // Parse safely and validate using the hostname only
-          let u;
-          try {
-            u = new URL(urlWithScheme);
-          } catch {
-            return match; // not a parsable URL — leave as-is
-          }
-
-          const host = u.hostname;           // e.g., "yourpeer.nyc"
-          const parts = host.split('.');
-          if (parts.length < 2) return match; // needs at least sld.tld
-
-          const tld = parts[parts.length - 1];
-          const sld = parts[parts.length - 2];
-
-          // Basic sanity checks: TLD letters 2–24; SLD length >= 2
-          if (!/^[a-z]{2,24}$/i.test(tld)) return match;
-          if (!sld || sld.length < 2) return match;
-
-          // Display: use label if provided; else show host + path (no scheme)
-          const display = label || (u.host + u.pathname + u.search + u.hash).replace(/^www\./, '');
-
-          const isYourPeer = host.endsWith('yourpeer.nyc');
-          const attrParts = ['class="injector-link"'];
-
-          if (!isYourPeer) {
-            attrParts.unshift('target="_blank"', 'rel="noopener noreferrer"');
-          }
-
-          // Check all website links, not just HTTPS
-          attrParts.push(`data-link-check="${u.href}"`);
-
-          return `<a href="${u.href}" ${attrParts.join(' ')}>${display}</a>${trailing}`;
+        // URLs with optional custom label (|(label))
+        const linkMatch = match.match(/^((https?:\/\/)?[^\s<>()|]+\.[^\s<>()|]+(?:\/[^\s<>()|]*)?)(?:\|\(([^)]+)\))?$/);
+        if (!linkMatch) {
+          return originalMatch;
         }
 
-        return match;
+        let [, rawUrl, , label] = linkMatch;
+        let trailing = '';
+
+        if (!label) {
+          const forbiddenEnd = /[.,;:!?]$/;
+          if (forbiddenEnd.test(rawUrl)) {
+            trailing = rawUrl.slice(-1);
+            rawUrl = rawUrl.slice(0, -1);
+          }
+        }
+
+        const urlObj = normalizeUserLink(rawUrl);
+        if (!urlObj) {
+          return originalMatch;
+        }
+
+        const display = label || (urlObj.host + urlObj.pathname + urlObj.search + urlObj.hash).replace(/^www\./, '');
+        const anchor = buildInjectorLinkMarkup(display, urlObj);
+        if (!anchor) {
+          return originalMatch;
+        }
+
+        return `${anchor}${trailing}`;
       }
     );
 
@@ -488,6 +934,7 @@ function safeHyperlink(text) {
 
 const linkHoverStatusCache = new Map();
 const aiAnalysisCache = new Map();
+const processedLinkElements = new WeakSet();
 
 async function fetchLinkHoverStatus(url) {
   const cached = linkHoverStatusCache.get(url);
@@ -697,12 +1144,12 @@ async function createLinkHoverPreview(link, validationResult) {
   const preview = document.createElement('div');
   preview.className = 'injector-link-preview';
   preview.style.cssText = `
-    position: fixed;
+    position: absolute;
     background: white;
     border: 2px solid #333;
     border-radius: 8px;
     padding: 0;
-    width: 600px;
+    width: 420px;
     max-width: 90vw;
     z-index: 100000;
     box-shadow: 0 8px 24px rgba(0,0,0,0.3);
@@ -715,6 +1162,23 @@ async function createLinkHoverPreview(link, validationResult) {
   const status = validationResult?.status || 'unknown';
   preview.dataset.linkUrl = link.href;
   preview.dataset.status = status;
+
+  const cleanupCallbacks = [];
+  const registerCleanup = (cb) => {
+    cleanupCallbacks.push(cb);
+  };
+  const originalRemove = preview.remove.bind(preview);
+  preview.remove = function() {
+    while (cleanupCallbacks.length) {
+      const cb = cleanupCallbacks.pop();
+      try {
+        cb();
+      } catch (error) {
+        console.error('[LinkPreview] Cleanup error:', error);
+      }
+    }
+    originalRemove();
+  };
 
   // Create header
   const header = document.createElement('div');
@@ -873,11 +1337,9 @@ async function createLinkHoverPreview(link, validationResult) {
 
     // Cleanup blob URL when preview is removed
     if (needsProxy && iframeUrl.startsWith('blob:')) {
-      const originalRemove = preview.remove.bind(preview);
-      preview.remove = function() {
+      registerCleanup(() => {
         URL.revokeObjectURL(iframeUrl);
-        originalRemove();
-      };
+      });
     }
   } else {
     preview.appendChild(header);
@@ -886,29 +1348,56 @@ async function createLinkHoverPreview(link, validationResult) {
 
   document.body.appendChild(preview);
 
-  // Position the preview
-  const rect = link.getBoundingClientRect();
-
-  preview.style.left = `${Math.max(8, rect.left)}px`;
-  preview.style.top = `${rect.bottom + 5}px`;
-
-  // Adjust if off-screen
-  setTimeout(() => {
+  const repositionPreview = () => {
+    const rect = link.getBoundingClientRect();
     const previewRect = preview.getBoundingClientRect();
-    if (previewRect.right > window.innerWidth) {
-      preview.style.left = `${Math.max(8, window.innerWidth - previewRect.width - 8)}px`;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    let left = window.scrollX + rect.left;
+    let top;
+    const gap = 6;
+    const padding = 8;
+
+    const width = previewRect.width || preview.offsetWidth || 0;
+    const height = previewRect.height || preview.offsetHeight || 0;
+
+    const spaceAbove = rect.top;
+    const spaceBelow = viewportHeight - rect.bottom;
+
+    top = window.scrollY + rect.bottom + gap;
+    const maxLeft = window.scrollX + viewportWidth - width - padding;
+    const minLeft = window.scrollX + padding;
+    if (left > maxLeft) {
+      left = Math.max(minLeft, maxLeft);
     }
-    if (previewRect.bottom > window.innerHeight) {
-      preview.style.top = `${Math.max(8, rect.top - previewRect.height - 5)}px`;
+    if (left < minLeft) {
+      left = minLeft;
     }
-  }, 10);
+
+    const minTop = window.scrollY + padding;
+    if (top < minTop) {
+      top = minTop;
+    }
+
+    preview.style.left = `${left}px`;
+    preview.style.top = `${top}px`;
+  };
+
+  repositionPreview();
+  requestAnimationFrame(repositionPreview);
+
+  window.addEventListener('scroll', repositionPreview, true);
+  window.addEventListener('resize', repositionPreview);
+  registerCleanup(() => {
+    window.removeEventListener('scroll', repositionPreview, true);
+    window.removeEventListener('resize', repositionPreview);
+  });
 
   // Close preview on click outside
   const handleClickOutside = (e) => {
     if (!preview.contains(e.target) && !link.contains(e.target)) {
       preview.remove();
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
     }
   };
 
@@ -916,16 +1405,24 @@ async function createLinkHoverPreview(link, validationResult) {
   const handleEscape = (e) => {
     if (e.key === 'Escape') {
       preview.remove();
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
     }
   };
 
+  const removeGlobalListeners = () => {
+    document.removeEventListener('click', handleClickOutside);
+    document.removeEventListener('keydown', handleEscape);
+  };
+  registerCleanup(removeGlobalListeners);
+
   // Add listeners after a short delay to avoid immediate closure
-  setTimeout(() => {
+  const listenerTimer = setTimeout(() => {
+    if (!preview.isConnected) {
+      return;
+    }
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleEscape);
   }, 100);
+  registerCleanup(() => clearTimeout(listenerTimer));
 
   return preview;
 }
@@ -967,18 +1464,16 @@ function applyLinkHoverStyles(link, result) {
 }
 
 function attachLinkHoverHandlers(link) {
-  if (link.dataset.linkHoverProcessed === 'true') {
+  if (processedLinkElements.has(link)) {
     return;
   }
 
-  const url = link.getAttribute('data-link-check');
-  // Accept both HTTP and HTTPS URLs
+  const url = link.href;
   if (!url || !/^https?:\/\//i.test(url)) {
-    console.log('[LinkPreview] Skipping link without valid URL:', url);
     return;
   }
 
-  link.dataset.linkHoverProcessed = 'true';
+  processedLinkElements.add(link);
   console.log('[LinkPreview] Attached handlers to:', url);
 
   let hoverTimer;
@@ -1049,16 +1544,11 @@ function attachLinkHoverHandlers(link) {
 function processFormatterPreview(previewElement) {
   console.log('[LinkPreview] Processing formatter preview');
 
-  // Find all links (including those without our attributes)
-  const allLinks = previewElement.querySelectorAll('a');
-  console.log('[LinkPreview] Total links found:', allLinks.length);
+  const candidateLinks = previewElement.querySelectorAll('a[href]');
+  console.log('[LinkPreview] Total links found:', candidateLinks.length);
 
-  // Add attributes to website links dynamically
-  let websiteLinksProcessed = 0;
-  allLinks.forEach(link => {
+  candidateLinks.forEach(link => {
     const href = link.href;
-
-    // Skip tel:, mailto:, and voice.google.com links
     if (!href ||
         href.startsWith('tel:') ||
         href.startsWith('mailto:') ||
@@ -1067,26 +1557,10 @@ function processFormatterPreview(previewElement) {
       return;
     }
 
-    // Check if it's an HTTP/HTTPS website link
     if (/^https?:\/\//i.test(href)) {
-      // Add the attributes if they don't exist
-      if (!link.classList.contains('injector-link')) {
-        link.classList.add('injector-link');
-      }
-      if (!link.hasAttribute('data-link-check')) {
-        link.setAttribute('data-link-check', href);
-      }
-      websiteLinksProcessed++;
-      console.log('[LinkPreview] Added attributes to:', href);
+      attachLinkHoverHandlers(link);
     }
   });
-
-  console.log('[LinkPreview] Processed', websiteLinksProcessed, 'website links');
-
-  // Now find and attach handlers to all properly attributed links
-  const links = previewElement.querySelectorAll('a.injector-link[data-link-check]');
-  console.log('[LinkPreview] Attaching handlers to', links.length, 'links');
-  links.forEach(attachLinkHoverHandlers);
 }
 
 function setupLinkHoverValidation() {

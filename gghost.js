@@ -1,6 +1,7 @@
   console.log('🚀 GGHOST.JS LOADING - URL:', window.location.href);
   let globalButtonDropdown = null;
   const buttonActions = [];
+  let areaZipOverlayState = null;
 
 // Check for extension context validity
 if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
@@ -905,6 +906,85 @@ function sanitizeOrgNameForKey(name) {
   return cleaned;
 }
 
+function decodeOrgNameFromDateKey(dateKey) {
+  if (!dateKey) return "";
+  try {
+    const parts = String(dateKey).split("/").filter(Boolean);
+    const last = parts[parts.length - 1] || "";
+    return decodeURIComponent(last);
+  } catch {
+    return String(dateKey || "");
+  }
+}
+
+function deriveAddressesFromFutureOrgKey(topKey) {
+  if (!topKey) return [];
+  try {
+    const withoutSuffix = String(topKey).replace(/-futurenote$/i, "");
+    const encodedSegment = withoutSuffix.split("_").slice(1).join(" ");
+    if (!encodedSegment) return [];
+    const decoded = decodeURIComponent(encodedSegment);
+    return decoded
+      .split("|")
+      .map((part) => part.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function formatFutureOrgNoteForTransfer({
+  notePayload,
+  fallbackNote,
+  fallbackOrgName,
+  fallbackUserKey,
+  fallbackTopKey
+}) {
+  const sanitizedFallbackNote = (fallbackNote || "").trim();
+  const fallbackAddresses = deriveAddressesFromFutureOrgKey(fallbackTopKey);
+
+  if (notePayload && typeof notePayload === "object") {
+    const lines = [];
+    const body = typeof notePayload.note === "string" ? notePayload.note.trim() : "";
+    const primaryLine = body && body !== "(no note)" ? body : "";
+    if (primaryLine) lines.push(primaryLine);
+
+    const detailParts = [];
+    const orgName = (notePayload.orgName || fallbackOrgName || "").trim();
+    if (orgName) detailParts.push(`Org: ${orgName}`);
+
+    const contact = notePayload.contact || {};
+    const phone = (contact.phoneRaw || contact.phone || "").trim();
+    if (phone) detailParts.push(`Phone: ${phone}`);
+    const email = (contact.email || "").trim();
+    if (email) detailParts.push(`Email: ${email}`);
+    const website = (contact.website || "").trim();
+    if (website) detailParts.push(`Website: ${website}`);
+
+    const addresses = Array.isArray(notePayload.addresses) && notePayload.addresses.length
+      ? notePayload.addresses
+      : fallbackAddresses;
+    if (addresses.length) {
+      detailParts.push(`Addresses: ${addresses.join(" | ")}`);
+    }
+
+    if (detailParts.length) {
+      lines.push(detailParts.join(" | "));
+    }
+
+    lines.push("(moved from future/online leads)");
+    return lines.filter(Boolean).join("\n");
+  }
+
+  const fallbackParts = [];
+  if (sanitizedFallbackNote && sanitizedFallbackNote !== "(no note)") fallbackParts.push(sanitizedFallbackNote);
+  if (fallbackOrgName) fallbackParts.push(`Org: ${fallbackOrgName}`);
+  if (fallbackUserKey) fallbackParts.push(`Key: ${fallbackUserKey}`);
+  if (fallbackAddresses.length) fallbackParts.push(`Addresses: ${fallbackAddresses.join(" | ")}`);
+  fallbackParts.push("(moved from future/online leads)");
+  return fallbackParts.filter(Boolean).join("\n");
+}
+
 function uuidv() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -938,7 +1018,7 @@ function resetForm() {
 }
 
 
-async function transferFutureNoteToUUID({ orgKey, sourceUserName, sourceDate, noteText, NOTE_API, locationUuid }) {
+async function transferFutureNoteToUUID({ orgKey, sourceUserName, sourceDate, noteText, NOTE_API, locationUuid, notePayload }) {
   if (!locationUuid) {
     alert("Open a specific GoGetta location first.");
     return;
@@ -952,14 +1032,23 @@ async function transferFutureNoteToUUID({ orgKey, sourceUserName, sourceDate, no
 
   // 2) Write note under real UUID for today, authored by current user
   const currentUser = getCurrentUsername();
+  const fallbackOrgName = decodeOrgNameFromDateKey(sourceDate);
+  const readableUserKey = typeof fromFirebaseKey === "function" ? fromFirebaseKey(sourceUserName) : sourceUserName;
+  const noteForLocation = formatFutureOrgNoteForTransfer({
+    notePayload,
+    fallbackNote: noteText,
+    fallbackOrgName,
+    fallbackUserKey: readableUserKey,
+    fallbackTopKey: orgKey
+  });
+
   await postToNoteAPI({
     uuid: locationUuid,
     userName: currentUser,
     date: today,
-note: `${noteText},${sanitizeOrgNameForKey(decodeURIComponent(sourceDate))},${fromFirebaseKey(sourceUserName)},${decodeURIComponent(orgKey.replace(/-futureNote$/, "").split("_")[1])},` || "(moved from future/online)"
-  }).then(r => checkResponse(r, "Transferring note to UUID"));
-  editableDiv.innerText=`${noteText},${sanitizeOrgNameForKey(decodeURIComponent(sourceDate))},${fromFirebaseKey(sourceUserName)},${decodeURIComponent(orgKey.replace(/-futureNote$/, "").split("_")[1])},` || "(moved from future/online)"
-
+    note: noteForLocation
+  }).then(r => checkResponse(r, "Transferring future/online note to UUID"));
+  editableDiv.innerText = noteForLocation;
 }
 async function openFutureOnlineModal() {
   const userName = window.gghostUserName || await getUserNameSafely();
@@ -1082,6 +1171,7 @@ function validUrl(u) {
 requestAnimationFrame(() => loadExisting());
 overlay.addEventListener("click", (e) => {
   if (e.target === overlay) {
+    resetFormState();
     overlay.remove();
   }
 });
@@ -1099,6 +1189,129 @@ overlay.addEventListener("click", (e) => {
   const refreshBtn   = q('#fo-refresh');
   const existingDiv  = q('#fo-existing');
 
+  let editingEntry = null;
+
+  function parseFutureOrgNoteValue(noteVal) {
+    if (!noteVal) return null;
+    if (typeof noteVal === "object") {
+      if (!noteVal) return null;
+      if (!noteVal.type || noteVal.type === "futureOrg" || noteVal.orgName || noteVal.addresses) {
+        return noteVal;
+      }
+      return null;
+    }
+    if (typeof noteVal !== "string") return null;
+    try {
+      const parsed = JSON.parse(noteVal);
+      if (parsed && typeof parsed === "object") {
+        if (!parsed.type || parsed.type === "futureOrg" || parsed.orgName || parsed.addresses) {
+          return parsed;
+        }
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  function getEntryAddresses(entry) {
+    if (!entry) return [];
+    const noteAddresses = Array.isArray(entry.noteData?.addresses)
+      ? entry.noteData.addresses.filter(Boolean)
+      : [];
+    if (noteAddresses.length) return noteAddresses;
+    return deriveAddressesFromFutureOrgKey(entry.topKey);
+  }
+
+  function getEntryContact(entry) {
+    const contact = {
+      website: "",
+      email: "",
+      phone: "",
+      phoneDisplay: ""
+    };
+    if (!entry) return contact;
+
+    const noteContact = entry.noteData?.contact || {};
+    if (noteContact.website) contact.website = noteContact.website;
+    if (noteContact.email) contact.email = noteContact.email;
+    if (noteContact.phone) contact.phone = noteContact.phone;
+    if (noteContact.phoneRaw) contact.phoneDisplay = noteContact.phoneRaw;
+    if (!contact.phoneDisplay && contact.phone) contact.phoneDisplay = contact.phone;
+
+    if (looksLikeCompositeKey(entry.userKey)) {
+      const decoded = decodeCompositeKey(entry.userKey);
+      if (!contact.website && decoded.website) contact.website = decoded.website;
+      if (!contact.email && decoded.email) contact.email = decoded.email;
+      if (!contact.phone && decoded.phone) contact.phone = decoded.phone;
+      if (!contact.phoneDisplay && decoded.phone) contact.phoneDisplay = decoded.phone;
+    }
+
+    if (!contact.phoneDisplay && contact.phone) contact.phoneDisplay = contact.phone;
+
+    return contact;
+  }
+
+  function getEntryOrgName(entry) {
+    if (!entry) return "";
+    if (entry.noteData?.orgName) return entry.noteData.orgName;
+    return decodeOrgNameFromDateKey(entry.dateKey);
+  }
+
+  function formatTimestampForDisplay(ts) {
+    if (!ts) return "";
+    try {
+      const date = new Date(ts);
+      if (Number.isNaN(date.getTime())) return String(ts);
+      return date.toLocaleString();
+    } catch {
+      return String(ts);
+    }
+  }
+
+  function buildFutureOrgNotePayload({
+    orgName,
+    noteText,
+    addressesList,
+    website,
+    email,
+    phoneDigits,
+    phoneRaw,
+    actingUser,
+    existing,
+    compositeKey,
+    targetKeys
+  }) {
+    const nowIso = new Date().toISOString();
+    const metadata = {
+      createdAt: existing?.metadata?.createdAt || nowIso,
+      createdBy: existing?.metadata?.createdBy || actingUser,
+      updatedAt: nowIso,
+      updatedBy: actingUser
+    };
+
+    const contact = {};
+    if (website) contact.website = website;
+    if (email) contact.email = email;
+    if (phoneDigits) contact.phone = phoneDigits;
+    if (phoneRaw) contact.phoneRaw = phoneRaw;
+    if (compositeKey) contact.compositeKey = compositeKey;
+
+    const payload = {
+      type: "futureOrg",
+      version: 1,
+      orgName,
+      note: noteText || "(no note)",
+      metadata
+    };
+
+    if (addressesList.length) payload.addresses = addressesList;
+    if (Object.keys(contact).length) payload.contact = contact;
+    if (targetKeys) payload.source = targetKeys;
+
+    return payload;
+  }
+
   const addresses = [];
   function renderAddresses() {
     addressList.innerHTML = '';
@@ -1107,67 +1320,140 @@ overlay.addEventListener("click", (e) => {
       pill.textContent = addr;
       Object.assign(pill.style, { padding: '4px 8px', border: '1px solid #000', borderRadius: '999px', background:'#fff', display:'inline-flex', alignItems:'center', gap:'8px' });
       const x = document.createElement('span');
-      x.textContent = '×';
+      x.textContent = 'x';
       Object.assign(x.style, { cursor: 'pointer', fontWeight: 700 });
       x.onclick = () => { addresses.splice(idx,1); renderAddresses(); };
       pill.appendChild(x);
       addressList.appendChild(pill);
     });
   }
-
-  addressAdd.onclick = () => {
-    const v = addressInput.value.trim();
-    if (!v) return;
-    addresses.push(v);
-    addressInput.value = '';
-    renderAddresses();
-  };
-
-  cancelBtn.onclick = () => overlay.remove();
-
-async function saveFutureLead() {
-  const orgName   = orgNameEl.value.trim();
-  const phone     = getLast10Digits(phoneEl.value.trim());
-  const website   = websiteEl.value.trim();
-  const email     = emailEl.value.trim();
-  const noteText  = noteEl.value.trim();
-
-  // if address input has text but not yet added, push it
-  const addrVal = addressInput.value.trim();
-  if (addrVal && !addresses.includes(addrVal)) {
-    addresses.push(addrVal);
-    renderAddresses();
+  function exitEditingMode() {
+    editingEntry = null;
+    saveBtn.textContent = "Save";
+    saveBtn.removeAttribute("data-mode");
   }
 
-  if (!orgName) { alert("Organization name is required."); return; }
-  if (!phone && !website && !email) { alert("Provide at least one of phone, website, or email."); return; }
-  if (!validPhone(phone))   { alert("Phone looks invalid."); return; }
-  if (!validUrl(website))   { alert("Website must be a valid link."); return; }
-  if (!validEmail(email))   { alert("Email looks invalid."); return; }
-
-  const compositeUuid = `${uuidv()}_${addresses.join(' | ')}-futureNote`;
-  const userNameForRecord = buildCompositeUuid(website, email, phone);
-  const dateField = `https://gogetta.nyc/team/location/${encodeURIComponent(orgName)}`;
-
-  const payload = {
-    uuid: compositeUuid,
-    userName: userNameForRecord,
-    date: dateField,
-    note: noteText || "(no note)"
-  };
-
-  try {
-    const res = await postToNoteAPI(payload);
-    await checkResponse(res, "Saving future/online org");
-    await loadExisting();
+  function resetFormState() {
     orgNameEl.value = "";
     phoneEl.value = "";
     websiteEl.value = "";
     emailEl.value = "";
     noteEl.value = "";
-    addressInput.value = ""; // clear
+    addressInput.value = "";
     addresses.splice(0, addresses.length);
     renderAddresses();
+    exitEditingMode();
+  }
+
+  function startEditing(entry) {
+    editingEntry = {
+      topKey: entry.topKey,
+      userKey: entry.userKey,
+      dateKey: entry.dateKey,
+      noteData: entry.noteData
+    };
+    saveBtn.textContent = "Update";
+    saveBtn.dataset.mode = "edit";
+
+    const orgName = getEntryOrgName(entry);
+    const contact = getEntryContact(entry);
+    const editAddresses = getEntryAddresses(entry);
+
+    orgNameEl.value = orgName || "";
+    phoneEl.value = contact.phoneDisplay || "";
+    websiteEl.value = contact.website || "";
+    emailEl.value = contact.email || "";
+
+    const noteValue = entry.noteData?.note || entry.displayNote || "";
+    noteEl.value = noteValue === "(no note)" ? "" : noteValue;
+
+    addresses.splice(0, addresses.length);
+    addresses.push(...editAddresses);
+    renderAddresses();
+    addressInput.value = "";
+    orgNameEl.focus();
+  }
+
+  addressAdd.onclick = () => {
+    const v = addressInput.value.trim();
+    if (!v) return;
+    if (!addresses.includes(v)) {
+      addresses.push(v);
+      renderAddresses();
+    }
+    addressInput.value = '';
+  };
+
+  cancelBtn.onclick = () => {
+    resetFormState();
+    overlay.remove();
+  };
+
+async function saveFutureLead() {
+  const orgName = orgNameEl.value.trim();
+  const phoneRawInput = phoneEl.value.trim();
+  const phoneDigits = getLast10Digits(phoneRawInput);
+  const website = websiteEl.value.trim();
+  const email = emailEl.value.trim();
+  const noteText = noteEl.value.trim();
+
+  const addrVal = addressInput.value.trim();
+  if (addrVal && !addresses.includes(addrVal)) {
+    addresses.push(addrVal);
+    renderAddresses();
+  }
+  if (addrVal) {
+    addressInput.value = "";
+  }
+
+  const sanitizedAddresses = addresses.map(addr => addr.trim()).filter(Boolean);
+
+  if (!orgName) { alert("Organization name is required."); return; }
+  if (!phoneDigits && !website && !email) { alert("Provide at least one of phone, website, or email."); return; }
+  if (!validPhone(phoneRawInput))   { alert("Phone looks invalid."); return; }
+  if (!validUrl(website))   { alert("Website must be a valid link."); return; }
+  if (!validEmail(email))   { alert("Email looks invalid."); return; }
+
+  const actingUser = userName || getCurrentUsername();
+  const compositeKey = buildCompositeUuid(website, email, phoneDigits);
+
+  const isEditing = !!editingEntry;
+  const targetUuid = isEditing
+    ? editingEntry.topKey
+    : `${uuidv()}_${sanitizedAddresses.join(' | ')}-futureNote`;
+  const targetUserKey = isEditing ? editingEntry.userKey : compositeKey;
+  const targetDateKey = isEditing
+    ? editingEntry.dateKey
+    : `https://gogetta.nyc/team/location/${encodeURIComponent(orgName)}`;
+
+  const notePayload = buildFutureOrgNotePayload({
+    orgName,
+    noteText,
+    addressesList: sanitizedAddresses,
+    website,
+    email,
+    phoneDigits,
+    phoneRaw: phoneRawInput,
+    actingUser,
+    existing: editingEntry?.noteData,
+    compositeKey,
+    targetKeys: { uuid: targetUuid, userKey: targetUserKey, dateKey: targetDateKey }
+  });
+
+  const actionLabel = isEditing ? "Updating future/online org" : "Saving future/online org";
+
+  const payload = {
+    uuid: targetUuid,
+    userName: targetUserKey,
+    date: targetDateKey,
+    note: JSON.stringify(notePayload)
+  };
+
+  try {
+    const res = await postToNoteAPI(payload);
+    await checkResponse(res, actionLabel);
+    resetFormState();
+    await loadExisting();
   } catch (e) {
     console.error(e);
     alert(e.message || "Failed to save.");
@@ -1185,7 +1471,7 @@ function decodeCompositeKey(key) {
 }
 
 async function loadExisting() {
-  existingDiv.innerHTML = "Loading…";
+  existingDiv.innerHTML = "Loading...";
   try {
     const r = await fetch(`${baseURL}locationNotes.json`);
     if (!r.ok) throw new Error(`Fetch failed: ${r.status}`);
@@ -1201,28 +1487,34 @@ async function loadExisting() {
       for (const [userKey, dateMap] of Object.entries(userMap)) {
         if (!dateMap || typeof dateMap !== "object") continue;
 
-        const isFuture =
-          /-futurenote$/i.test(userKey) ||
-          /-futurenote$/i.test(topKey) ||
-          looksLikeCompositeKey(topKey) ||
-          looksLikeCompositeKey(userKey);
-
-        if (!isFuture) continue;
-
         for (const [dateKey, noteVal] of Object.entries(dateMap)) {
-          const noteText = typeof noteVal === "string" ? noteVal : String(noteVal ?? "");
+          const noteData = parseFutureOrgNoteValue(noteVal);
+          const isFuture =
+            noteData?.type === "futureOrg" ||
+            /-futurenote$/i.test(userKey) ||
+            /-futurenote$/i.test(topKey) ||
+            looksLikeCompositeKey(topKey) ||
+            looksLikeCompositeKey(userKey);
+
+          if (!isFuture) continue;
+
+          const displayNote =
+            noteData?.note ||
+            (typeof noteVal === "string" ? noteVal : "");
+
           entries.push({
             topKey,
             userKey,
-            dateKey, // org name
-            note: noteText
+            dateKey,
+            noteData,
+            displayNote: displayNote || "(no note)",
+            rawNote: noteVal
           });
         }
       }
 
       if (!entries.length) continue;
 
-      // === Card ===
       const card = document.createElement("div");
       Object.assign(card.style, {
         border: "1px solid #ccc",
@@ -1232,45 +1524,51 @@ async function loadExisting() {
         marginBottom: "8px"
       });
 
-      // Title
       const title = document.createElement("div");
       title.style.fontWeight = "700";
-      title.textContent = decodeURIComponent(entries[0].dateKey || entries[0].userKey || topKey);
-      card.appendChild(title);
-
-      // Meta (phone/email/website/address) — always try to show
-      let website = "", email = "", phone = "", address = "";
-      try {
-        if (looksLikeCompositeKey(entries[0].userKey)) {
-          const decoded = decodeCompositeKey(entries[0].userKey) || {};
-          website = decoded.website || "";
-          email = decoded.email || "";
-          phone = decoded.phone || "";
+      const nameFromNotes = entries.map(getEntryOrgName).find(Boolean);
+      let fallbackTitle = "";
+      const firstEntry = entries[0];
+      if (firstEntry) {
+        const candidate = firstEntry.dateKey || firstEntry.userKey || topKey;
+        const decodedName = decodeOrgNameFromDateKey(firstEntry.dateKey);
+        if (decodedName) {
+          fallbackTitle = decodedName;
+        } else {
+          try {
+            fallbackTitle = decodeURIComponent(candidate);
+          } catch {
+            fallbackTitle = candidate;
+          }
         }
-      } catch (err) {
-        console.warn("decodeCompositeKey failed:", err);
       }
-      try {
-        address = decodeURIComponent(
-          entries[0].topKey.replace(/-futurenote$/i, "")
-            .split("_").slice(1).join(" ")
-        );
-      } catch (err) {
-        address = "";
-      }
+      title.textContent = nameFromNotes || fallbackTitle || "(unknown org)";
+      card.appendChild(title);
 
       const meta = document.createElement("div");
       meta.style.fontSize = "12px";
       meta.style.color = "#555";
+
+      const metaSource = entries.find(entry => entry.noteData) || entries[0];
+      const metaContact = getEntryContact(metaSource);
+      const metaAddresses = getEntryAddresses(metaSource);
+
+      const websiteHtml = metaContact.website ? escapeHtml(metaContact.website) : "(none)";
+      const emailHtml = metaContact.email ? escapeHtml(metaContact.email) : "(none)";
+      const phoneDisplay = metaContact.phoneDisplay || "";
+      const phoneHtml = phoneDisplay ? escapeHtml(phoneDisplay) : "(none)";
+      const addressesHtml = metaAddresses.length
+        ? metaAddresses.map(addr => escapeHtml(addr)).join("<br>")
+        : "(none)";
+
       meta.innerHTML = `
-        Website: ${escapeHtml(website) || "(none)"}<br>
-        Email: ${escapeHtml(email) || "(none)"}<br>
-        Phone: ${escapeHtml(phone) || "(none)"}<br>
-        Address: ${escapeHtml(address) || "(none)"}
+        Website: ${websiteHtml}<br>
+        Email: ${emailHtml}<br>
+        Phone: ${phoneHtml}<br>
+        Addresses: ${addressesHtml}
       `;
       card.appendChild(meta);
 
-      // === Entries list ===
       const list = document.createElement("div");
       list.style.marginTop = "6px";
 
@@ -1278,11 +1576,27 @@ async function loadExisting() {
         const row = document.createElement("div");
         row.style.borderTop = "1px dashed #eee";
         row.style.padding = "6px 0";
-        row.innerHTML = `
-          <div style="white-space:pre-wrap;margin-top:4px">${escapeHtml(entry.note)}</div>
-        `;
 
-        // Action buttons
+        const noteBlock = document.createElement("div");
+        noteBlock.style.whiteSpace = "pre-wrap";
+        noteBlock.style.marginTop = "4px";
+        noteBlock.textContent = entry.noteData?.note || entry.displayNote || "(no note)";
+        row.appendChild(noteBlock);
+
+        const noteMeta = entry.noteData?.metadata;
+        if (noteMeta && (noteMeta.updatedAt || noteMeta.updatedBy || noteMeta.createdAt || noteMeta.createdBy)) {
+          const metaLine = document.createElement("div");
+          metaLine.style.fontSize = "12px";
+          metaLine.style.color = "#666";
+          const parts = [];
+          if (noteMeta.updatedAt) parts.push(`Updated: ${formatTimestampForDisplay(noteMeta.updatedAt)}`);
+          if (noteMeta.updatedBy) parts.push(`By: ${noteMeta.updatedBy}`);
+          if (!parts.length && noteMeta.createdAt) parts.push(`Created: ${formatTimestampForDisplay(noteMeta.createdAt)}`);
+          if (!parts.length && noteMeta.createdBy) parts.push(`By: ${noteMeta.createdBy}`);
+          if (parts.length) metaLine.textContent = parts.join(" | ");
+          row.appendChild(metaLine);
+        }
+
         const actions = document.createElement("div");
         actions.style.marginTop = "6px";
         actions.style.display = "flex";
@@ -1301,9 +1615,10 @@ async function loadExisting() {
                 orgKey: entry.topKey,
                 sourceUserName: entry.userKey,
                 sourceDate: entry.dateKey,
-                noteText: entry.note,
+                noteText: entry.noteData?.note || entry.displayNote,
                 NOTE_API,
-                locationUuid: currentUuid
+                locationUuid: currentUuid,
+                notePayload: entry.noteData
               });
               await loadExisting();
             } catch (err) {
@@ -1339,9 +1654,10 @@ async function loadExisting() {
               orgKey: entry.topKey,
               sourceUserName: entry.userKey,
               sourceDate: entry.dateKey,
-              noteText: entry.note,
+              noteText: entry.noteData?.note || entry.displayNote,
               NOTE_API,
-              locationUuid: targetUuid
+              locationUuid: targetUuid,
+              notePayload: entry.noteData
             });
             await loadExisting();
           } catch (err) {
@@ -1353,6 +1669,14 @@ async function loadExisting() {
         moveOtherWrapper.appendChild(linkInput);
         moveOtherWrapper.appendChild(moveOtherBtn);
         actions.appendChild(moveOtherWrapper);
+
+        const editBtn = document.createElement("button");
+        editBtn.textContent = "Edit";
+        editBtn.style.padding = "4px 6px";
+        editBtn.addEventListener("click", () => {
+          startEditing(entry);
+        });
+        actions.appendChild(editBtn);
 
         row.appendChild(actions);
         list.appendChild(row);
@@ -1372,6 +1696,7 @@ async function loadExisting() {
     existingDiv.innerHTML = `<span style="color:#900">Failed to load.</span>`;
   }
 }
+
 
 
 
@@ -2905,6 +3230,7 @@ async function injectGoGettaButtons() {
     return;
   }
   const path = location.pathname;
+  updateAreaZipOverlayForPath(path);
   const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
   const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
   const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
@@ -3037,6 +3363,16 @@ async function injectGoGettaButtons() {
     buttonActions.push({ text, onClick, element: option });
     return { remove: () => option.remove(), element: option };
   };
+  if (isGoGettaAreaPath(path)) {
+    createButton('Area ZIP helper', () => {
+      updateAreaZipOverlayForPath(location.pathname);
+      if (areaZipOverlayState?.overlay) {
+        areaZipOverlayState.overlay.style.display = 'block';
+        updateAreaZipAvailability(areaZipOverlayState);
+        areaZipOverlayState.textarea?.focus?.();
+      }
+    });
+  }
 if (uuid === "connections") {
   console.warn("[Notes] Skipping rendering for reserved UUID: connections");
   return;
@@ -4469,7 +4805,7 @@ if (notesArray.length > 0) {
 
       const safeUser = n.user === 'doobneek'
         ? `<a href="http://localhost:3210" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
-        : `<strong>${escapeHtml(n.user)}</strong>`;
+         : `<strong>${escapeHtml(n.user)}</strong>`;
 
       const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"
         ? "Revalidated"
@@ -4830,6 +5166,505 @@ document.body.appendChild(noteWrapper);
       }, timeout);
     });
     mostOutdatedBtn.setAttribute('data-most-outdated', 'true');
+  }
+}
+function isGoGettaAreaPath(pathname = location.pathname) {
+  return /^\/team\/location\/[0-9a-f-]{12,}\/services\/[0-9a-f-]{12,}\/area\/?$/i.test(pathname);
+}
+
+function updateAreaZipOverlayForPath(path) {
+  if (!isGoGettaAreaPath(path)) {
+    destroyAreaZipOverlay();
+    return;
+  }
+  if (areaZipOverlayState && areaZipOverlayState.path === path) {
+    updateAreaZipAvailability(areaZipOverlayState);
+    return;
+  }
+  destroyAreaZipOverlay();
+  areaZipOverlayState = createAreaZipOverlay(path);
+}
+
+function destroyAreaZipOverlay() {
+  if (!areaZipOverlayState) return;
+  try {
+    areaZipOverlayState.observer?.disconnect?.();
+  } catch (err) {
+    console.warn('[AreaZipHelper] Failed to disconnect observer:', err);
+  }
+  try {
+    areaZipOverlayState.overlay?.remove?.();
+  } catch (err) {
+    console.warn('[AreaZipHelper] Failed to remove overlay:', err);
+  }
+  areaZipOverlayState = null;
+}
+
+function createAreaZipOverlay(path) {
+  const overlay = document.createElement('div');
+  overlay.id = 'gg-area-zip-overlay';
+  Object.assign(overlay.style, {
+    position: 'fixed',
+    top: '92px',
+    right: '16px',
+    width: '340px',
+    maxWidth: 'calc(100% - 32px)',
+    background: '#fff',
+    border: '1px solid rgba(15, 23, 42, 0.14)',
+    borderRadius: '10px',
+    boxShadow: '0 16px 40px rgba(15, 23, 42, 0.22)',
+    padding: '14px',
+    fontFamily: '"Inter", "Segoe UI", system-ui, sans-serif',
+    fontSize: '13px',
+    lineHeight: '1.4',
+    color: '#111',
+    zIndex: '2147483000'
+  });
+
+  const header = document.createElement('div');
+  Object.assign(header.style, {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '8px',
+    fontWeight: '600',
+    fontSize: '14px'
+  });
+
+  const title = document.createElement('span');
+  title.textContent = 'Area ZIP assistant';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = '×';
+  closeBtn.setAttribute('aria-label', 'Close area ZIP assistant');
+  Object.assign(closeBtn.style, {
+    border: 'none',
+    background: 'transparent',
+    fontSize: '18px',
+    lineHeight: '1',
+    cursor: 'pointer',
+    color: '#555',
+    padding: '0 4px'
+  });
+  closeBtn.addEventListener('click', () => destroyAreaZipOverlay());
+
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+
+  const textarea = document.createElement('textarea');
+  textarea.placeholder = 'Paste your ZIP list or any text with ZIP codes...';
+  textarea.rows = 4;
+  textarea.spellcheck = false;
+  textarea.autocapitalize = 'off';
+  textarea.autocomplete = 'off';
+  Object.assign(textarea.style, {
+    width: '100%',
+    minHeight: '88px',
+    borderRadius: '6px',
+    border: '1px solid #d1d5db',
+    padding: '8px',
+    fontFamily: 'inherit',
+    fontSize: '12px',
+    resize: 'vertical',
+    boxSizing: 'border-box'
+  });
+
+  const helper = document.createElement('div');
+  helper.textContent = 'Extracts all 5-digit ZIP codes and skips ones already listed.';
+  Object.assign(helper.style, {
+    fontSize: '12px',
+    color: '#555',
+    marginTop: '6px'
+  });
+
+  const controls = document.createElement('div');
+  Object.assign(controls.style, {
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+    marginTop: '10px'
+  });
+
+  const runButton = document.createElement('button');
+  runButton.type = 'button';
+  runButton.textContent = 'Fill missing ZIPs';
+  runButton.disabled = true;
+  runButton.dataset.defaultLabel = runButton.textContent;
+  Object.assign(runButton.style, {
+    flex: '0 0 auto',
+    background: '#2563eb',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    padding: '8px 12px',
+    fontWeight: '600',
+    cursor: 'pointer'
+  });
+
+  controls.appendChild(runButton);
+
+  const status = document.createElement('div');
+  status.textContent = 'Looking for GoGetta area editor...';
+  Object.assign(status.style, {
+    marginTop: '8px',
+    fontSize: '12px',
+    color: '#555',
+    minHeight: '18px',
+    whiteSpace: 'pre-line'
+  });
+
+  overlay.appendChild(header);
+  overlay.appendChild(textarea);
+  overlay.appendChild(helper);
+  overlay.appendChild(controls);
+  overlay.appendChild(status);
+  document.body.appendChild(overlay);
+
+  const state = {
+    overlay,
+    path,
+    textarea,
+    runButton,
+    statusEl: status,
+    running: false,
+    lastStatusType: 'auto',
+    lastStatusMessage: '',
+    lastStatusKind: 'info',
+    observer: null,
+    contextAvailable: false,
+    updateScheduled: false
+  };
+
+  runButton.addEventListener('click', () => runAreaZipAutomation(state));
+
+  const observer = new MutationObserver((mutations) => {
+    if (areaZipOverlayState !== state) {
+      observer.disconnect();
+      return;
+    }
+    const hasRelevantMutation = mutations.some((mutation) => {
+      const target = mutation.target;
+      if (!target) return false;
+      return !state.overlay.contains(target);
+    });
+    if (!hasRelevantMutation) {
+      return;
+    }
+    if (state.updateScheduled) {
+      return;
+    }
+    state.updateScheduled = true;
+    requestAnimationFrame(() => {
+      state.updateScheduled = false;
+      if (areaZipOverlayState !== state) return;
+      updateAreaZipAvailability(state);
+    });
+  });
+
+  try {
+    observer.observe(document.body, { childList: true, subtree: true });
+  } catch (err) {
+    console.warn('[AreaZipHelper] Failed to observe DOM changes:', err);
+  }
+  state.observer = observer;
+
+  updateAreaZipAvailability(state);
+  return state;
+}
+
+function setAreaZipStatus(state, message, type = 'info', source = 'manual') {
+  if (!state || !state.statusEl) return;
+  if (state.lastStatusMessage === message && state.lastStatusKind === type) {
+    state.lastStatusType = source;
+    return;
+  }
+  state.lastStatusMessage = message;
+  state.lastStatusKind = type;
+  state.statusEl.textContent = message;
+  let color = '#374151';
+  if (type === 'error') {
+    color = '#b42318';
+  } else if (type === 'success') {
+    color = '#0f9d58';
+  }
+  state.statusEl.style.color = color;
+  state.lastStatusType = source;
+}
+
+function updateAreaZipAvailability(state) {
+  if (!state || !state.runButton) return;
+  const context = getAreaPageContext();
+  state.contextAvailable = !!context;
+  if (!state.running) {
+    state.runButton.disabled = !state.contextAvailable;
+  }
+  if (state.lastStatusType === 'auto') {
+    if (state.contextAvailable) {
+      const existing = gatherAreaZipValues(context.container);
+      setAreaZipStatus(
+        state,
+        `Ready. ${existing.size} ZIP${existing.size === 1 ? '' : 's'} detected.`,
+        'info',
+        'auto'
+      );
+    } else {
+      setAreaZipStatus(
+        state,
+        'Area editor not detected. Click "NO, LET\'S EDIT IT" so the inputs appear.',
+        'info',
+        'auto'
+      );
+    }
+  }
+}
+
+function parseZipSequences(raw) {
+  if (!raw) return [];
+  const matches = String(raw).match(/\b\d{5}\b/g);
+  if (!matches) return [];
+  const seen = new Set();
+  const result = [];
+  for (const zip of matches) {
+    if (!seen.has(zip)) {
+      seen.add(zip);
+      result.push(zip);
+    }
+  }
+  return result;
+}
+
+function getAreaPageContext() {
+  const trigger = Array.from(document.querySelectorAll('.addAnotherArea')).find((el) => {
+    const text = el?.textContent?.trim().toLowerCase();
+    return text && text.includes('add another');
+  });
+  const addButton = trigger ? trigger.closest('button') : null;
+  if (!addButton) return null;
+  const container =
+    addButton.closest('form') ||
+    addButton.closest('[role="dialog"]') ||
+    addButton.closest('.Drawer, .drawer') ||
+    addButton.closest('.Modal, .modal') ||
+    addButton.closest('section') ||
+    addButton.closest('main') ||
+    addButton.parentElement ||
+    document.body;
+  return { addButton, container };
+}
+
+function gatherAreaZipValues(container) {
+  const scope = container || document;
+  const inputs = Array.from(scope.querySelectorAll('input.Input-fluid'));
+  const zips = new Set();
+  for (const input of inputs) {
+    if (!input) continue;
+    if (input.offsetParent === null) continue;
+    const value = (input.value || '').trim();
+    if (/^\d{5}$/.test(value)) {
+      zips.add(value);
+    }
+  }
+  return zips;
+}
+
+function findAreaFinalOkButton(container) {
+  const scope = container || document;
+  const buttons = Array.from(
+    scope.querySelectorAll('button.Button.Button-primary[type="button"]')
+  ).filter((btn) => btn.textContent && btn.textContent.trim().toUpperCase() === 'OK');
+  if (!buttons.length) return null;
+  const preferred = buttons.find(
+    (btn) => !btn.classList.contains('mt-3') && !btn.classList.contains('mb-3')
+  );
+  return preferred || buttons[buttons.length - 1];
+}
+
+function isZipInputCandidate(element, areaContainer) {
+  if (!element || element.tagName !== 'INPUT') return false;
+  if (!element.classList.contains('Input-fluid')) return false;
+  if (element.disabled || element.readOnly) return false;
+  if (element.offsetParent === null) return false;
+  const value = (element.value || '').trim();
+  if (value && !/^\d{0,5}$/.test(value)) return false;
+  if (areaContainer && areaContainer !== document.body && !areaContainer.contains(element)) {
+    const dialog = element.closest('[role="dialog"], .modal, .Modal, .drawer, .Drawer');
+    if (!dialog) return false;
+  }
+  return true;
+}
+
+function waitForCondition(predicate, timeout = 4000, interval = 120, description = 'condition') {
+  const deadline = Date.now() + timeout;
+  return new Promise((resolve, reject) => {
+    const tick = () => {
+      let result;
+      try {
+        result = predicate();
+      } catch (err) {
+        reject(err);
+        return;
+      }
+      if (result) {
+        resolve(result);
+        return;
+      }
+      if (Date.now() > deadline) {
+        reject(new Error(`Timed out waiting for ${description}`));
+        return;
+      }
+      setTimeout(tick, interval);
+    };
+    tick();
+  });
+}
+
+async function addZipToArea(zip, state) {
+  if (!zip) return;
+  if (areaZipOverlayState !== state) throw new Error('Area ZIP helper closed.');
+  const context = getAreaPageContext();
+  if (!context) throw new Error('Area editor not available.');
+  const { addButton, container } = context;
+  if (!addButton) throw new Error('"+ Add another" button not found.');
+
+  addButton.click();
+
+  const input = await waitForCondition(
+    () => {
+      if (areaZipOverlayState !== state) return null;
+      const active = document.activeElement;
+      if (isZipInputCandidate(active, container)) return active;
+      const candidates = Array.from(document.querySelectorAll('input.Input-fluid')).filter((el) =>
+        isZipInputCandidate(el, container)
+      );
+      return candidates.find((el) => (el.value || '').trim().length === 0) || candidates[0] || null;
+    },
+    6000,
+    120,
+    `a ZIP input for ${zip}`
+  );
+
+  if (!input) throw new Error(`Could not locate ZIP input for ${zip}.`);
+  input.focus();
+  input.value = zip;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+
+  const okButton = await waitForCondition(
+    () => {
+      if (areaZipOverlayState !== state) return null;
+      const buttons = Array.from(
+        document.querySelectorAll(
+          'button.Button.mt-3.mb-3.Button-primary[type="button"], button.Button.mt-3.mb-3.Button-primary'
+        )
+      );
+      return buttons.find(
+        (btn) => btn.offsetParent !== null && btn.textContent && btn.textContent.trim().toUpperCase() === 'OK'
+      ) || null;
+    },
+    5000,
+    120,
+    `inner OK button for ${zip}`
+  );
+
+  if (!okButton) throw new Error(`Could not find inner OK button for ${zip}.`);
+  okButton.click();
+
+  await waitForCondition(
+    () => {
+      if (areaZipOverlayState !== state) return true;
+      const updated = getAreaPageContext();
+      if (!updated) return false;
+      return gatherAreaZipValues(updated.container).has(zip);
+    },
+    6000,
+    150,
+    `ZIP ${zip} to appear`
+  ).catch(() => {
+    console.warn(`[AreaZipHelper] ZIP ${zip} may not have been confirmed yet.`);
+  });
+}
+
+async function runAreaZipAutomation(state) {
+  if (!state || state.running) return;
+  const rawInput = state.textarea.value || '';
+  const zips = parseZipSequences(rawInput);
+  if (!zips.length) {
+    setAreaZipStatus(state, 'No 5-digit ZIP codes found in the input.', 'error');
+    return;
+  }
+  const context = getAreaPageContext();
+  if (!context) {
+    setAreaZipStatus(state, 'Area editor not detected. Click "NO, LET\'S EDIT IT" first.', 'error');
+    return;
+  }
+
+  state.running = true;
+  state.textarea.disabled = true;
+  state.runButton.disabled = true;
+  state.runButton.textContent = 'Working...';
+
+  try {
+    const existing = gatherAreaZipValues(context.container);
+    const queue = [];
+    const skipped = [];
+
+    for (const zip of zips) {
+      if (existing.has(zip)) {
+        skipped.push(zip);
+      } else {
+        queue.push(zip);
+      }
+    }
+
+    if (skipped.length) {
+      console.log('[AreaZipHelper] Skipping existing ZIPs:', skipped.join(', '));
+    }
+
+    if (!queue.length) {
+      setAreaZipStatus(state, 'All ZIPs already present — nothing to add.', 'success');
+      return;
+    }
+
+    setAreaZipStatus(
+      state,
+      `Adding ${queue.length} new ZIP${queue.length === 1 ? '' : 's'}${
+        skipped.length ? ` (skipped ${skipped.length})` : ''
+      }...`,
+      'info'
+    );
+
+    for (const zip of queue) {
+      if (areaZipOverlayState !== state) throw new Error('Area ZIP helper closed.');
+      setAreaZipStatus(state, `Adding ZIP ${zip}...`, 'info');
+      await addZipToArea(zip, state);
+    }
+
+    const refreshedContext = getAreaPageContext();
+    if (refreshedContext) {
+      const finalOk = findAreaFinalOkButton(refreshedContext.container);
+      if (finalOk) {
+        setAreaZipStatus(state, 'Saving ZIP list...', 'info');
+        finalOk.click();
+        setAreaZipStatus(state, 'ZIPs added and saved.', 'success');
+      } else {
+        setAreaZipStatus(state, 'ZIPs added, but final OK button not found.', 'error');
+      }
+    } else {
+      setAreaZipStatus(state, 'ZIPs added, but area editor disappeared.', 'error');
+    }
+  } catch (err) {
+    if (err && /helper closed/i.test(err.message || '')) {
+      setAreaZipStatus(state, 'ZIP helper closed before completion.', 'info');
+    } else {
+      console.error('[AreaZipHelper] Failed to add ZIPs:', err);
+      setAreaZipStatus(state, err?.message || 'Failed to add ZIPs.', 'error');
+    }
+  } finally {
+    state.running = false;
+    state.textarea.disabled = false;
+    state.runButton.textContent = state.runButton.dataset.defaultLabel || 'Fill missing ZIPs';
+    updateAreaZipAvailability(state);
   }
 }
 async function initializeGoGettaEnhancements() {
