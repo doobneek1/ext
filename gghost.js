@@ -493,10 +493,23 @@ async function postNoteFromSiteVisit({ uuid, NOTE_API, rec }) {
 }
 
 async function fetchSiteVisitRecord(uuid) {
+  if (!uuid) {
+    console.warn("[SiteVisit] fetchSiteVisitRecord called without a UUID");
+    return null;
+  }
+
   const url = `${baseURL}/siteVisits/${uuid}.json`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`SiteVisit fetch failed: ${r.status}`);
-  return await r.json(); // null if not present
+  try {
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) {
+      console.warn(`[SiteVisit] Record fetch failed (${r.status}) for ${uuid}`);
+      return null;
+    }
+    return await r.json(); // null if not present
+  } catch (err) {
+    console.warn("[SiteVisit] Record fetch threw, treating as no record:", err);
+    return null;
+  }
 }
 
 
@@ -625,11 +638,65 @@ async function injectSiteVisitUI({
   userName,
   NOTE_API,
   today,
-  done
+  done = false
 }) {
+  if (!parentEl || typeof parentEl.prepend !== "function") {
+    console.warn("[SiteVisit] Cannot render UI without a valid parent element");
+    return;
+  }
+
+  parentEl.querySelector("#sitevisit-banner")?.remove();
+
+  function buildVisitButtonRow() {
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.justifyContent = "space-between";
+
+    const btn = document.createElement("button");
+    btn.textContent = done ? `Thanks, ${userName || "team"}` : "Visit this location";
+    Object.assign(btn.style, {
+      padding: "6px 10px",
+      border: "1px solid #000",
+      borderRadius: "4px",
+      background: "#fff",
+      cursor: uuid ? "pointer" : "not-allowed",
+      opacity: uuid ? "1" : "0.6"
+    });
+
+    if (uuid) {
+      btn.addEventListener("click", () => {
+        showSiteVisitEmbed({
+          uuid,
+          onClose: () => {
+            injectSiteVisitUI({
+              parentEl,
+              uuid,
+              userName,
+              NOTE_API,
+              today,
+              done: false
+            });
+          }
+        });
+      });
+    } else {
+      btn.disabled = true;
+      btn.title = "Location ID unavailable for this page";
+    }
+
+    row.appendChild(btn);
+    return row;
+  }
+
+  function renderVisitButtonBanner() {
+    const fallbackBanner = document.createElement("div");
+    fallbackBanner.id = "sitevisit-banner";
+    fallbackBanner.appendChild(buildVisitButtonRow());
+    parentEl.prepend(fallbackBanner);
+  }
+
   try {
-    // Remove prior banner if re-rendered
-    parentEl.querySelector('#sitevisit-banner')?.remove();
 
     // --- Helpers ------------------------------------------------------------
     function normalizeSiteVisitRecord(raw, uuid) {
@@ -667,6 +734,21 @@ async function injectSiteVisitUI({
       return (last?.[1]?.text || '').trim();
     }
 
+    function formatUpdatedAt(value) {
+      if (!value) return "recently";
+      const dateObj = new Date(value);
+      if (Number.isNaN(dateObj.getTime())) return value;
+      try {
+        return dateObj.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "2-digit"
+        });
+      } catch {
+        return value;
+      }
+    }
+
     async function postNoteFromSiteVisit({ uuid, NOTE_API, rec }) {
       // Prefer the latest object note text if present
       const latestObjNote = getLatestNoteTextFromObjectNotes(rec?.notes);
@@ -699,11 +781,7 @@ async function injectSiteVisitUI({
       // Title / info
       const info = document.createElement('div');
       info.style.marginTop = '4px';
-      const updated = new Date(rec.meta.updatedAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "2-digit"
-      });
+      const updated = formatUpdatedAt(rec.meta.updatedAt);
       info.textContent = `Marked for site visit ${rec.meta.userName || userName || ''} on ${updated}`;
       banner.appendChild(info);
 
@@ -852,45 +930,14 @@ async function injectSiteVisitUI({
 
     } else {
       // No active record: show action button
-      const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.alignItems = 'center';
-      row.style.justifyContent = 'space-between';
-
-      const btn = document.createElement('button');
-      btn.textContent = done ? `Thanks, ${userName}` : "Visit this location";
-      Object.assign(btn.style, {
-        padding: '6px 10px',
-        border: '1px solid #000',
-        borderRadius: '4px',
-        background: '#fff',
-        cursor: 'pointer'
-      });
-
-      btn.addEventListener('click', () => {
-        showSiteVisitEmbed({
-          uuid,
-          onClose: () => {
-            injectSiteVisitUI({
-              parentEl,
-              uuid,
-              userName,
-              NOTE_API,
-              today,
-              done: false
-            });
-          }
-        });
-      });
-
-      row.appendChild(btn);
-      banner.appendChild(row);
+      banner.appendChild(buildVisitButtonRow());
     }
 
     // Insert at the top of the read-only notes
     parentEl.prepend(banner);
   } catch (e) {
     console.warn('[SiteVisit] Skipping banner due to error:', e);
+    renderVisitButtonBanner();
   }
 }
 
