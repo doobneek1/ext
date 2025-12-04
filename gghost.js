@@ -1781,7 +1781,8 @@ async function checkResponse(response, actionDescription) {
 
 async function fetchLocationDetails(uuid) {
   try {
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+    const headers = getAuthHeaders();
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, { headers });
     if (!res.ok) throw new Error("Fetch failed");
     const data = await res.json();
 
@@ -2735,7 +2736,8 @@ async function fetchFullLocationRecord(uuid, { refresh = false } = {}) {
   }
 
   try {
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+    const headers = getAuthHeaders();
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, { headers });
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
@@ -3453,7 +3455,8 @@ if (fullServiceMatch) {
   const locationId = fullServiceMatch[1];
   const serviceId = fullServiceMatch[2];
   try {
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`);
+    const headers = getAuthHeaders();
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`, { headers });
     const data = await res.json();
 
     // 🟢 record validation timestamp
@@ -3487,7 +3490,8 @@ if (fullServiceMatch) {
   }
 } else {
   try {
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+    const headers = getAuthHeaders();
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, { headers });
     const data = await res.json();
 
     // 🟢 record validation timestamp
@@ -4583,8 +4587,10 @@ try {
 
   console.log('[YP Mini] 🔄 Fetching data for UUID:', uuid);
   const apiUrl = `https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`;
-  
-  const res = await fetch(apiUrl);
+
+  const headers = getAuthHeaders();
+  console.log('[YP Mini] 🔑 Using auth headers:', headers);
+  const res = await fetch(apiUrl, { headers });
   
   if (!res.ok) {
     console.error('[YP Mini] ❌ API request failed:', res.status, res.statusText);
@@ -4661,7 +4667,7 @@ if (data && typeof data === 'object' && Object.keys(data).length > 0) {
         notesArray.push({
           user: user,
           date: date,
-          note: escapeHtml(data[user][date])
+          note: data[user][date]  // Don't escape here, will escape when displaying
         });
       }
     }
@@ -4749,7 +4755,8 @@ const currentUuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
 if (currentUuid) {
   try {
     console.log(`[Notes Header] Attempting to fetch details for UUID: ${currentUuid}`);
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${currentUuid}`);
+    const headers = getAuthHeaders();
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${currentUuid}`, { headers });
     if (!res.ok) {
       throw new Error(`API request failed with status ${res.status}`);
     }
@@ -4856,7 +4863,7 @@ if (notesArray.length > 0) {
 
       const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"
         ? "Revalidated"
-        : escapeHtml(n.note);
+        : escapeHtml(n.note).replace(/\n/g, '<br>');  // Escape once and preserve line breaks
 
       container.innerHTML = `${safeUser} (${n.date}):<br>${displayNote}`;
 
@@ -5012,6 +5019,230 @@ checkboxWrapper.appendChild(revalidateCheckbox);
 checkboxWrapper.appendChild(revalidateLabel);
 noteWrapper.appendChild(checkboxWrapper);
 
+// Function to refresh readonly notes
+async function refreshReadOnlyNotes() {
+  try {
+    const res = await fetch(`${baseURL}locationNotes.json`);
+    const allData = await res.json();
+    const data = allData?.[uuid] || {};
+    const notesArray = [];
+
+    if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+      for (const user in data) {
+        if (typeof data[user] === 'object') {
+          for (const date in data[user]) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+            notesArray.push({
+              user: user,
+              date: date,
+              note: data[user][date]  // Don't escape here, will escape when displaying
+            });
+          }
+        }
+      }
+      notesArray.sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
+
+    // Clear and repopulate readOnlyDiv
+    readOnlyDiv.innerHTML = '';
+
+    if (notesArray.length > 0) {
+      const today = new Date().toISOString().slice(0, 10);
+      notesArray
+        .filter(n => !(n.user === userName && n.date === today && n.note.trim().toLowerCase() !== "revalidated123435355342"))
+        .forEach(n => {
+          const container = document.createElement("div");
+          container.style.marginBottom = "10px";
+
+          const safeUser = n.user === 'doobneek'
+            ? `<a href="http://localhost:3210" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
+            : `<strong>${escapeHtml(n.user)}</strong>`;
+
+          const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"
+            ? "Revalidated"
+            : escapeHtml(n.note).replace(/\n/g, '<br>');  // Escape once and preserve line breaks
+
+          container.innerHTML = `${safeUser} (${n.date}):<br>${displayNote}`;
+
+          const isReminder = n.user === "reminder";
+          const isDue = n.date <= today;
+          const isDone = /\n?\s*Done by .+$/i.test(n.note.trim());
+
+          if (isReminder && isDue && !isDone) {
+            const btn = document.createElement("button");
+            btn.textContent = "Done?";
+            btn.style.marginTop = "5px";
+
+            btn.addEventListener("click", async () => {
+              const updatedNote = `${n.note.trim()}\n\nDone by ${userName}`;
+              try {
+                await postToNoteAPI({
+                  uuid,
+                  date: n.date,
+                  note: updatedNote,
+                  userName: "reminder"
+                });
+                btn.textContent = "Thanks!";
+                btn.disabled = true;
+                btn.style.backgroundColor = "#ccc";
+                // Refresh notes to show the updated "Done by" status
+                await refreshReadOnlyNotes();
+              } catch (err) {
+                console.error("❌ Failed to mark done", err);
+                alert("Failed to update reminder.");
+              }
+            });
+
+            container.appendChild(document.createElement("br"));
+            container.appendChild(btn);
+          }
+
+          readOnlyDiv.appendChild(container);
+        });
+    } else {
+      readOnlyDiv.innerHTML = "<i>(No past notes available)</i>";
+    }
+
+    console.log("[Notes] Refreshed readonly notes");
+  } catch (err) {
+    console.error("[Notes] Failed to refresh:", err);
+  }
+}
+
+// Separate wrapper for the utility buttons (always visible)
+const utilityButtonsWrapper = document.createElement("div");
+utilityButtonsWrapper.style.padding = "10px";
+utilityButtonsWrapper.style.borderTop = "1px dashed #ccc";
+utilityButtonsWrapper.style.display = "flex";
+utilityButtonsWrapper.style.gap = "8px";
+utilityButtonsWrapper.style.alignItems = "center";
+
+// "Left a message" button
+const leftMessageBtn = document.createElement("button");
+leftMessageBtn.textContent = "left a message";
+leftMessageBtn.style.padding = "2px 6px";
+leftMessageBtn.style.fontSize = "11px";
+leftMessageBtn.addEventListener("click", async () => {
+  try {
+    const currentText = editableDiv.innerText.trim();
+    const newText = currentText ? `${currentText} left a message` : "left a message";
+    editableDiv.innerText = newText;
+
+    // Save to database
+    const today = new Date().toISOString().slice(0, 10);
+    const currentUserName = getCurrentUsername();
+    await postToNoteAPI({
+      uuid,
+      date: today,
+      note: newText,
+      userName: currentUserName
+    });
+
+    console.log("[Left Message] Added and saved 'left a message' to note");
+    toggleLeftMessageButton(); // Update visibility after adding
+
+    // Refresh notes display
+    await refreshReadOnlyNotes();
+  } catch (err) {
+    console.error("[Left Message] ❌ Failed to save:", err);
+    alert("Failed to save note: " + err.message);
+  }
+});
+
+// "Publish later" button
+const publishLaterBtn = document.createElement("button");
+publishLaterBtn.textContent = "publish later";
+publishLaterBtn.style.padding = "2px 6px";
+publishLaterBtn.style.fontSize = "11px";
+publishLaterBtn.addEventListener("click", async () => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const currentUserName = getCurrentUsername();
+    const noteContent = editableDiv.innerText.trim();
+
+    // Post revalidated note
+    await postToNoteAPI({
+      uuid,
+      date: today,
+      note: revalidationCode,
+      userName: currentUserName
+    });
+    console.log("[Publish Later] Posted revalidated note");
+
+    // Add reminder for today (include note if present)
+    let reminderNote = `${currentUserName} has revalidated it and needs to update the frontend with fresh information`;
+    if (noteContent) {
+      reminderNote += `. Note: "${noteContent}"`;
+    }
+    await postToNoteAPI({
+      uuid,
+      date: today,
+      note: reminderNote,
+      userName: "reminder"
+    });
+    console.log("[Publish Later] Posted reminder note");
+
+    // Update button text
+    publishLaterBtn.textContent = `thanks, ${currentUserName}!`;
+    publishLaterBtn.disabled = true;
+
+    // Clear editable div
+    editableDiv.innerText = "";
+
+    // Refresh the notes display to show the new reminder
+    await refreshReadOnlyNotes();
+
+    // Update publish later button visibility
+    await togglePublishLaterButton();
+  } catch (err) {
+    console.error("❌ Failed to publish later:", err);
+    alert("Failed to publish later: " + err.message);
+  }
+});
+
+utilityButtonsWrapper.appendChild(leftMessageBtn);
+utilityButtonsWrapper.appendChild(publishLaterBtn);
+noteWrapper.appendChild(utilityButtonsWrapper);
+
+// Function to check if user has revalidated today
+async function checkIfRevalidatedToday() {
+  try {
+    const res = await fetch(`${baseURL}locationNotes.json`);
+    const allData = await res.json();
+    const data = allData?.[uuid] || {};
+    const today = new Date().toISOString().slice(0, 10);
+    const userNoteForToday = data?.[userName]?.[today] || null;
+    const isRevalidated = userNoteForToday?.trim().toLowerCase() === revalidationCode;
+    return isRevalidated;
+  } catch (err) {
+    console.error("[Publish Later] Failed to check revalidation status:", err);
+    return false;
+  }
+}
+
+// Function to toggle "publish later" button visibility
+async function togglePublishLaterButton() {
+  const isRevalidated = await checkIfRevalidatedToday();
+  if (isRevalidated) {
+    publishLaterBtn.style.display = "none";
+  } else {
+    publishLaterBtn.style.display = "inline-block";
+  }
+}
+
+// Function to toggle "left a message" button visibility
+function toggleLeftMessageButton() {
+  const currentText = editableDiv.innerText.toLowerCase();
+  if (currentText.includes("left a message")) {
+    leftMessageBtn.style.display = "none";
+  } else {
+    leftMessageBtn.style.display = "inline-block";
+  }
+}
+
+// Initial check for publish later button
+togglePublishLaterButton();
+
 // Show/hide dynamically based on editableDiv contents
 function toggleRevalidateCheckbox() {
   const noteEmpty = editableDiv.innerText.trim().length === 0;
@@ -5025,24 +5256,33 @@ function toggleRevalidateCheckbox() {
   }
 }
 
-editableDiv.addEventListener("input", toggleRevalidateCheckbox);
+editableDiv.addEventListener("input", () => {
+  toggleRevalidateCheckbox();
+  toggleLeftMessageButton();
+});
 toggleRevalidateCheckbox(); // run once at load
+toggleLeftMessageButton(); // run once at load
 
 // Save when checked
 revalidateCheckbox.addEventListener("change", async () => {
     if (revalidateCheckbox.checked) {
         try {
+            const today = new Date().toISOString().slice(0, 10);
+            const currentUserName = getCurrentUsername();
             await postToNoteAPI({
                     uuid,
                     date: today,
                     note: revalidationCode,
-                    userName: getCurrentUsername()
+                    userName: currentUserName
                 });
- revalidateLabel.textContent = ` Thanks, ${userName}`;
+ revalidateLabel.textContent = ` Thanks, ${currentUserName}`;
 
     revalidateCheckbox.style.display = "none";
                 editableDiv.innerText = "";
             // update read-only notes...
+
+            // Update publish later button visibility
+            await togglePublishLaterButton();
         } catch (err) {
             console.error("❌ Failed to mark as revalidated:", err);
             revalidateCheckbox.checked = false;

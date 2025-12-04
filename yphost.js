@@ -144,7 +144,8 @@ document.querySelectorAll('div[id]').forEach(async section => {
   if (!locationId || !serviceId) return;
 
   try {
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`);
+    const headers = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`, { headers });
     const fullLocation = await res.json();
     const matchingService = fullLocation?.Services?.find(s => s.id === serviceId);
     const metadataList = matchingService?.metadata?.service;
@@ -317,7 +318,8 @@ document.querySelectorAll('div[id]').forEach(async section => {
       return;
     }
     try {
-      const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations-by-slug/${slug}`);
+      const headers = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
+      const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations-by-slug/${slug}`, { headers });
       const json = await res.json();
       const uuid = json?.id;
       if (!uuid) return;
@@ -667,7 +669,8 @@ Object.assign(note.style, {
 
       try {
         console.log('[YPHost] Fetching location data for:', slug);
-        const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${slug}`);
+        const headers = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
+        const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${slug}`, { headers });
         const json = await res.json();
         const locationId = json.id;
         const services = json?.Services || [];

@@ -3,6 +3,34 @@ function getNoteApiUrl() {
   return window.gghost?.NOTE_API || null;
 
 }
+
+// ——— Wait for element helper function ———
+function waitForElement(selector, timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    const intervalTime = 100;
+    let timeElapsed = 0;
+
+    console.log(`[YP] 🔍 Looking for element: ${selector}`);
+
+    const interval = setInterval(() => {
+      const el = document.querySelector(selector);
+      if (el) {
+        console.log(`[YP] ✅ Found element: ${selector}`, el);
+        clearInterval(interval);
+        resolve(el);
+      } else {
+        if (timeElapsed % 1000 === 0) { // Log every second
+          console.log(`[YP] ⏳ Still waiting for ${selector}... (${timeElapsed}ms elapsed)`);
+        }
+        if ((timeElapsed += intervalTime) >= timeout) {
+          console.log(`[YP] ❌ Timeout looking for ${selector} after ${timeout}ms`);
+          clearInterval(interval);
+          reject(new Error(`[YP] ⏱️ Timeout: Element "${selector}" not found within ${timeout}ms`));
+        }
+      }
+    }, intervalTime);
+  });
+}
 function refreshYourPeerEmbed1() {
   return window.gghost?.refreshYourPeerEmbed || null;
 }
@@ -141,33 +169,6 @@ if (
   }
 
 // 🛑 Special case: /questions/website → replace with /services
-function waitForElement(selector, timeout = 10000) {
-  return new Promise((resolve, reject) => {
-    const intervalTime = 100;
-    let timeElapsed = 0;
-
-    console.log(`[YP] 🔍 Looking for element: ${selector}`);
-
-    const interval = setInterval(() => {
-      const el = document.querySelector(selector);
-      if (el) {
-        console.log(`[YP] ✅ Found element: ${selector}`, el);
-        clearInterval(interval);
-        resolve(el);
-      } else {
-        if (timeElapsed % 1000 === 0) { // Log every second
-          console.log(`[YP] ⏳ Still waiting for ${selector}... (${timeElapsed}ms elapsed)`);
-        }
-        if ((timeElapsed += intervalTime) >= timeout) {
-          console.log(`[YP] ❌ Timeout looking for ${selector} after ${timeout}ms`);
-          clearInterval(interval);
-          reject(new Error(`[YP] ⏱️ Timeout: Element "${selector}" not found within ${timeout}ms`));
-        }
-      }
-    }, intervalTime);
-  });
-}
-
 if ( /\/services\/[a-f0-9-]+\/other-info\/?$/.test(currentUrl)) {
   // Check if redirect is enabled before proceeding
   chrome.storage.local.get('redirectEnabled', (data) => {
@@ -354,6 +355,9 @@ chrome.storage.local.get("redirectEnabled", (data) => {
       tryClickYesButton();
       handleWhoDoesItServePage();
     }
+
+    // Always check for opening-hours page
+    handleOpeningHoursPage();
   });
 
   observer.observe(document.body, {
@@ -450,8 +454,6 @@ function tryClickNoLetsEdit() {
   // Track when we last clicked buttons to prevent infinite loops
   let lastNoLetsEditClickTime = 0;
   let lastAddGroupClickTime = 0;
-  let lastProcessedWhoDoesItServeUrl = '';
-  let currentWhoDoesItServeUrl = '';
 
   // ✅ "who-does-it-serve" page automation
   function handleWhoDoesItServePage() {
@@ -459,29 +461,25 @@ function tryClickNoLetsEdit() {
 
     // Check if we're on a who-does-it-serve page
     if (!/\/who-does-it-serve\/?$/.test(currentUrl)) {
-      // Reset tracking when we leave the page
-      if (currentWhoDoesItServeUrl) {
-        console.log('[YP] 🔄 Left who-does-it-serve page - resetting tracking');
-        lastProcessedWhoDoesItServeUrl = '';
-        currentWhoDoesItServeUrl = '';
+      // Clear localStorage when we leave the page
+      const storedUrl = localStorage.getItem('ypWhoDoesItServeProcessed');
+      if (storedUrl) {
+        console.log('[YP] 🔄 Left who-does-it-serve page - clearing localStorage');
+        localStorage.removeItem('ypWhoDoesItServeProcessed');
       }
       return;
     }
 
-    // Detect URL change (including coming back to the same URL)
-    if (currentWhoDoesItServeUrl !== currentUrl) {
-      console.log('[YP] 🔄 URL changed - resetting processing state');
-      lastProcessedWhoDoesItServeUrl = '';
-      currentWhoDoesItServeUrl = currentUrl;
-    }
-
-    // Only process once per page load (URL change)
-    if (lastProcessedWhoDoesItServeUrl === currentUrl) {
+    // Check if we've already processed this specific URL
+    const alreadyProcessed = localStorage.getItem('ypWhoDoesItServeProcessed') === currentUrl;
+    if (alreadyProcessed) {
+      console.log('[YP] ⏭️ Already processed this who-does-it-serve page - skipping automation');
       return;
     }
 
     console.log('[YP] 🎯 Detected who-does-it-serve page (new URL)');
-    lastProcessedWhoDoesItServeUrl = currentUrl;
+    // Mark this URL as processed
+    localStorage.setItem('ypWhoDoesItServeProcessed', currentUrl);
 
     const now = Date.now();
 
@@ -573,6 +571,15 @@ function checkAndClickAddGroupButton(retryCount = 0) {
     return;
   }
 
+  // Check if any age option is already selected (including "All ages")
+  const ageOptions = document.querySelectorAll('ul li[role="presentation"] input[type="radio"][name="ages"]');
+  const anyOptionChecked = Array.from(ageOptions).some(input => input.checked);
+
+  if (anyOptionChecked) {
+    console.log('[YP] An age option is already selected - doing nothing');
+    return;
+  }
+
   if (activateSpecificAgesOption()) {
     return;
   }
@@ -630,9 +637,232 @@ function checkAndClickAddGroupButton(retryCount = 0) {
 
 
 
+  // ✅ Opening-hours page automation
+  function handleOpeningHoursPage() {
+    const currentUrl = window.location.href.replace(/\/$/, '');
+
+    // Check if we're on an opening-hours page
+    const isOpeningHoursPage = /\/opening-hours\/?$/.test(currentUrl);
+
+    const existingButton = document.getElementById('yp-9to5-button');
+
+    if (isOpeningHoursPage && !existingButton) {
+      console.log('[YP] 🕐 Detected opening-hours page - adding floating button');
+      addFloatingButton();
+    } else if (!isOpeningHoursPage && existingButton) {
+      console.log('[YP] 🔄 Left opening-hours page - removing button');
+      existingButton.remove();
+    }
+  }
+
+  function addFloatingButton() {
+    // Check if button already exists
+    if (document.getElementById('yp-9to5-button')) return;
+
+    // Create floating button
+    const button = document.createElement('button');
+    button.id = 'yp-9to5-button';
+    button.textContent = 'set 9-5mofri';
+    button.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      padding: 10px 15px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    `;
+
+    button.addEventListener('click', () => {
+      console.log('[YP] 🕐 Starting 9-5 Mon-Fri automation');
+      button.style.display = 'none';
+      set9to5MonFri();
+    });
+
+    document.body.appendChild(button);
+    console.log('[YP] ✅ Floating button added');
+  }
+
+  async function set9to5MonFri() {
+    try {
+      // Step 1: Click "This service is closed" button
+      console.log('[YP] Step 1: Looking for "closed" button');
+      const closedButton = Array.from(document.querySelectorAll('button.Option.d-flex.justify-content-between.align-items-center.text-left'))
+        .find(btn => btn.textContent.includes('closed'));
+
+      if (!closedButton) {
+        console.error('[YP] Could not find "closed" button');
+        return;
+      }
+      closedButton.click();
+      console.log('[YP] ✅ Clicked "closed" button');
+      await sleep(300);
+
+      // Step 2: Click "This service is not 24/7" button
+      console.log('[YP] Step 2: Looking for "not 24/7" button');
+      await waitForElement('button.Option.d-flex.justify-content-between.align-items-center.text-left', 5000);
+      const not247Button = Array.from(document.querySelectorAll('button.Option.d-flex.justify-content-between.align-items-center.text-left'))
+        .find(btn => btn.textContent.includes('not') && btn.textContent.includes('24/7'));
+
+      if (!not247Button) {
+        console.error('[YP] Could not find "not 24/7" button');
+        return;
+      }
+      not247Button.click();
+      console.log('[YP] ✅ Clicked "not 24/7" button');
+      await sleep(300);
+
+      // Step 3: Click Monday button
+      console.log('[YP] Step 3: Looking for Monday button');
+      await waitForElement('button.Option.d-flex.justify-content-between.align-items-center.text-left', 5000);
+      const mondayButton = Array.from(document.querySelectorAll('button.Option.d-flex.justify-content-between.align-items-center.text-left'))
+        .find(btn => btn.textContent.includes('Monday'));
+
+      if (!mondayButton) {
+        console.error('[YP] Could not find Monday button');
+        return;
+      }
+      mondayButton.click();
+      console.log('[YP] ✅ Clicked Monday button');
+      await sleep(300);
+
+      // Step 4: Set start time to 09:00
+      console.log('[YP] Step 4: Setting start time to 09:00');
+      const startTimeInput = document.querySelector('input.Input[type="time"][tabindex="1"]');
+      if (!startTimeInput) {
+        console.error('[YP] Could not find start time input');
+        return;
+      }
+      startTimeInput.value = '09:00';
+      startTimeInput.dispatchEvent(new Event('input', { bubbles: true }));
+      startTimeInput.dispatchEvent(new Event('change', { bubbles: true }));
+      console.log('[YP] ✅ Set start time to 09:00');
+      await sleep(200);
+
+      // Step 5: Set end time to 17:00
+      console.log('[YP] Step 5: Setting end time to 17:00');
+      const endTimeInput = document.querySelector('input.Input[type="time"][tabindex="2"]');
+      if (!endTimeInput) {
+        console.error('[YP] Could not find end time input');
+        return;
+      }
+      endTimeInput.value = '17:00';
+      endTimeInput.dispatchEvent(new Event('input', { bubbles: true }));
+      endTimeInput.dispatchEvent(new Event('change', { bubbles: true }));
+      console.log('[YP] ✅ Set end time to 17:00');
+      await sleep(200);
+
+      // Step 6: Click Tuesday through Friday
+      console.log('[YP] Step 6: Clicking Tuesday through Friday');
+      const daysToClick = ['Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+      const dayButtons = document.querySelectorAll('button.Option.d-flex.justify-content-between.align-items-center.text-left');
+
+      for (const dayName of daysToClick) {
+        const dayButton = Array.from(dayButtons).find(btn => btn.textContent.includes(dayName));
+        if (dayButton) {
+          dayButton.click();
+          console.log(`[YP] ✅ Clicked ${dayName}`);
+          await sleep(150);
+        } else {
+          console.warn(`[YP] Could not find ${dayName} button`);
+        }
+      }
+
+      // Step 7: Click OK button
+      console.log('[YP] Step 7: Looking for OK button');
+      await sleep(300);
+      const okButton = Array.from(document.querySelectorAll('button.Button.Button-primary'))
+        .find(btn => btn.textContent.trim().toUpperCase() === 'OK');
+
+      if (!okButton) {
+        console.error('[YP] Could not find OK button');
+        return;
+      }
+      okButton.click();
+      console.log('[YP] ✅ Clicked OK button - 9-5 Mon-Fri automation complete!');
+
+    } catch (error) {
+      console.error('[YP] ❌ Error during 9-5 Mon-Fri automation:', error);
+    }
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   // Run who-does-it-serve handler on page load
   if (data.redirectEnabled) {
     handleWhoDoesItServePage();
   }
 
+  // Run opening-hours handler on page load
+  handleOpeningHoursPage();
+
+});
+
+// ✅ Clear who-does-it-serve tracking when page closes or reloads
+window.addEventListener('beforeunload', () => {
+  const storedUrl = localStorage.getItem('ypWhoDoesItServeProcessed');
+  if (storedUrl) {
+    console.log('[YP] 🔄 Page closing/reloading - clearing who-does-it-serve localStorage');
+    localStorage.removeItem('ypWhoDoesItServeProcessed');
+  }
+});
+
+// ✅ Handle switching from "Specific ages" to "All ages" in who-does-it-serve
+document.addEventListener('click', (e) => {
+  // Check if clicked on "All ages in this group" radio button or its parent
+  const clickedLi = e.target.closest('li[role="presentation"]');
+  if (!clickedLi) return;
+
+  const clickedRadio = clickedLi.querySelector('input[type="radio"][name="ages"]');
+  const clickedSpan = clickedLi.querySelector('span');
+
+  if (!clickedRadio || !clickedSpan) return;
+  if (!clickedSpan.textContent.includes('All ages in this group')) return;
+
+  // Check if "Specific ages in this group" is currently selected
+  const allRadios = document.querySelectorAll('input[type="radio"][name="ages"]');
+  let specificAgesIsSelected = false;
+
+  for (const radio of allRadios) {
+    if (radio.checked) {
+      const radioParent = radio.closest('li[role="presentation"]');
+      const radioSpan = radioParent?.querySelector('span');
+      if (radioSpan && radioSpan.textContent.includes('Specific ages in this group')) {
+        specificAgesIsSelected = true;
+        break;
+      }
+    }
+  }
+
+  // Only proceed if "Specific ages" is currently selected
+  if (!specificAgesIsSelected) return;
+
+  console.log('[YP] 🔄 User switching from "Specific ages" to "All ages" - clearing input');
+
+  // Find the input field and clear it
+  setTimeout(() => {
+    const inputContainer = document.querySelector('.inputContainer');
+    if (inputContainer) {
+      const inputs = inputContainer.querySelectorAll('input[type="number"]');
+      inputs.forEach(input => {
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      console.log('[YP] ✅ Cleared specific age inputs');
+    }
+
+    // Now click the "All ages" radio button
+    setTimeout(() => {
+      clickedRadio.click();
+      console.log('[YP] ✅ Selected "All ages in this group"');
+    }, 100);
+  }, 50);
 });

@@ -415,7 +415,8 @@
     if (uuidMatch && uuidMatch[1]) {
       try {
         const uuid = uuidMatch[1];
-        const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`);
+        const headers = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
+        const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, { headers });
         if (res.ok) {
           const data = await res.json();
           // Build street address from API data
