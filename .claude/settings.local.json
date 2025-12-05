@@ -7,7 +7,9 @@
       "Read(//c/Users/doobneek/doobneek/doobneek-backup/functions/**)",
       "Read(//c/Users/doobneek/doobneek/doobneek-backup/**)",
       "Bash(firebase functions:secrets:list:*)",
-      "Bash(firebase functions:secrets:access:*)"
+      "Bash(firebase functions:secrets:access:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
