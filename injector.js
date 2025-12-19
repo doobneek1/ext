@@ -1848,6 +1848,10 @@ function processText(input) {
   let output = [];
   let pendingBreak = false;
 
+  // Count non-empty lines to determine if we should add bullets
+  const nonEmptyLines = lines.filter(line => line.trim()).length;
+  const shouldAddBullets = nonEmptyLines > 1;
+
   lines.forEach((line, i) => {
     let raw = line.trim();
     if (!raw) {
@@ -1862,13 +1866,13 @@ function processText(input) {
     const alreadyBullet = raw.startsWith('•') || raw.startsWith('<br>&emsp;—') || raw.startsWith('<br>');
     const hadPendingBreak = pendingBreak;
     pendingBreak = false;
-    
+
     if (!alreadyBullet && !(isFirst && raw.endsWith(':'))) {
       if (raw.startsWith('-')) {
         raw = `<br>&emsp;— ${raw.slice(1).trim()}`;
       } else if (hadPendingBreak) {
         raw = `<br>${raw}`;
-      } else {
+      } else if (shouldAddBullets) {
         raw = `• ${raw}`;
       }
     }

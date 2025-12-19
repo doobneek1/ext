@@ -1,0 +1,2038 @@
+{
+  "id": "7de42e40-4c50-43b4-b655-12ac8b20013c",
+  "name": "9th Avenue Drop-in Center",
+  "description": null,
+  "transportation": null,
+  "position": {
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:4326"
+      }
+    },
+    "type": "Point",
+    "coordinates": [-73.9884041804927, 40.7646343558069]
+  },
+  "slug": "urban-pathways-hells-kitchen",
+  "last_validated_at": "2025-12-19T03:16:47.147Z",
+  "name_vector": "'9th':1 'avenu':2 'center':6 'drop':4 'drop-in':3",
+  "streetview_url": "https://www.google.com/maps/@40.7645251924202,-73.98828139660358,3a,75y,312.9518032669113h,2.6678163942641078t/data=!3m6!1e1!3m4!1snckQYQKvsbaQGjMX4-wSwA!2e0!7i16384!8i8192",
+  "createdAt": "2024-12-31T17:30:25.395Z",
+  "updatedAt": "2025-12-18T21:40:26.202Z",
+  "organization_id": "9767d96e-ac56-4a53-b753-dbd90a09a5ad",
+  "neighborhood": "Hell's Kitchen",
+  "Organization": {
+    "id": "9767d96e-ac56-4a53-b753-dbd90a09a5ad",
+    "name": "Urban Pathways",
+    "description": "Urban Pathways supports and guides unhoused men and women by providing shelter and services that improve their quality of life.",
+    "email": null,
+    "url": "urbanpathways.org",
+    "partners": false,
+    "name_vector": "'pathway':2 'urban':1",
+    "createdAt": "2024-12-31T17:30:25.223Z",
+    "updatedAt": "2024-12-31T17:33:45.391Z",
+    "Phones": []
+  },
+  "Phones": [
+    {
+      "id": "e42c1ecc-6e0d-4e5c-8ac5-d674e0f3c683",
+      "number": "646.974.6262",
+      "extension": null,
+      "type": null,
+      "language": null,
+      "description": null,
+      "createdAt": "2024-12-31T17:33:24.455Z",
+      "updatedAt": "2024-12-31T17:33:24.455Z",
+      "location_id": "7de42e40-4c50-43b4-b655-12ac8b20013c",
+      "organization_id": null,
+      "service_id": null,
+      "service_at_location_id": null
+    }
+  ],
+  "AccessibilityForDisabilities": [],
+  "EventRelatedInfos": [],
+  "additionalInfo": null,
+  "address": {
+    "street": "771 9th Ave",
+    "city": "New York",
+    "region": null,
+    "state": "NY",
+    "postalCode": "10019",
+    "country": "US"
+  },
+  "Services": [
+    {
+      "id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+      "name": "Overnight Chair",
+      "description": " ",
+      "url": null,
+      "email": null,
+      "interpretation_services": null,
+      "fees": null,
+      "additional_info": null,
+      "name_vector": "'chair':2 'overnight':1",
+      "description_vector": "",
+      "createdAt": "2024-12-31T17:35:17.164Z",
+      "updatedAt": "2025-12-18T21:39:39.026Z",
+      "organization_id": "9767d96e-ac56-4a53-b753-dbd90a09a5ad",
+      "ServiceAtLocation": {
+        "id": "ad7e4901-dc65-4562-bff0-11735bc21cc0",
+        "description": null,
+        "createdAt": "2024-12-31T17:35:17.194Z",
+        "updatedAt": "2024-12-31T17:35:17.194Z",
+        "location_id": "7de42e40-4c50-43b4-b655-12ac8b20013c",
+        "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da"
+      },
+      "Eligibilities": [
+        {
+          "id": "69ffa9bd-d1c3-4c17-a1ea-1626d62d10b4",
+          "eligible_values": [
+            {
+              "age_max": null,
+              "age_min": 18,
+              "all_ages": false,
+              "population_served": " "
+            }
+          ],
+          "description": "",
+          "createdAt": "2025-12-18T21:39:45.910Z",
+          "updatedAt": "2025-12-18T21:39:45.910Z",
+          "parameter_id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "EligibilityParameter": {
+            "id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+            "name": "age",
+            "createdAt": "2020-03-24T21:46:07.576Z",
+            "updatedAt": "2020-03-24T21:46:07.576Z"
+          }
+        }
+      ],
+      "ServiceTaxonomySpecificAttributes": [],
+      "Taxonomies": [
+        {
+          "id": "228d5932-634e-48b4-a2bd-d5f0a74730c7",
+          "name": "Shelter",
+          "parent_name": null,
+          "name_vector": "'shelter':1",
+          "createdAt": "2018-05-05T11:03:45.840Z",
+          "updatedAt": "2018-05-05T11:03:45.840Z",
+          "parent_id": null,
+          "ServiceTaxonomy": {
+            "id": "b0214422-41e0-4707-a789-2f3866c5cf22",
+            "createdAt": "2024-12-31T17:35:17.216Z",
+            "updatedAt": "2024-12-31T17:35:17.216Z",
+            "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+            "taxonomy_id": "228d5932-634e-48b4-a2bd-d5f0a74730c7"
+          }
+        }
+      ],
+      "RegularSchedules": [],
+      "HolidaySchedules": [
+        {
+          "id": "81b1ef14-f11b-4593-80e0-301ff4da5bf7",
+          "closed": false,
+          "opens_at": "21:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "278fff26-6d5c-48f4-8a6d-972551f74767",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "07:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "8bf800ba-02a7-4c0a-a93d-d9c46e82923d",
+          "closed": false,
+          "opens_at": "21:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 7,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "c89f386c-99e0-4bbc-8501-8a2cd14f78b0",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "07:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "ad031b06-c00a-409d-a71e-18876b0fba4f",
+          "closed": false,
+          "opens_at": "21:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 6,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "da931d2e-a5c5-4ba0-be2b-b6f92aa83940",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "07:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 7,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "0a951f2b-1aa8-4463-806e-58108c18e4ce",
+          "closed": false,
+          "opens_at": "21:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "6c40d035-9f68-4ab3-a716-a3314efbd5c4",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "07:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 6,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "3f7c954f-921b-4a76-bb83-00e383318150",
+          "closed": false,
+          "opens_at": "21:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "e0c56008-733f-4900-9a09-33cd7b66abf2",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "07:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "6cb85b0d-2a1d-4be5-a9af-4cf0aecfa926",
+          "closed": false,
+          "opens_at": "21:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "6eab3973-0e59-474d-9e3e-cc634dd03c54",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "07:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "1dd3a70e-151c-4c90-a73c-3816b3da5297",
+          "closed": false,
+          "opens_at": "21:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.725Z",
+          "updatedAt": "2024-12-31T17:41:36.725Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        },
+        {
+          "id": "7a62ff03-ea53-417f-8493-7d45ff19d4c6",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "07:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:41:36.726Z",
+          "updatedAt": "2024-12-31T17:41:36.726Z",
+          "location_id": null,
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da",
+          "service_at_location_id": null
+        }
+      ],
+      "Languages": [
+        {
+          "id": "5e61a031-7ac6-4d9b-bbad-b6320b8c1cfc",
+          "language": "en",
+          "name": "English",
+          "createdAt": "2018-05-05T11:02:59.663Z",
+          "updatedAt": "2018-05-05T11:02:59.663Z",
+          "ServiceLanguages": {
+            "id": "60e62b7a-0f9e-42b8-ae90-d985121a6a34",
+            "createdAt": "2024-12-31T17:41:39.703Z",
+            "updatedAt": "2024-12-31T17:41:39.703Z",
+            "language_id": "5e61a031-7ac6-4d9b-bbad-b6320b8c1cfc",
+            "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da"
+          }
+        }
+      ],
+      "RequiredDocuments": [
+        {
+          "id": "c9921d9b-d4bd-4629-b250-251a81bff787",
+          "document": "Proof of income",
+          "createdAt": "2025-12-19T03:16:47.150Z",
+          "updatedAt": "2025-12-19T03:16:47.150Z",
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da"
+        },
+        {
+          "id": "ad268ed7-d69b-45de-8473-48aaf4679a7b",
+          "document": "Proof of address",
+          "createdAt": "2025-12-19T03:16:47.150Z",
+          "updatedAt": "2025-12-19T03:16:47.150Z",
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da"
+        }
+      ],
+      "DocumentsInfo": {
+        "id": "5e902e5b-0dc8-440e-9da1-2ef441651844",
+        "recertification_time": null,
+        "grace_period": null,
+        "additional_info": null,
+        "createdAt": "2024-12-31T17:35:17.227Z",
+        "updatedAt": "2024-12-31T17:35:17.227Z",
+        "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da"
+      },
+      "Phones": [],
+      "EventRelatedInfos": [],
+      "ServiceAreas": [
+        {
+          "id": "7944e749-31c7-491b-8d07-af6af7cd06f2",
+          "postal_codes": [],
+          "description": null,
+          "createdAt": "2024-12-31T17:41:55.183Z",
+          "updatedAt": "2024-12-31T17:41:55.183Z",
+          "service_id": "40018237-f76c-4c1c-8a5d-432e3e84b9da"
+        }
+      ],
+      "metadata": {
+        "service": [
+          {
+            "field_name": "additional_info",
+            "last_action_date": "2024-12-31T17:35:17.201Z"
+          },
+          {
+            "field_name": "description",
+            "last_action_date": "2025-12-18T21:39:39.137Z"
+          },
+          {
+            "field_name": "name",
+            "last_action_date": "2024-12-31T17:35:17.200Z"
+          },
+          {
+            "field_name": "organization_id",
+            "last_action_date": "2024-12-31T17:35:17.201Z"
+          },
+          {
+            "field_name": "url",
+            "last_action_date": "2024-12-31T17:35:17.201Z"
+          },
+          {
+            "field_name": "who_does_it_serve",
+            "last_action_date": "2025-12-18T21:39:45.919Z"
+          },
+          {
+            "field_name": "irregularHours",
+            "last_action_date": "2024-12-31T17:41:36.941Z"
+          },
+          {
+            "field_name": "languages",
+            "last_action_date": "2024-12-31T17:41:39.705Z"
+          }
+        ],
+        "documents": [
+          {
+            "field_name": "service_id",
+            "last_action_date": "2024-12-31T17:35:17.231Z"
+          },
+          {
+            "field_name": "proofs",
+            "last_action_date": "2025-12-19T03:16:47.198Z"
+          }
+        ],
+        "sources": []
+      }
+    },
+    {
+      "id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9",
+      "name": "Lunch",
+      "description": null,
+      "url": null,
+      "email": null,
+      "interpretation_services": null,
+      "fees": null,
+      "additional_info": null,
+      "name_vector": "'lunch':1",
+      "description_vector": null,
+      "createdAt": "2024-12-31T17:35:16.985Z",
+      "updatedAt": "2024-12-31T17:35:16.985Z",
+      "organization_id": "9767d96e-ac56-4a53-b753-dbd90a09a5ad",
+      "ServiceAtLocation": {
+        "id": "eaa1e934-ebf0-40a4-8fc2-c96fdcf7112b",
+        "description": null,
+        "createdAt": "2024-12-31T17:35:17.026Z",
+        "updatedAt": "2024-12-31T17:35:17.026Z",
+        "location_id": "7de42e40-4c50-43b4-b655-12ac8b20013c",
+        "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9"
+      },
+      "Eligibilities": [
+        {
+          "id": "3cc53f09-6b47-4a75-b0e8-770717619132",
+          "eligible_values": [
+            {
+              "age_max": null,
+              "age_min": 18,
+              "all_ages": false,
+              "population_served": " "
+            }
+          ],
+          "description": "",
+          "createdAt": "2025-12-18T21:42:07.678Z",
+          "updatedAt": "2025-12-18T21:42:07.678Z",
+          "parameter_id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+          "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9",
+          "EligibilityParameter": {
+            "id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+            "name": "age",
+            "createdAt": "2020-03-24T21:46:07.576Z",
+            "updatedAt": "2020-03-24T21:46:07.576Z"
+          }
+        }
+      ],
+      "ServiceTaxonomySpecificAttributes": [],
+      "Taxonomies": [
+        {
+          "id": "5fc3a1c0-8ca5-4c85-9277-b2f5d3cca9ae",
+          "name": "Food",
+          "parent_name": null,
+          "name_vector": "'food':1",
+          "createdAt": "2018-05-05T11:03:45.836Z",
+          "updatedAt": "2018-05-05T11:03:45.836Z",
+          "parent_id": null,
+          "ServiceTaxonomy": {
+            "id": "7bae1cc5-e658-4af1-9bc7-c9bd9f841d24",
+            "createdAt": "2024-12-31T17:35:17.053Z",
+            "updatedAt": "2024-12-31T17:35:17.053Z",
+            "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9",
+            "taxonomy_id": "5fc3a1c0-8ca5-4c85-9277-b2f5d3cca9ae"
+          }
+        }
+      ],
+      "RegularSchedules": [],
+      "HolidaySchedules": [
+        {
+          "id": "6803b90b-cc03-4ff9-8691-cc05f303cee4",
+          "closed": false,
+          "opens_at": "12:00:00",
+          "closes_at": "13:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:39:05.633Z",
+          "updatedAt": "2024-12-31T17:39:05.633Z",
+          "location_id": null,
+          "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9",
+          "service_at_location_id": null
+        },
+        {
+          "id": "3bd2a09f-a263-4ad1-9ca7-45d7f2f349de",
+          "closed": false,
+          "opens_at": "12:00:00",
+          "closes_at": "13:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 7,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:39:05.634Z",
+          "updatedAt": "2024-12-31T17:39:05.634Z",
+          "location_id": null,
+          "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9",
+          "service_at_location_id": null
+        },
+        {
+          "id": "e8951cc0-8955-431a-9d2b-09ac04f69a41",
+          "closed": false,
+          "opens_at": "12:00:00",
+          "closes_at": "13:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 6,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:39:05.634Z",
+          "updatedAt": "2024-12-31T17:39:05.634Z",
+          "location_id": null,
+          "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9",
+          "service_at_location_id": null
+        },
+        {
+          "id": "afd8f37b-2753-487d-a89c-27f2b4f03e56",
+          "closed": false,
+          "opens_at": "12:00:00",
+          "closes_at": "13:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:39:05.634Z",
+          "updatedAt": "2024-12-31T17:39:05.634Z",
+          "location_id": null,
+          "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9",
+          "service_at_location_id": null
+        },
+        {
+          "id": "10241290-03dd-4a9a-993a-43dbc341807c",
+          "closed": false,
+          "opens_at": "12:00:00",
+          "closes_at": "13:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:39:05.634Z",
+          "updatedAt": "2024-12-31T17:39:05.634Z",
+          "location_id": null,
+          "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9",
+          "service_at_location_id": null
+        },
+        {
+          "id": "fd96fda1-4e8f-4ad4-be22-b37ebbd88613",
+          "closed": false,
+          "opens_at": "12:00:00",
+          "closes_at": "13:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:39:05.634Z",
+          "updatedAt": "2024-12-31T17:39:05.634Z",
+          "location_id": null,
+          "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9",
+          "service_at_location_id": null
+        },
+        {
+          "id": "b0e44cdf-ca74-4f6e-b300-566c2c675f6d",
+          "closed": false,
+          "opens_at": "12:00:00",
+          "closes_at": "13:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:39:05.634Z",
+          "updatedAt": "2024-12-31T17:39:05.634Z",
+          "location_id": null,
+          "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9",
+          "service_at_location_id": null
+        }
+      ],
+      "Languages": [
+        {
+          "id": "5e61a031-7ac6-4d9b-bbad-b6320b8c1cfc",
+          "language": "en",
+          "name": "English",
+          "createdAt": "2018-05-05T11:02:59.663Z",
+          "updatedAt": "2018-05-05T11:02:59.663Z",
+          "ServiceLanguages": {
+            "id": "c1ae9000-1a7f-4c4c-a4ab-ae1dd8b335a6",
+            "createdAt": "2024-12-31T17:39:08.245Z",
+            "updatedAt": "2024-12-31T17:39:08.245Z",
+            "language_id": "5e61a031-7ac6-4d9b-bbad-b6320b8c1cfc",
+            "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9"
+          }
+        }
+      ],
+      "RequiredDocuments": [
+        {
+          "id": "e699d2e5-c730-4131-ac08-8ea5404fced2",
+          "document": "None",
+          "createdAt": "2025-12-19T02:20:46.383Z",
+          "updatedAt": "2025-12-19T02:20:46.383Z",
+          "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9"
+        }
+      ],
+      "DocumentsInfo": {
+        "id": "00639549-0745-44f8-97fc-49c6da0f8a19",
+        "recertification_time": null,
+        "grace_period": null,
+        "additional_info": null,
+        "createdAt": "2024-12-31T17:35:17.062Z",
+        "updatedAt": "2024-12-31T17:35:17.062Z",
+        "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9"
+      },
+      "Phones": [],
+      "EventRelatedInfos": [],
+      "ServiceAreas": [
+        {
+          "id": "1ed56bb3-8f63-4890-ac94-6b0b20566574",
+          "postal_codes": [],
+          "description": null,
+          "createdAt": "2024-12-31T17:39:13.575Z",
+          "updatedAt": "2024-12-31T17:39:13.575Z",
+          "service_id": "9d6da05e-4ac6-4050-8e13-c312ae3182f9"
+        }
+      ],
+      "metadata": {
+        "service": [
+          {
+            "field_name": "additional_info",
+            "last_action_date": "2024-12-31T17:35:17.034Z"
+          },
+          {
+            "field_name": "description",
+            "last_action_date": "2024-12-31T17:35:17.034Z"
+          },
+          {
+            "field_name": "name",
+            "last_action_date": "2024-12-31T17:35:17.034Z"
+          },
+          {
+            "field_name": "organization_id",
+            "last_action_date": "2024-12-31T17:35:17.034Z"
+          },
+          {
+            "field_name": "url",
+            "last_action_date": "2024-12-31T17:35:17.034Z"
+          },
+          {
+            "field_name": "who_does_it_serve",
+            "last_action_date": "2025-12-18T21:42:07.706Z"
+          },
+          {
+            "field_name": "irregularHours",
+            "last_action_date": "2024-12-31T17:39:05.756Z"
+          },
+          {
+            "field_name": "languages",
+            "last_action_date": "2024-12-31T17:39:08.249Z"
+          }
+        ],
+        "documents": [
+          {
+            "field_name": "service_id",
+            "last_action_date": "2024-12-31T17:35:17.066Z"
+          },
+          {
+            "field_name": "proofs",
+            "last_action_date": "2025-12-19T02:20:46.423Z"
+          }
+        ],
+        "sources": []
+      }
+    },
+    {
+      "id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+      "name": "Shower",
+      "description": "You get a bar of soap and a towel for 15 minutes. Lockers are available to those who complete an intake.",
+      "url": null,
+      "email": null,
+      "interpretation_services": null,
+      "fees": null,
+      "additional_info": null,
+      "name_vector": "'shower':1",
+      "description_vector": "'15':11 'avail':15 'bar':4 'complet':19 'get':2 'intak':21 'locker':13 'minut':12 'soap':6 'towel':9",
+      "createdAt": "2024-12-31T17:35:17.085Z",
+      "updatedAt": "2024-12-31T17:44:03.082Z",
+      "organization_id": "9767d96e-ac56-4a53-b753-dbd90a09a5ad",
+      "ServiceAtLocation": {
+        "id": "9b7967d6-4f29-4d75-8a0c-0bc2ff978664",
+        "description": null,
+        "createdAt": "2024-12-31T17:35:17.088Z",
+        "updatedAt": "2024-12-31T17:35:17.088Z",
+        "location_id": "7de42e40-4c50-43b4-b655-12ac8b20013c",
+        "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67"
+      },
+      "Eligibilities": [
+        {
+          "id": "1328ac48-3e59-4f75-bb1c-dad2ca8a2036",
+          "eligible_values": [
+            {
+              "age_max": null,
+              "age_min": 18,
+              "all_ages": false,
+              "population_served": " "
+            }
+          ],
+          "description": "",
+          "createdAt": "2025-12-18T21:56:35.690Z",
+          "updatedAt": "2025-12-18T21:56:35.690Z",
+          "parameter_id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "EligibilityParameter": {
+            "id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+            "name": "age",
+            "createdAt": "2020-03-24T21:46:07.576Z",
+            "updatedAt": "2020-03-24T21:46:07.576Z"
+          }
+        }
+      ],
+      "ServiceTaxonomySpecificAttributes": [],
+      "Taxonomies": [
+        {
+          "id": "238071c3-4dda-42d6-a534-551de95dd5f6",
+          "name": "Shower",
+          "parent_name": "Personal Care",
+          "name_vector": "'shower':1",
+          "createdAt": "2020-03-24T22:06:05.146Z",
+          "updatedAt": "2020-03-24T22:06:05.146Z",
+          "parent_id": "238a2f38-1ec9-478f-9066-fcef03feeb98",
+          "ServiceTaxonomy": {
+            "id": "7243bb72-2e19-478c-89a4-c88bdc27c707",
+            "createdAt": "2024-12-31T17:35:17.128Z",
+            "updatedAt": "2024-12-31T17:35:17.128Z",
+            "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+            "taxonomy_id": "238071c3-4dda-42d6-a534-551de95dd5f6"
+          }
+        }
+      ],
+      "RegularSchedules": [],
+      "HolidaySchedules": [
+        {
+          "id": "3fe4fc86-f27c-47ca-8311-e61bcbcfca72",
+          "closed": false,
+          "opens_at": "06:00:00",
+          "closes_at": "10:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.229Z",
+          "updatedAt": "2024-12-31T17:49:22.229Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "a3f374f1-bf12-403c-aab4-22e9a82d501a",
+          "closed": false,
+          "opens_at": "13:00:00",
+          "closes_at": "15:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.229Z",
+          "updatedAt": "2024-12-31T17:49:22.229Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "9347e315-8116-44d2-8e2b-65e1bf34ad43",
+          "closed": false,
+          "opens_at": "19:00:00",
+          "closes_at": "22:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.229Z",
+          "updatedAt": "2024-12-31T17:49:22.229Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "ad30b24e-ae97-4fa0-a044-770cf2da9a75",
+          "closed": false,
+          "opens_at": "06:00:00",
+          "closes_at": "10:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.229Z",
+          "updatedAt": "2024-12-31T17:49:22.229Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "f6aa4280-55e0-4a7f-9017-4525a73600fe",
+          "closed": false,
+          "opens_at": "13:00:00",
+          "closes_at": "15:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "5b350d71-512b-4392-a308-420ed60a71a7",
+          "closed": false,
+          "opens_at": "19:00:00",
+          "closes_at": "22:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "f5e23601-e9fa-44c9-911c-a01292ecd959",
+          "closed": false,
+          "opens_at": "06:00:00",
+          "closes_at": "10:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "4f8de6e3-98f8-486a-8c3c-9f3581ee7c5b",
+          "closed": false,
+          "opens_at": "13:00:00",
+          "closes_at": "15:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "2b9c5e23-3286-44be-8f66-49b685bf6273",
+          "closed": false,
+          "opens_at": "19:00:00",
+          "closes_at": "22:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "7797ccd7-d46f-4dd4-8ac9-c36388562698",
+          "closed": false,
+          "opens_at": "06:00:00",
+          "closes_at": "10:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "041d0f79-4993-40ab-a261-039c1b4a0692",
+          "closed": false,
+          "opens_at": "13:00:00",
+          "closes_at": "15:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "b951c7dd-3a3f-4b65-b492-f9de3fe17e70",
+          "closed": false,
+          "opens_at": "19:00:00",
+          "closes_at": "22:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "b997081c-f69f-443a-9c1e-3c8f04c1248f",
+          "closed": false,
+          "opens_at": "06:00:00",
+          "closes_at": "10:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "0e1a9842-021f-4326-8b93-ee4c28781371",
+          "closed": false,
+          "opens_at": "13:00:00",
+          "closes_at": "15:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "1a8698a5-307c-4762-8614-4bb592b9c2fa",
+          "closed": false,
+          "opens_at": "19:00:00",
+          "closes_at": "22:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "73e993bc-0737-47c6-81c9-d7da36f3b586",
+          "closed": false,
+          "opens_at": "06:00:00",
+          "closes_at": "10:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 6,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "8ec51146-5734-449e-bd5b-7a804751e340",
+          "closed": false,
+          "opens_at": "13:00:00",
+          "closes_at": "15:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 6,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "20e15683-4cb7-41d3-bba2-3332931f2ce8",
+          "closed": false,
+          "opens_at": "19:00:00",
+          "closes_at": "22:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 6,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "66976231-d9ed-4919-a5b5-0f53060cfe1b",
+          "closed": false,
+          "opens_at": "06:00:00",
+          "closes_at": "10:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 7,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "6354bb4f-620e-435c-90fb-3620b7cf4d36",
+          "closed": false,
+          "opens_at": "13:00:00",
+          "closes_at": "15:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 7,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        },
+        {
+          "id": "a918ae49-7e92-4600-ba0f-97a236b627bd",
+          "closed": false,
+          "opens_at": "19:00:00",
+          "closes_at": "22:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 7,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:49:22.230Z",
+          "updatedAt": "2024-12-31T17:49:22.230Z",
+          "location_id": null,
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67",
+          "service_at_location_id": null
+        }
+      ],
+      "Languages": [
+        {
+          "id": "5e61a031-7ac6-4d9b-bbad-b6320b8c1cfc",
+          "language": "en",
+          "name": "English",
+          "createdAt": "2018-05-05T11:02:59.663Z",
+          "updatedAt": "2018-05-05T11:02:59.663Z",
+          "ServiceLanguages": {
+            "id": "90254be3-481b-499b-9ac7-56f716c128f6",
+            "createdAt": "2024-12-31T17:49:26.304Z",
+            "updatedAt": "2024-12-31T17:49:26.304Z",
+            "language_id": "5e61a031-7ac6-4d9b-bbad-b6320b8c1cfc",
+            "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67"
+          }
+        }
+      ],
+      "RequiredDocuments": [
+        {
+          "id": "b68ea9af-820c-4358-8026-a6891ee8d920",
+          "document": "None",
+          "createdAt": "2025-12-19T02:21:28.998Z",
+          "updatedAt": "2025-12-19T02:21:28.998Z",
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67"
+        }
+      ],
+      "DocumentsInfo": {
+        "id": "0e8772bc-2c61-4865-88c6-913afad59a48",
+        "recertification_time": null,
+        "grace_period": null,
+        "additional_info": null,
+        "createdAt": "2024-12-31T17:35:17.136Z",
+        "updatedAt": "2024-12-31T17:35:17.136Z",
+        "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67"
+      },
+      "Phones": [],
+      "EventRelatedInfos": [],
+      "ServiceAreas": [
+        {
+          "id": "5c4c4f9d-979a-4e40-8d5b-afe73f2443da",
+          "postal_codes": [],
+          "description": null,
+          "createdAt": "2024-12-31T17:49:38.348Z",
+          "updatedAt": "2024-12-31T17:49:38.348Z",
+          "service_id": "1b943c43-4049-4dc1-9ba1-e7acb26c5b67"
+        }
+      ],
+      "metadata": {
+        "service": [
+          {
+            "field_name": "additional_info",
+            "last_action_date": "2024-12-31T17:35:17.113Z"
+          },
+          {
+            "field_name": "description",
+            "last_action_date": "2024-12-31T17:44:05.055Z"
+          },
+          {
+            "field_name": "name",
+            "last_action_date": "2024-12-31T17:35:17.112Z"
+          },
+          {
+            "field_name": "organization_id",
+            "last_action_date": "2024-12-31T17:35:17.113Z"
+          },
+          {
+            "field_name": "url",
+            "last_action_date": "2024-12-31T17:35:17.112Z"
+          },
+          {
+            "field_name": "who_does_it_serve",
+            "last_action_date": "2025-12-18T21:56:35.748Z"
+          },
+          {
+            "field_name": "irregularHours",
+            "last_action_date": "2024-12-31T17:49:22.545Z"
+          },
+          {
+            "field_name": "languages",
+            "last_action_date": "2024-12-31T17:49:26.308Z"
+          }
+        ],
+        "documents": [
+          {
+            "field_name": "service_id",
+            "last_action_date": "2024-12-31T17:35:17.140Z"
+          },
+          {
+            "field_name": "proofs",
+            "last_action_date": "2025-12-19T02:21:29.035Z"
+          }
+        ],
+        "sources": []
+      }
+    },
+    {
+      "id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d",
+      "name": "Breakfast",
+      "description": null,
+      "url": null,
+      "email": null,
+      "interpretation_services": null,
+      "fees": null,
+      "additional_info": null,
+      "name_vector": "'breakfast':1",
+      "description_vector": null,
+      "createdAt": "2024-12-31T17:35:18.346Z",
+      "updatedAt": "2024-12-31T17:35:18.346Z",
+      "organization_id": "9767d96e-ac56-4a53-b753-dbd90a09a5ad",
+      "ServiceAtLocation": {
+        "id": "ce2f6bf8-d206-46fc-a9c6-3b49f42edae1",
+        "description": null,
+        "createdAt": "2024-12-31T17:35:18.404Z",
+        "updatedAt": "2024-12-31T17:35:18.404Z",
+        "location_id": "7de42e40-4c50-43b4-b655-12ac8b20013c",
+        "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d"
+      },
+      "Eligibilities": [
+        {
+          "id": "d6ff54e0-5c2f-4f82-8ae4-4d024be0e5cf",
+          "eligible_values": [
+            {
+              "age_max": null,
+              "age_min": 18,
+              "all_ages": false,
+              "population_served": " "
+            }
+          ],
+          "description": "",
+          "createdAt": "2025-12-18T21:57:06.040Z",
+          "updatedAt": "2025-12-18T21:57:06.040Z",
+          "parameter_id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+          "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d",
+          "EligibilityParameter": {
+            "id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+            "name": "age",
+            "createdAt": "2020-03-24T21:46:07.576Z",
+            "updatedAt": "2020-03-24T21:46:07.576Z"
+          }
+        }
+      ],
+      "ServiceTaxonomySpecificAttributes": [],
+      "Taxonomies": [
+        {
+          "id": "5fc3a1c0-8ca5-4c85-9277-b2f5d3cca9ae",
+          "name": "Food",
+          "parent_name": null,
+          "name_vector": "'food':1",
+          "createdAt": "2018-05-05T11:03:45.836Z",
+          "updatedAt": "2018-05-05T11:03:45.836Z",
+          "parent_id": null,
+          "ServiceTaxonomy": {
+            "id": "043cfd47-89d3-4065-8068-437d29afad83",
+            "createdAt": "2024-12-31T17:35:18.475Z",
+            "updatedAt": "2024-12-31T17:35:18.475Z",
+            "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d",
+            "taxonomy_id": "5fc3a1c0-8ca5-4c85-9277-b2f5d3cca9ae"
+          }
+        }
+      ],
+      "RegularSchedules": [],
+      "HolidaySchedules": [
+        {
+          "id": "c7920a67-1408-44fb-aceb-f73033b0ccab",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "09:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:38:07.763Z",
+          "updatedAt": "2024-12-31T17:38:07.763Z",
+          "location_id": null,
+          "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d",
+          "service_at_location_id": null
+        },
+        {
+          "id": "fefe8833-0704-47cd-a658-dc3f15f547e5",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "09:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:38:07.763Z",
+          "updatedAt": "2024-12-31T17:38:07.763Z",
+          "location_id": null,
+          "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d",
+          "service_at_location_id": null
+        },
+        {
+          "id": "c61de1aa-45de-4ea8-a148-81582b562b13",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "09:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 7,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:38:07.764Z",
+          "updatedAt": "2024-12-31T17:38:07.764Z",
+          "location_id": null,
+          "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d",
+          "service_at_location_id": null
+        },
+        {
+          "id": "d3100daf-f0a8-454a-95fa-09bcb1ed4813",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "09:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 6,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:38:07.764Z",
+          "updatedAt": "2024-12-31T17:38:07.764Z",
+          "location_id": null,
+          "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d",
+          "service_at_location_id": null
+        },
+        {
+          "id": "db0a43d4-6dd8-4128-9e2f-34f88da59089",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "09:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:38:07.764Z",
+          "updatedAt": "2024-12-31T17:38:07.764Z",
+          "location_id": null,
+          "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d",
+          "service_at_location_id": null
+        },
+        {
+          "id": "102d431f-88e0-469a-a510-553d1efa6749",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "09:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:38:07.764Z",
+          "updatedAt": "2024-12-31T17:38:07.764Z",
+          "location_id": null,
+          "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d",
+          "service_at_location_id": null
+        },
+        {
+          "id": "c9eb9378-c5bb-4dbf-84b9-63b0473d1ed2",
+          "closed": false,
+          "opens_at": "08:00:00",
+          "closes_at": "09:00:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:38:07.764Z",
+          "updatedAt": "2024-12-31T17:38:07.764Z",
+          "location_id": null,
+          "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d",
+          "service_at_location_id": null
+        }
+      ],
+      "Languages": [
+        {
+          "id": "5e61a031-7ac6-4d9b-bbad-b6320b8c1cfc",
+          "language": "en",
+          "name": "English",
+          "createdAt": "2018-05-05T11:02:59.663Z",
+          "updatedAt": "2018-05-05T11:02:59.663Z",
+          "ServiceLanguages": {
+            "id": "d43cd05b-a3a9-4f2d-992c-ef6670c492cc",
+            "createdAt": "2024-12-31T17:38:10.849Z",
+            "updatedAt": "2024-12-31T17:38:10.849Z",
+            "language_id": "5e61a031-7ac6-4d9b-bbad-b6320b8c1cfc",
+            "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d"
+          }
+        }
+      ],
+      "RequiredDocuments": [
+        {
+          "id": "17c662fc-d058-4fe5-9de1-2fb245dc2164",
+          "document": "None",
+          "createdAt": "2025-12-19T02:20:14.591Z",
+          "updatedAt": "2025-12-19T02:20:14.591Z",
+          "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d"
+        }
+      ],
+      "DocumentsInfo": {
+        "id": "47b9e284-c3be-4bd9-aad4-e0fcf8de9ca8",
+        "recertification_time": null,
+        "grace_period": null,
+        "additional_info": null,
+        "createdAt": "2024-12-31T17:35:18.489Z",
+        "updatedAt": "2024-12-31T17:35:18.489Z",
+        "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d"
+      },
+      "Phones": [],
+      "EventRelatedInfos": [],
+      "ServiceAreas": [
+        {
+          "id": "8ea3a7a0-5eea-42a8-b574-14987e53290a",
+          "postal_codes": [],
+          "description": null,
+          "createdAt": "2024-12-31T17:38:21.868Z",
+          "updatedAt": "2024-12-31T17:38:21.868Z",
+          "service_id": "2ba0729f-e929-41b5-a0ff-f7f0f9b4930d"
+        }
+      ],
+      "metadata": {
+        "service": [
+          {
+            "field_name": "additional_info",
+            "last_action_date": "2024-12-31T17:35:18.426Z"
+          },
+          {
+            "field_name": "description",
+            "last_action_date": "2024-12-31T17:35:18.425Z"
+          },
+          {
+            "field_name": "name",
+            "last_action_date": "2024-12-31T17:35:18.424Z"
+          },
+          {
+            "field_name": "organization_id",
+            "last_action_date": "2024-12-31T17:35:18.426Z"
+          },
+          {
+            "field_name": "url",
+            "last_action_date": "2024-12-31T17:35:18.426Z"
+          },
+          {
+            "field_name": "who_does_it_serve",
+            "last_action_date": "2025-12-18T21:57:06.110Z"
+          },
+          {
+            "field_name": "irregularHours",
+            "last_action_date": "2024-12-31T17:38:07.790Z"
+          },
+          {
+            "field_name": "languages",
+            "last_action_date": "2024-12-31T17:38:10.853Z"
+          }
+        ],
+        "documents": [
+          {
+            "field_name": "service_id",
+            "last_action_date": "2024-12-31T17:35:18.494Z"
+          },
+          {
+            "field_name": "proofs",
+            "last_action_date": "2025-12-19T02:20:14.635Z"
+          }
+        ],
+        "sources": []
+      }
+    },
+    {
+      "id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5",
+      "name": "Dinner",
+      "description": null,
+      "url": null,
+      "email": null,
+      "interpretation_services": null,
+      "fees": null,
+      "additional_info": null,
+      "name_vector": "'dinner':1",
+      "description_vector": null,
+      "createdAt": "2024-12-31T17:35:16.988Z",
+      "updatedAt": "2024-12-31T17:35:16.988Z",
+      "organization_id": "9767d96e-ac56-4a53-b753-dbd90a09a5ad",
+      "ServiceAtLocation": {
+        "id": "cee942b3-0565-47f0-8789-ac27a7541cda",
+        "description": null,
+        "createdAt": "2024-12-31T17:35:17.028Z",
+        "updatedAt": "2024-12-31T17:35:17.028Z",
+        "location_id": "7de42e40-4c50-43b4-b655-12ac8b20013c",
+        "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5"
+      },
+      "Eligibilities": [],
+      "ServiceTaxonomySpecificAttributes": [],
+      "Taxonomies": [
+        {
+          "id": "5fc3a1c0-8ca5-4c85-9277-b2f5d3cca9ae",
+          "name": "Food",
+          "parent_name": null,
+          "name_vector": "'food':1",
+          "createdAt": "2018-05-05T11:03:45.836Z",
+          "updatedAt": "2018-05-05T11:03:45.836Z",
+          "parent_id": null,
+          "ServiceTaxonomy": {
+            "id": "2f8b7314-999b-475a-b67a-930b275eb34e",
+            "createdAt": "2024-12-31T17:35:17.091Z",
+            "updatedAt": "2024-12-31T17:35:17.091Z",
+            "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5",
+            "taxonomy_id": "5fc3a1c0-8ca5-4c85-9277-b2f5d3cca9ae"
+          }
+        }
+      ],
+      "RegularSchedules": [],
+      "HolidaySchedules": [
+        {
+          "id": "ba754caa-da45-42c3-ab19-2a14751935b3",
+          "closed": false,
+          "opens_at": "16:30:00",
+          "closes_at": "17:30:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:36:06.301Z",
+          "updatedAt": "2024-12-31T17:36:06.301Z",
+          "location_id": null,
+          "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5",
+          "service_at_location_id": null
+        },
+        {
+          "id": "c73b4801-0573-49b2-9a51-321980760813",
+          "closed": false,
+          "opens_at": "16:30:00",
+          "closes_at": "17:30:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:36:06.301Z",
+          "updatedAt": "2024-12-31T17:36:06.301Z",
+          "location_id": null,
+          "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5",
+          "service_at_location_id": null
+        },
+        {
+          "id": "2c9b90af-9ddd-41e1-be99-dbe779ba8a45",
+          "closed": false,
+          "opens_at": "16:30:00",
+          "closes_at": "17:30:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:36:06.301Z",
+          "updatedAt": "2024-12-31T17:36:06.301Z",
+          "location_id": null,
+          "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5",
+          "service_at_location_id": null
+        },
+        {
+          "id": "baacb9b3-dd6f-45c9-aa18-ec4900f4c0b0",
+          "closed": false,
+          "opens_at": "16:30:00",
+          "closes_at": "17:30:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:36:06.301Z",
+          "updatedAt": "2024-12-31T17:36:06.301Z",
+          "location_id": null,
+          "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5",
+          "service_at_location_id": null
+        },
+        {
+          "id": "df26baca-947b-42b8-83d0-538c194c19e5",
+          "closed": false,
+          "opens_at": "16:30:00",
+          "closes_at": "17:30:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:36:06.301Z",
+          "updatedAt": "2024-12-31T17:36:06.301Z",
+          "location_id": null,
+          "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5",
+          "service_at_location_id": null
+        },
+        {
+          "id": "9fed5994-d977-492e-a3c1-0437b5408dcc",
+          "closed": false,
+          "opens_at": "16:30:00",
+          "closes_at": "17:30:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 6,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:36:06.301Z",
+          "updatedAt": "2024-12-31T17:36:06.301Z",
+          "location_id": null,
+          "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5",
+          "service_at_location_id": null
+        },
+        {
+          "id": "c07022ac-ac6e-4747-a347-2dbebea107be",
+          "closed": false,
+          "opens_at": "16:30:00",
+          "closes_at": "17:30:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 7,
+          "occasion": "COVID19",
+          "createdAt": "2024-12-31T17:36:06.301Z",
+          "updatedAt": "2024-12-31T17:36:06.301Z",
+          "location_id": null,
+          "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5",
+          "service_at_location_id": null
+        }
+      ],
+      "Languages": [
+        {
+          "id": "5e61a031-7ac6-4d9b-bbad-b6320b8c1cfc",
+          "language": "en",
+          "name": "English",
+          "createdAt": "2018-05-05T11:02:59.663Z",
+          "updatedAt": "2018-05-05T11:02:59.663Z",
+          "ServiceLanguages": {
+            "id": "647e740e-d234-49e6-ab24-d97bd24ca5bd",
+            "createdAt": "2024-12-31T17:36:11.265Z",
+            "updatedAt": "2024-12-31T17:36:11.265Z",
+            "language_id": "5e61a031-7ac6-4d9b-bbad-b6320b8c1cfc",
+            "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5"
+          }
+        }
+      ],
+      "RequiredDocuments": [
+        {
+          "id": "f548427c-15a1-4412-b864-63a53cb45476",
+          "document": "None",
+          "createdAt": "2025-12-19T02:22:44.327Z",
+          "updatedAt": "2025-12-19T02:22:44.327Z",
+          "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5"
+        }
+      ],
+      "DocumentsInfo": {
+        "id": "38e61db1-0994-49e1-bea6-fc4b9e7adec5",
+        "recertification_time": null,
+        "grace_period": null,
+        "additional_info": null,
+        "createdAt": "2024-12-31T17:35:17.102Z",
+        "updatedAt": "2024-12-31T17:35:17.102Z",
+        "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5"
+      },
+      "Phones": [],
+      "EventRelatedInfos": [],
+      "ServiceAreas": [
+        {
+          "id": "96b4e85b-4653-4d7b-b999-aff486775c67",
+          "postal_codes": [],
+          "description": null,
+          "createdAt": "2024-12-31T17:36:20.542Z",
+          "updatedAt": "2024-12-31T17:36:20.542Z",
+          "service_id": "d12fc6fb-6f8a-41d2-99d4-333f084a7bf5"
+        }
+      ],
+      "metadata": {
+        "service": [
+          {
+            "field_name": "additional_info",
+            "last_action_date": "2024-12-31T17:35:17.074Z"
+          },
+          {
+            "field_name": "description",
+            "last_action_date": "2024-12-31T17:35:17.074Z"
+          },
+          {
+            "field_name": "name",
+            "last_action_date": "2024-12-31T17:35:17.074Z"
+          },
+          {
+            "field_name": "organization_id",
+            "last_action_date": "2024-12-31T17:35:17.074Z"
+          },
+          {
+            "field_name": "url",
+            "last_action_date": "2024-12-31T17:35:17.074Z"
+          },
+          {
+            "field_name": "irregularHours",
+            "last_action_date": "2024-12-31T17:36:06.366Z"
+          },
+          {
+            "field_name": "languages",
+            "last_action_date": "2024-12-31T17:36:11.268Z"
+          }
+        ],
+        "documents": [
+          {
+            "field_name": "service_id",
+            "last_action_date": "2024-12-31T17:35:17.107Z"
+          },
+          {
+            "field_name": "proofs",
+            "last_action_date": "2025-12-19T02:22:44.370Z"
+          }
+        ],
+        "sources": []
+      }
+    },
+    {
+      "id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3",
+      "name": "Clothing Pantry",
+      "description": "Clothing is for clients and does not require a referral letter. Clothing is very limited.",
+      "url": null,
+      "email": null,
+      "interpretation_services": null,
+      "fees": null,
+      "additional_info": null,
+      "name_vector": "'cloth':1 'pantri':2",
+      "description_vector": "'client':4 'cloth':1,12 'letter':11 'limit':15 'referr':10 'requir':8",
+      "createdAt": "2025-01-07T16:30:44.157Z",
+      "updatedAt": "2025-01-07T16:31:59.704Z",
+      "organization_id": "9767d96e-ac56-4a53-b753-dbd90a09a5ad",
+      "ServiceAtLocation": {
+        "id": "09ecd857-ec44-4355-8d5b-4b4192a6ccd3",
+        "description": null,
+        "createdAt": "2025-01-07T16:30:44.196Z",
+        "updatedAt": "2025-01-07T16:30:44.196Z",
+        "location_id": "7de42e40-4c50-43b4-b655-12ac8b20013c",
+        "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3"
+      },
+      "Eligibilities": [
+        {
+          "id": "b820366a-0801-4dda-be49-36de0b68d4bd",
+          "eligible_values": [
+            {
+              "age_max": null,
+              "age_min": 18,
+              "all_ages": false,
+              "population_served": " "
+            }
+          ],
+          "description": "",
+          "createdAt": "2025-12-18T21:58:26.338Z",
+          "updatedAt": "2025-12-18T21:58:26.338Z",
+          "parameter_id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+          "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3",
+          "EligibilityParameter": {
+            "id": "22bc3900-ac4d-4c0a-9bb3-f9dd39e4441f",
+            "name": "age",
+            "createdAt": "2020-03-24T21:46:07.576Z",
+            "updatedAt": "2020-03-24T21:46:07.576Z"
+          }
+        },
+        {
+          "id": "f1b06676-ed6a-47e1-9ea2-b4020a4d93bf",
+          "eligible_values": [
+            "true"
+          ],
+          "description": null,
+          "createdAt": "2025-01-07T16:32:31.588Z",
+          "updatedAt": "2025-01-07T16:32:31.588Z",
+          "parameter_id": "4e569d7f-cacd-45ec-9829-d027a61a64d6",
+          "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3",
+          "EligibilityParameter": {
+            "id": "4e569d7f-cacd-45ec-9829-d027a61a64d6",
+            "name": "membership",
+            "createdAt": "2020-03-24T21:46:07.576Z",
+            "updatedAt": "2020-03-24T21:46:07.576Z"
+          }
+        }
+      ],
+      "ServiceTaxonomySpecificAttributes": [],
+      "Taxonomies": [
+        {
+          "id": "57727a6e-9bd1-4e1a-9c08-5be7d9f22b55",
+          "name": "Clothing Pantry",
+          "parent_name": "Clothing",
+          "name_vector": "'cloth':1 'pantri':2",
+          "createdAt": "2020-03-24T21:09:42.868Z",
+          "updatedAt": "2020-03-24T21:09:42.868Z",
+          "parent_id": "566956f6-00ad-4f75-ac68-3c56485ed489",
+          "ServiceTaxonomy": {
+            "id": "ef0f1862-ff2a-49b2-a0fa-af345944aa51",
+            "createdAt": "2025-01-07T16:30:44.250Z",
+            "updatedAt": "2025-01-07T16:30:44.250Z",
+            "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3",
+            "taxonomy_id": "57727a6e-9bd1-4e1a-9c08-5be7d9f22b55"
+          }
+        }
+      ],
+      "RegularSchedules": [],
+      "HolidaySchedules": [
+        {
+          "id": "d09f4eb3-260f-4938-9a11-dd0f4b576b22",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 1,
+          "occasion": "COVID19",
+          "createdAt": "2025-01-07T16:32:14.545Z",
+          "updatedAt": "2025-01-07T16:32:14.545Z",
+          "location_id": null,
+          "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3",
+          "service_at_location_id": null
+        },
+        {
+          "id": "f3093cb1-4daf-4ebb-9c4e-d3d3be0d4bfc",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 2,
+          "occasion": "COVID19",
+          "createdAt": "2025-01-07T16:32:14.546Z",
+          "updatedAt": "2025-01-07T16:32:14.546Z",
+          "location_id": null,
+          "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3",
+          "service_at_location_id": null
+        },
+        {
+          "id": "63e433aa-c914-47ae-aacc-5b1439b6273d",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 3,
+          "occasion": "COVID19",
+          "createdAt": "2025-01-07T16:32:14.546Z",
+          "updatedAt": "2025-01-07T16:32:14.546Z",
+          "location_id": null,
+          "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3",
+          "service_at_location_id": null
+        },
+        {
+          "id": "b08915aa-6cb8-4d9a-afd3-dce87780d91c",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 4,
+          "occasion": "COVID19",
+          "createdAt": "2025-01-07T16:32:14.546Z",
+          "updatedAt": "2025-01-07T16:32:14.546Z",
+          "location_id": null,
+          "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3",
+          "service_at_location_id": null
+        },
+        {
+          "id": "645cb56b-d0ce-4378-bd5f-b568febfa98a",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 5,
+          "occasion": "COVID19",
+          "createdAt": "2025-01-07T16:32:14.546Z",
+          "updatedAt": "2025-01-07T16:32:14.546Z",
+          "location_id": null,
+          "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3",
+          "service_at_location_id": null
+        },
+        {
+          "id": "da91fe79-ebd6-4b18-8910-03460f63b7ba",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 6,
+          "occasion": "COVID19",
+          "createdAt": "2025-01-07T16:32:14.546Z",
+          "updatedAt": "2025-01-07T16:32:14.546Z",
+          "location_id": null,
+          "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3",
+          "service_at_location_id": null
+        },
+        {
+          "id": "f9340f99-aa83-497c-b9d7-8894dad07c4d",
+          "closed": false,
+          "opens_at": "00:00:00",
+          "closes_at": "23:59:00",
+          "start_date": null,
+          "end_date": null,
+          "weekday": 7,
+          "occasion": "COVID19",
+          "createdAt": "2025-01-07T16:32:14.546Z",
+          "updatedAt": "2025-01-07T16:32:14.546Z",
+          "location_id": null,
+          "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3",
+          "service_at_location_id": null
+        }
+      ],
+      "Languages": [],
+      "RequiredDocuments": [
+        {
+          "id": "2d2a96f8-c51a-48f9-9c45-a5119c2ede1d",
+          "document": "None",
+          "createdAt": "2025-12-19T02:21:46.848Z",
+          "updatedAt": "2025-12-19T02:21:46.848Z",
+          "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3"
+        }
+      ],
+      "DocumentsInfo": {
+        "id": "e414d5e4-dd84-485e-8328-4543950f9920",
+        "recertification_time": null,
+        "grace_period": null,
+        "additional_info": null,
+        "createdAt": "2025-01-07T16:30:44.274Z",
+        "updatedAt": "2025-01-07T16:30:44.274Z",
+        "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3"
+      },
+      "Phones": [],
+      "EventRelatedInfos": [],
+      "ServiceAreas": [
+        {
+          "id": "26e70334-870a-459b-a16e-44801a7cc032",
+          "postal_codes": [],
+          "description": null,
+          "createdAt": "2025-01-07T16:32:40.983Z",
+          "updatedAt": "2025-01-07T16:32:40.983Z",
+          "service_id": "f70f6684-2bbb-48ed-bc01-a4651e9750f3"
+        }
+      ],
+      "metadata": {
+        "service": [
+          {
+            "field_name": "additional_info",
+            "last_action_date": "2025-01-07T16:30:44.217Z"
+          },
+          {
+            "field_name": "description",
+            "last_action_date": "2025-01-07T16:32:03.289Z"
+          },
+          {
+            "field_name": "name",
+            "last_action_date": "2025-01-07T16:30:44.216Z"
+          },
+          {
+            "field_name": "organization_id",
+            "last_action_date": "2025-01-07T16:30:44.217Z"
+          },
+          {
+            "field_name": "url",
+            "last_action_date": "2025-01-07T16:30:44.217Z"
+          },
+          {
+            "field_name": "who_does_it_serve",
+            "last_action_date": "2025-12-18T21:58:26.388Z"
+          },
+          {
+            "field_name": "irregularHours",
+            "last_action_date": "2025-01-07T16:32:14.770Z"
+          }
+        ],
+        "documents": [
+          {
+            "field_name": "service_id",
+            "last_action_date": "2025-01-07T16:30:44.281Z"
+          },
+          {
+            "field_name": "proofs",
+            "last_action_date": "2025-12-19T02:21:46.854Z"
+          }
+        ],
+        "sources": []
+      }
+    }
+  ],
+  "metadata": {
+    "location": [
+      {
+        "field_name": "additional_info",
+        "last_action_date": "2024-12-31T17:30:25.438Z"
+      },
+      {
+        "field_name": "description",
+        "last_action_date": "2024-12-31T17:30:25.438Z"
+      },
+      {
+        "field_name": "name",
+        "last_action_date": "2024-12-31T17:30:43.767Z"
+      },
+      {
+        "field_name": "organization_id",
+        "last_action_date": "2024-12-31T17:30:25.438Z"
+      },
+      {
+        "field_name": "position",
+        "last_action_date": "2024-12-31T17:30:25.438Z"
+      },
+      {
+        "field_name": "streetview_url",
+        "last_action_date": "2025-12-18T21:40:27.111Z"
+      },
+      {
+        "field_name": "phones",
+        "last_action_date": "2024-12-31T17:33:24.465Z"
+      }
+    ],
+    "organization": [
+      {
+        "field_name": "description",
+        "last_action_date": "2024-12-31T17:33:12.941Z"
+      },
+      {
+        "field_name": "name",
+        "last_action_date": "2024-12-31T17:30:38.102Z"
+      },
+      {
+        "field_name": "url",
+        "last_action_date": "2024-12-31T17:33:46.890Z"
+      }
+    ],
+    "address": [
+      {
+        "field_name": "address_1",
+        "last_action_date": "2024-12-31T17:30:37.206Z"
+      },
+      {
+        "field_name": "city",
+        "last_action_date": "2024-12-31T17:30:25.467Z"
+      },
+      {
+        "field_name": "country",
+        "last_action_date": "2024-12-31T17:30:25.467Z"
+      },
+      {
+        "field_name": "location_id",
+        "last_action_date": "2024-12-31T17:30:25.467Z"
+      },
+      {
+        "field_name": "postal_code",
+        "last_action_date": "2024-12-31T17:30:25.467Z"
+      },
+      {
+        "field_name": "region",
+        "last_action_date": "2024-12-31T17:30:25.467Z"
+      },
+      {
+        "field_name": "state_province",
+        "last_action_date": "2024-12-31T17:30:25.467Z"
+      }
+    ],
+    "sources": []
+  },
+  "closed": false
+}

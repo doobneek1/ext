@@ -1854,6 +1854,36 @@ function updateEditablePlaceholder() {
 document.addEventListener("input", updateEditablePlaceholder);
 document.addEventListener("DOMContentLoaded", updateEditablePlaceholder);
 
+// Function to check if current location has linked locations
+async function hasLinkedLocations() {
+  const fullServiceMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
+  const teamMatch = location.pathname.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
+  const findMatch = location.pathname.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
+  const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
+
+  if (!uuid) return false;
+
+  try {
+    const firebaseURL = `${baseURL}locationNotes/connections.json`;
+    const res = await fetch(firebaseURL);
+    if (!res.ok) return false;
+
+    const allData = await res.json();
+    const allGroups = allData || {};
+
+    const relevantGroups = Object.entries(allGroups).filter(
+      ([groupName, entry]) =>
+        typeof entry === "object" &&
+        entry[uuid] === true
+    );
+
+    return relevantGroups.length > 0;
+  } catch (error) {
+    console.error("[gghost.js] Error checking linked locations:", error);
+    return false;
+  }
+}
+
 async function toggleConnectionMode() {
   console.log("[gghost.js] toggleConnectionMode called. Current isInConnectionMode:", isInConnectionMode); 
  
@@ -1902,9 +1932,10 @@ const connectionButton =
           connectionsDiv.style.display = "block"; 
         }
       }
-    } else { 
+    } else {
       console.log('[gghost.js] Exiting connection mode.');
-      connectionButton.innerText = "Show Other Branches";
+      const hasLinks = await hasLinkedLocations();
+      connectionButton.innerText = hasLinks ? "Show Other Branches" : "Link to other branches";
       if (readonlyNotesDiv) readonlyNotesDiv.style.display = "block"; else console.warn("[gghost.js] readonlyNotesDiv not found for showing");
       if (editableNoteDiv) editableNoteDiv.style.display = "block"; else console.warn("[gghost.js] editableNoteDiv not found for showing");
       if (liveBtn) liveBtn.style.display = "inline-block"; else console.warn("[gghost.js] liveBtn not found for showing");
@@ -2728,9 +2759,61 @@ function pickServiceHash(services, preferId){
    Helpers: service taxonomy
    ========================= */
 const locationRecordCache = new Map();
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+function getLocationCacheKey(uuid) {
+  return `gghost-location-cache-${uuid}`;
+}
+
+function getCachedLocationData(uuid) {
+  try {
+    const cacheKey = getLocationCacheKey(uuid);
+    const cached = localStorage.getItem(cacheKey);
+    if (!cached) return null;
+
+    const parsed = JSON.parse(cached);
+    const age = Date.now() - parsed.timestamp;
+
+    // Return cached data if less than 5 minutes old
+    if (age < CACHE_DURATION_MS) {
+      console.log('[Service Taxonomy] Using cached data, age:', Math.round(age / 1000), 'seconds');
+      return parsed.data;
+    }
+
+    console.log('[Service Taxonomy] Cache expired, age:', Math.round(age / 1000), 'seconds');
+    return null;
+  } catch (err) {
+    console.error('[Service Taxonomy] Failed to read cache', err);
+    return null;
+  }
+}
+
+function setCachedLocationData(uuid, data) {
+  try {
+    const cacheKey = getLocationCacheKey(uuid);
+    const cacheData = {
+      timestamp: Date.now(),
+      data: data
+    };
+    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+    console.log('[Service Taxonomy] Cached location data for', uuid);
+  } catch (err) {
+    console.error('[Service Taxonomy] Failed to cache data', err);
+  }
+}
 
 async function fetchFullLocationRecord(uuid, { refresh = false } = {}) {
   if (!uuid) return null;
+
+  // Check localStorage cache first if not forcing refresh
+  if (!refresh) {
+    const cachedData = getCachedLocationData(uuid);
+    if (cachedData) {
+      return cachedData;
+    }
+  }
+
+  // Check memory cache
   if (!refresh && locationRecordCache.has(uuid)) {
     return locationRecordCache.get(uuid);
   }
@@ -2742,7 +2825,11 @@ async function fetchFullLocationRecord(uuid, { refresh = false } = {}) {
       throw new Error(`HTTP ${res.status}`);
     }
     const data = await res.json();
+
+    // Store in both memory and localStorage cache
     locationRecordCache.set(uuid, data);
+    setCachedLocationData(uuid, data);
+
     return data;
   } catch (err) {
     console.error('[Service Taxonomy] Failed to fetch location record', uuid, err);
@@ -2760,7 +2847,394 @@ function removeServiceTaxonomyBanner() {
   document.querySelectorAll('[data-gghost-service-taxonomy]').forEach(node => node.remove());
 }
 
-function renderServiceTaxonomyBanner(taxonomies) {
+function getValidationColor(dateStr) {
+  const now = new Date();
+  const then = new Date(dateStr);
+  const diffMonths = (now - then) / (1000 * 60 * 60 * 24 * 30.44);
+  if (diffMonths <= 6) return 'green';
+  if (diffMonths <= 12) return 'orange';
+  return 'red';
+}
+
+function getMostRecentUpdateDate(service) {
+  const dates = [];
+
+  // Check description update
+  const descUpdate = service.metadata?.service?.find(f => f.field_name === 'description')?.last_action_date;
+  if (descUpdate) dates.push(new Date(descUpdate));
+
+  // Check holiday schedules
+  const holidayUpdate = service.HolidaySchedules?.[0]?.createdAt;
+  if (holidayUpdate) dates.push(new Date(holidayUpdate));
+
+  // Check event related info
+  const eventUpdate = service.EventRelatedInfos?.[0]?.createdAt;
+  if (eventUpdate) dates.push(new Date(eventUpdate));
+
+  if (dates.length === 0) return null;
+  return new Date(Math.max(...dates));
+}
+
+function formatOxfordList(items) {
+  if (!Array.isArray(items) || items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  const head = items.slice(0, -1).join(", ");
+  return `${head}, and ${items[items.length - 1]}`;
+}
+
+function truncateText(text, maxLen = 80) {
+  const value = (text || "").trim();
+  if (!value) return "";
+  if (value.length <= maxLen) return value;
+  return `${value.slice(0, maxLen - 3)}...`;
+}
+
+function pickLatestDate(dates = []) {
+  let latest = null;
+  let latestTs = -Infinity;
+  dates.forEach(d => {
+    if (!d) return;
+    const ts = new Date(d).getTime();
+    if (Number.isNaN(ts)) return;
+    if (ts > latestTs) {
+      latestTs = ts;
+      latest = d;
+    }
+  });
+  return latest;
+}
+
+function getRecencyStyles(dateStr) {
+  const color = dateStr ? getValidationColor(dateStr) : null;
+  if (color === "green") {
+    return { background: "#d4edda", color: "#1c512c", border: "#b9dfc3" };
+  }
+  if (color === "orange") {
+    return { background: "#fff3cd", color: "#7c5a00", border: "#f2d17d" };
+  }
+  if (color === "red") {
+    return { background: "#f8d7da", color: "#842029", border: "#f0aab4" };
+  }
+  return { background: "#f2f2f2", color: "#333", border: "#d9d9d9" };
+}
+
+function buildServiceUrl(locationId, serviceId, suffix = "") {
+  const base = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}`;
+  if (!suffix) return base;
+  return `${base}/${suffix.replace(/^\/+/, "")}`;
+}
+
+function formatAgeRequirement(service) {
+  const eligibilities = Array.isArray(service?.Eligibilities) ? service.Eligibilities : [];
+  const ageEligibility = eligibilities.find(e => e?.EligibilityParameter?.name?.toLowerCase?.() === "age");
+  if (!ageEligibility) return null;
+
+  const values = Array.isArray(ageEligibility.eligible_values) ? ageEligibility.eligible_values : [];
+  const parts = values
+    .map(v => {
+      if (v?.all_ages) return "All ages";
+      const min = v?.age_min;
+      const max = v?.age_max;
+      const hasMin = min !== null && min !== undefined && !Number.isNaN(Number(min));
+      const hasMax = max !== null && max !== undefined && !Number.isNaN(Number(max));
+      if (hasMin && hasMax) return `${Number(min)}-${Number(max)}`;
+      if (hasMin) return `${Number(min)}+`;
+      if (hasMax) return `Under ${Number(max)}`;
+      return null;
+    })
+    .filter(Boolean);
+
+  if (!parts.length) return null;
+
+  const latestAgeDate = pickLatestDate([
+    ageEligibility.updatedAt,
+    ageEligibility.createdAt,
+    ...(values.map(v => v?.updatedAt || v?.createdAt).filter(Boolean))
+  ]);
+
+  return {
+    label: "Age requirement",
+    value: parts.join(", "),
+    urlSuffix: "who-does-it-serve",
+    updatedAt: latestAgeDate
+  };
+}
+
+function parseTimeStr(t) {
+  if (!t || typeof t !== "string") return null;
+  const m = t.match(/^(\d{2}):(\d{2})/);
+  if (!m) return null;
+  let hour24 = Number(m[1]);
+  const minute = Number(m[2]);
+  if (Number.isNaN(hour24) || Number.isNaN(minute)) return null;
+  const mer = hour24 >= 12 ? "p" : "a";
+  let hour12 = hour24 % 12;
+  if (hour12 === 0) hour12 = 12;
+  return { hour12, minute, mer };
+}
+
+function formatTimeDisplay(info, includeMer = true) {
+  if (!info) return "";
+  const mins = info.minute ? `:${String(info.minute).padStart(2, "0")}` : "";
+  return `${info.hour12}${mins}${includeMer ? info.mer : ""}`;
+}
+
+function formatRangeStr(openStr, closeStr) {
+  const open = parseTimeStr(openStr);
+  const close = parseTimeStr(closeStr);
+  if (!open || !close) return null;
+  const sameMer = open.mer === close.mer;
+  const start = formatTimeDisplay(open, !sameMer);
+  const end = formatTimeDisplay(close, true);
+  return `${start}-${end}`;
+}
+
+function buildHoursEntry(service) {
+  const schedules = Array.isArray(service?.HolidaySchedules) ? service.HolidaySchedules : [];
+  const latestDate = pickLatestDate(schedules.map(s => s?.updatedAt || s?.createdAt).filter(Boolean));
+
+  if (!schedules.length) {
+    return { label: "Hours", value: "No hours", urlSuffix: "opening-hours", updatedAt: latestDate };
+  }
+
+  const openEntries = schedules.filter(s => s && s.closed === false && s.opens_at && s.closes_at);
+  const days = [1, 2, 3, 4, 5, 6, 7];
+  const dayNames = ["", "Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+
+  const isFullDay = (s) => s.opens_at === "00:00:00" && s.closes_at === "23:59:00" && s.closed === false;
+  const hasFullWeek =
+    days.every(d => openEntries.some(s => Number(s.weekday) === d && isFullDay(s))) && openEntries.length >= 7;
+  if (hasFullWeek) {
+    return { label: "Hours", value: "24/7", urlSuffix: "opening-hours", updatedAt: latestDate };
+  }
+
+  const dayStrings = days.map(day => {
+    const dayEntries = openEntries
+      .filter(s => Number(s.weekday) === day)
+      .sort((a, b) => (a.opens_at || "").localeCompare(b.opens_at || ""));
+    if (!dayEntries.length) return { day, str: "Closed" };
+    const ranges = dayEntries
+      .map(s => formatRangeStr(s.opens_at, s.closes_at))
+      .filter(Boolean);
+    if (!ranges.length) return { day, str: "Closed" };
+    return { day, str: ranges.join("&") };
+  });
+
+  const allClosed = dayStrings.every(d => d.str === "Closed");
+  if (allClosed) {
+    return { label: "Hours", value: "Closed", urlSuffix: "opening-hours", updatedAt: latestDate };
+  }
+
+  const segments = [];
+  let i = 0;
+  while (i < dayStrings.length) {
+    const current = dayStrings[i];
+    if (current.str === "Closed") {
+      i += 1;
+      continue;
+    }
+    let j = i;
+    while (j + 1 < dayStrings.length && dayStrings[j + 1].str === current.str) {
+      j += 1;
+    }
+    segments.push({ start: dayStrings[i].day, end: dayStrings[j].day, str: current.str });
+    i = j + 1;
+  }
+
+  const formatSegment = (seg) => {
+    const startName = dayNames[seg.start];
+    const endName = dayNames[seg.end];
+    const dayLabel = seg.start === seg.end ? startName : `${startName}-${endName}`;
+    return `${dayLabel} ${seg.str}`;
+  };
+
+  const value = segments.map(formatSegment).join("; ");
+  return { label: "Hours", value, urlSuffix: "opening-hours", updatedAt: latestDate };
+}
+
+function getServiceQuickEntries(service) {
+  const entries = [];
+
+  const ageEntry = formatAgeRequirement(service);
+  if (ageEntry) entries.push(ageEntry);
+
+  const hoursEntry = buildHoursEntry(service);
+  if (hoursEntry) entries.push(hoursEntry);
+
+  const desc = truncateText(service?.description || "", 120);
+  if (desc) {
+    const metaDescDate = service?.metadata?.service?.find(f => f.field_name === "description")?.last_action_date;
+    entries.push({
+      label: "Description",
+      value: desc,
+      urlSuffix: "description",
+      updatedAt: metaDescDate || service?.updatedAt || service?.createdAt
+    });
+  }
+
+  const eventInfos = Array.isArray(service?.EventRelatedInfos) ? service.EventRelatedInfos : [];
+  const eventText = truncateText(
+    eventInfos.map(e => (e?.information || "").trim()).filter(Boolean).join("; "),
+    120
+  );
+  if (eventText) {
+    entries.push({
+      label: "Event info",
+      value: eventText,
+      urlSuffix: "other-info",
+      updatedAt: pickLatestDate(eventInfos.map(e => e?.updatedAt || e?.createdAt).filter(Boolean))
+    });
+  }
+
+  const requiredDocs = Array.isArray(service?.RequiredDocuments) ? service.RequiredDocuments : [];
+  const docNames = requiredDocs
+    .map(d => (d?.document || "").trim())
+    .filter(name => name && name.toLowerCase() !== "none");
+  const docList = formatOxfordList(docNames);
+  if (docList) {
+    entries.push({
+      label: "Required documents",
+      value: docList,
+      urlSuffix: "documents/proofs-required",
+      updatedAt: pickLatestDate(requiredDocs.map(d => d?.updatedAt || d?.createdAt).filter(Boolean))
+    });
+  }
+
+  return entries;
+}
+
+function createServiceHoverPanel(services, locationId, currentServiceId = null) {
+  const panel = document.createElement('div');
+  panel.setAttribute('data-gghost-service-quick-panel', 'true');
+  Object.assign(panel.style, {
+    position: 'absolute',
+    top: 'calc(100% + 6px)',
+    left: '0',
+    width: '280px',
+    minWidth: '260px',
+    maxWidth: '320px',
+    background: '#fff',
+    border: '1px solid #d4c79a',
+    borderRadius: '8px',
+    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.18)',
+    padding: '8px',
+    maxHeight: '240px',
+    overflowY: 'auto',
+    opacity: '0',
+    pointerEvents: 'none',
+    transform: 'translateY(6px)',
+    transition: 'opacity 0.15s ease, transform 0.15s ease',
+    zIndex: '10000',
+    backgroundClip: 'padding-box'
+  });
+
+  const svcList = Array.isArray(services) ? services : [];
+  if (!svcList.length) return panel;
+
+  svcList.forEach((service, idx) => {
+    const entries = getServiceQuickEntries(service);
+    const row = document.createElement('div');
+    Object.assign(row.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '5px',
+      padding: '6px 8px',
+      borderBottom: idx === svcList.length - 1 ? 'none' : '1px solid #efe7c8',
+      background: '#fff',
+      borderRadius: '6px'
+    });
+
+    row.addEventListener('mouseenter', () => {
+      row.style.background = '#fff9e6';
+    });
+    row.addEventListener('mouseleave', () => {
+      row.style.background = '#fff';
+    });
+
+    const headerBtn = document.createElement('button');
+    headerBtn.type = 'button';
+    headerBtn.textContent = service?.name || 'Unnamed service';
+    const isCurrent = currentServiceId && service?.id === currentServiceId;
+    Object.assign(headerBtn.style, {
+      fontSize: '12px',
+      fontWeight: '700',
+      color: '#2d2400',
+      background: 'transparent',
+      border: 'none',
+      padding: '0',
+      textAlign: 'left',
+      cursor: isCurrent ? 'default' : 'pointer',
+      opacity: isCurrent ? '0.7' : '1'
+    });
+    headerBtn.disabled = !!isCurrent;
+    if (!isCurrent) {
+      headerBtn.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        if (!locationId || !service?.id) return;
+        localStorage.setItem('gghost-taxonomy-overlay-active', 'true');
+        window.location.href = buildServiceUrl(locationId, service.id);
+      });
+    }
+    row.appendChild(headerBtn);
+
+    if (entries.length) {
+      const chips = document.createElement('div');
+      Object.assign(chips.style, {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '5px'
+      });
+
+      entries.forEach(entry => {
+        const palette = getRecencyStyles(entry.updatedAt);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = `${entry.label}: ${entry.value}`;
+        Object.assign(btn.style, {
+          border: 'none',
+          background: palette.background,
+          color: palette.color,
+          borderRadius: '4px',
+          padding: '6px 8px',
+          fontSize: '12px',
+          cursor: 'pointer',
+          textAlign: 'left',
+          lineHeight: '1.3',
+          maxWidth: '100%',
+          whiteSpace: 'normal',
+          width: '100%',
+          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.05)'
+        });
+
+        btn.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          if (!locationId || !service?.id) return;
+          localStorage.setItem('gghost-taxonomy-overlay-active', 'true');
+          window.location.href = buildServiceUrl(locationId, service.id, entry.urlSuffix);
+        });
+
+        chips.appendChild(btn);
+      });
+
+      row.appendChild(chips);
+    } else {
+      const empty = document.createElement('div');
+      empty.textContent = 'No quick data yet.';
+      Object.assign(empty.style, {
+        fontSize: '12px',
+        color: '#7a6b2b'
+      });
+      row.appendChild(empty);
+    }
+
+    panel.appendChild(row);
+  });
+
+  return panel;
+}
+
+function renderServiceTaxonomyBanner(taxonomies, services = [], locationId = null, currentServiceIndex = 0) {
   if (!Array.isArray(taxonomies) || taxonomies.length === 0) return;
 
   const banner = document.createElement('div');
@@ -2781,16 +3255,98 @@ function renderServiceTaxonomyBanner(taxonomies) {
     lineHeight: '1.4'
   });
 
-  const heading = document.createElement('div');
-  heading.textContent = 'Service taxonomy';
-  Object.assign(heading.style, {
-    fontSize: '13px',
-    fontWeight: '600',
-    letterSpacing: '0.02em',
-    textTransform: 'uppercase',
-    marginBottom: '6px'
-  });
-  banner.appendChild(heading);
+
+
+  // Add navigation controls / hover panel if we have services
+  if (services.length > 0 && locationId) {
+    const navContainer = document.createElement('div');
+    Object.assign(navContainer.style, {
+      display: 'flex',
+      gap: '8px',
+      marginBottom: '12px',
+      alignItems: 'center',
+      position: 'relative',
+      minWidth: '260px',
+      width: '280px'
+    });
+
+    // Previous button
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = '←';
+    const prevIndex = (currentServiceIndex - 1 + services.length) % services.length;
+    const prevService = services[prevIndex];
+    prevBtn.title = `Previous: ${prevService?.name || 'Unknown'}`;
+    Object.assign(prevBtn.style, {
+      padding: '4px 8px',
+      fontSize: '14px',
+      border: '1px solid #d4c79a',
+      background: '#fff',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontWeight: 'bold'
+    });
+    prevBtn.addEventListener('click', () => {
+      const prevServiceId = services[prevIndex]?.id;
+      if (prevServiceId) {
+        // Set flag to keep overlay visible on next page
+        localStorage.setItem('gghost-taxonomy-overlay-active', 'true');
+        window.location.href = `https://gogetta.nyc/team/location/${locationId}/services/${prevServiceId}`;
+      }
+    });
+
+    const hoverPanel = createServiceHoverPanel(
+      services,
+      locationId,
+      services[currentServiceIndex]?.id || null
+    );
+    let hoverPanelTimeout = null;
+    const showHoverPanel = () => {
+      clearTimeout(hoverPanelTimeout);
+      hoverPanel.style.opacity = '1';
+      hoverPanel.style.pointerEvents = 'auto';
+      hoverPanel.style.transform = 'translateY(0)';
+    };
+    const hideHoverPanel = () => {
+      hoverPanelTimeout = setTimeout(() => {
+        hoverPanel.style.opacity = '0';
+        hoverPanel.style.pointerEvents = 'none';
+        hoverPanel.style.transform = 'translateY(6px)';
+      }, 120);
+    };
+    navContainer.addEventListener('mouseenter', showHoverPanel);
+    navContainer.addEventListener('mouseleave', hideHoverPanel);
+    hoverPanel.addEventListener('mouseenter', showHoverPanel);
+    hoverPanel.addEventListener('mouseleave', hideHoverPanel);
+
+    // Next button
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = '→';
+    const nextIndex = (currentServiceIndex + 1) % services.length;
+    const nextService = services[nextIndex];
+    nextBtn.title = `Next: ${nextService?.name || 'Unknown'}`;
+    Object.assign(nextBtn.style, {
+      padding: '4px 8px',
+      fontSize: '14px',
+      border: '1px solid #d4c79a',
+      background: '#fff',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontWeight: 'bold'
+    });
+    nextBtn.addEventListener('click', () => {
+      const nextServiceId = services[nextIndex]?.id;
+      if (nextServiceId) {
+        // Set flag to keep overlay visible on next page
+        localStorage.setItem('gghost-taxonomy-overlay-active', 'true');
+        window.location.href = `https://gogetta.nyc/team/location/${locationId}/services/${nextServiceId}`;
+      }
+    });
+
+    navContainer.appendChild(prevBtn);
+    navContainer.appendChild(nextBtn);
+    navContainer.appendChild(hoverPanel);
+    banner.appendChild(navContainer);
+  }
 
   const list = document.createElement('ul');
   Object.assign(list.style, {
@@ -2849,8 +3405,22 @@ function renderServiceTaxonomyBanner(taxonomies) {
 }
 
 async function showServiceTaxonomy(locationId, serviceId) {
-  const locationData = await fetchFullLocationRecord(locationId, { refresh: true });
-  if (!locationData) return;
+  // Set up timeout to clear the flag after 4 seconds
+  const clearFlagTimeout = setTimeout(() => {
+    localStorage.removeItem('gghost-taxonomy-overlay-active');
+  }, 4000);
+
+  // Fetch data (uses cache if available and fresh)
+  const locationData = await fetchFullLocationRecord(locationId, { refresh: false });
+
+  // Clear flag and timeout after fetch
+  clearTimeout(clearFlagTimeout);
+  localStorage.removeItem('gghost-taxonomy-overlay-active');
+
+  if (!locationData) {
+    console.warn('[Service Taxonomy] No location data available for', locationId);
+    return;
+  }
 
   const service = findServiceRecord(locationData, serviceId);
   if (!service) {
@@ -2867,7 +3437,30 @@ async function showServiceTaxonomy(locationId, serviceId) {
     return;
   }
 
-  renderServiceTaxonomyBanner(taxonomies);
+  // Get all services for navigation
+  const allServices = Array.isArray(locationData.Services) ? locationData.Services : [];
+  const currentServiceIndex = allServices.findIndex(s => s.id === serviceId);
+
+  // Render with data (either cached or freshly fetched)
+  removeServiceTaxonomyBanner();
+  renderServiceTaxonomyBanner(taxonomies, allServices, locationId, currentServiceIndex);
+
+  // Optional: Refresh cache in background if data is getting old (> 2 minutes)
+  const cacheKey = getLocationCacheKey(locationId);
+  const cachedEntry = localStorage.getItem(cacheKey);
+  if (cachedEntry) {
+    const parsed = JSON.parse(cachedEntry);
+    const age = Date.now() - parsed.timestamp;
+    const TWO_MINUTES = 2 * 60 * 1000;
+
+    if (age > TWO_MINUTES && age < CACHE_DURATION_MS) {
+      console.log('[Service Taxonomy] Refreshing cache in background');
+      // Fire and forget - update cache for next time
+      fetchFullLocationRecord(locationId, { refresh: true }).catch(err => {
+        console.error('[Service Taxonomy] Background refresh failed', err);
+      });
+    }
+  }
 }
 
 /* ==========================================
@@ -3288,6 +3881,9 @@ async function injectGoGettaButtons() {
   if (fullServiceMatch) {
     const locationId = fullServiceMatch[1];
     const serviceId = fullServiceMatch[2];
+
+    // Always show taxonomy on service pages
+    // The overlay will prioritize cached data if navigating from another service
     showServiceTaxonomy(locationId, serviceId).catch(err => {
       console.error('[Service Taxonomy] Failed to render taxonomy banner', err);
     });
@@ -4820,7 +5416,13 @@ headerSpan.addEventListener("dblclick", async (e) => {
 // Now append your button separately
 const toggleButton = document.createElement("button");
 toggleButton.id = "notes-toggle-button";
-toggleButton.innerText = "Show Other Branches";
+
+// Set initial button text based on whether there are linked locations
+(async () => {
+  const hasLinks = await hasLinkedLocations();
+  toggleButton.innerText = hasLinks ? "Show Other Branches" : "Link to other branches";
+})();
+
 toggleButton.style.marginLeft = "10px";
 toggleButton.style.fontSize = "14px";
 toggleButton.style.padding = "5px 10px";
@@ -6275,6 +6877,279 @@ document.addEventListener('visibilitychange', () => {
       injectGoGettaButtons(); 
       sendResponse({ status: "Pass received by content script" });
     }
-    return true; 
+    return true;
   });
+
+  // Title case formatting for Input-fluid fields
+  // Track manual lowercase positions per input
+  const manualLowercasePositions = new WeakMap();
+  const previousValues = new WeakMap();
+  const inputListeners = new WeakMap(); // Track listeners for cleanup
+
+  // Check if current URL should have capitalization enabled
+  function shouldEnableCapitalization() {
+    const path = window.location.pathname;
+
+    // Specific paths where capitalization should be enabled
+    const capitalizePatterns = [
+      /\/questions\/organization-name$/,
+      /\/questions\/location-name$/,
+      /\/questions\/location-address$/,
+      /\/services\/[a-f0-9-]+\/name$/
+    ];
+
+    return capitalizePatterns.some(pattern => pattern.test(path));
+  }
+
+  function toTitleCase(str, respectManualLowercase = false, input = null) {
+    if (!str) return str;
+
+    // Words that should not be capitalized (articles, short prepositions)
+    const minorWords = new Set([
+      'a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'in', 'nor',
+      'of', 'on', 'or', 'so', 'the', 'to', 'up', 'yet', 'via'
+    ]);
+
+    // Split on spaces and other delimiters while preserving them
+    const parts = str.split(/(\s+|\(|\)|\/|-)/);
+    const manualPositions = respectManualLowercase && input ? (manualLowercasePositions.get(input) || new Set()) : new Set();
+
+    let currentPos = 0;
+    return parts.map((word, index) => {
+      const wordStartPos = currentPos;
+      currentPos += word.length;
+
+      // Don't modify delimiters
+      if (/^(\s+|\(|\)|\/|-)$/.test(word)) return word;
+
+      // Don't modify words that are all uppercase (like acronyms - 2+ consecutive caps)
+      if (word.length > 1 && word === word.toUpperCase() && /[A-Z]{2,}/.test(word)) {
+        return word;
+      }
+
+      // Check if first character was manually lowercased
+      if (respectManualLowercase && manualPositions.has(wordStartPos)) {
+        return word;
+      }
+
+      const lowerWord = word.toLowerCase();
+
+      // Always capitalize first and last word
+      if (index === 0 || index === parts.length - 1) {
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      }
+
+      // Check if it's a minor word
+      if (minorWords.has(lowerWord)) {
+        return lowerWord;
+      }
+
+      // Capitalize the word
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join('');
+  }
+
+  // Apply title case formatting to Input-fluid fields
+  function setupTitleCaseFormatting() {
+    let observer = null;
+    let okButtonListener = null;
+
+    // Helper to attach listeners to an input
+    function attachListeners(input) {
+      if (input.dataset.titleCaseEnabled) return;
+
+      // Only attach if we're on the right URL
+      if (!shouldEnableCapitalization()) return;
+
+      input.dataset.titleCaseEnabled = 'true';
+
+      // Initialize tracking
+      if (!manualLowercasePositions.has(input)) {
+        manualLowercasePositions.set(input, new Set());
+      }
+      if (!previousValues.has(input)) {
+        previousValues.set(input, input.value);
+      }
+
+      // Live formatting on input
+      const inputHandler = function(e) {
+        const currentValue = this.value;
+        const prevValue = previousValues.get(this) || '';
+        const cursorPos = this.selectionStart;
+
+        // Check if user manually changed a capital letter to lowercase
+        if (prevValue.length > 0 && currentValue.length === prevValue.length) {
+          for (let i = 0; i < currentValue.length; i++) {
+            if (prevValue[i] !== currentValue[i]) {
+              // User changed a character
+              if (prevValue[i] === prevValue[i].toUpperCase() &&
+                  currentValue[i] === prevValue[i].toLowerCase() &&
+                  /[a-zA-Z]/.test(currentValue[i])) {
+                // User manually lowercased a capital letter - remember this position
+                const manualPositions = manualLowercasePositions.get(this);
+                manualPositions.add(i);
+                manualLowercasePositions.set(this, manualPositions);
+              }
+            }
+          }
+        }
+
+        // Live capitalize if word just completed (followed by space/delimiter)
+        if (currentValue.length > prevValue.length) {
+          const lastChar = currentValue[currentValue.length - 1];
+
+          // Check if we just typed a delimiter (space, parenthesis, slash, dash)
+          if (/[\s()\/-]/.test(lastChar)) {
+            const formatted = toTitleCase(currentValue, true, this);
+
+            if (currentValue !== formatted) {
+              this.value = formatted;
+              this.setSelectionRange(cursorPos, cursorPos);
+            }
+          }
+        }
+
+        // Update previous value
+        previousValues.set(this, this.value);
+      };
+
+      // Format on blur (when user leaves the field)
+      const blurHandler = function() {
+        if (this.value) {
+          const cursorPosition = this.selectionStart;
+          const formatted = toTitleCase(this.value, false, null); // Full format on blur, ignore manual positions
+
+          if (this.value !== formatted) {
+            this.value = formatted;
+
+            // Clear manual lowercase positions on blur since we're doing a full format
+            manualLowercasePositions.set(this, new Set());
+
+            // Trigger input event to notify any listeners
+            this.dispatchEvent(new Event('input', { bubbles: true }));
+            this.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      };
+
+      input.addEventListener('input', inputHandler);
+      input.addEventListener('blur', blurHandler);
+
+      // Store listeners for cleanup
+      inputListeners.set(input, { inputHandler, blurHandler });
+    }
+
+    // Helper to detach listeners from an input
+    function detachListeners(input) {
+      if (!input.dataset.titleCaseEnabled) return;
+
+      const listeners = inputListeners.get(input);
+      if (listeners) {
+        input.removeEventListener('input', listeners.inputHandler);
+        input.removeEventListener('blur', listeners.blurHandler);
+        inputListeners.delete(input);
+      }
+
+      delete input.dataset.titleCaseEnabled;
+      manualLowercasePositions.delete(input);
+      previousValues.delete(input);
+    }
+
+    // Process all inputs based on current URL
+    function processInputs() {
+      const inputs = document.querySelectorAll('input.Input-fluid');
+
+      if (shouldEnableCapitalization()) {
+        inputs.forEach(attachListeners);
+      } else {
+        inputs.forEach(detachListeners);
+      }
+    }
+
+    // Start mutation observer
+    function startObserver() {
+      if (observer) return;
+
+      observer = new MutationObserver(() => {
+        if (shouldEnableCapitalization()) {
+          const inputs = document.querySelectorAll('input.Input-fluid');
+          inputs.forEach(attachListeners);
+        }
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    }
+
+    // Stop mutation observer
+    function stopObserver() {
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+    }
+
+    // Setup OK button listener
+    function setupOkButtonListener() {
+      if (okButtonListener) return;
+
+      okButtonListener = function(e) {
+        const target = e.target;
+
+        // Check if it's an OK button and we're on the right URL
+        if (shouldEnableCapitalization() &&
+            target.tagName === 'BUTTON' &&
+            target.classList.contains('Button-primary') &&
+            target.textContent.trim() === 'OK') {
+
+          // Format all Input-fluid fields before the click proceeds
+          const allInputs = document.querySelectorAll('input.Input-fluid');
+          allInputs.forEach(input => {
+            if (input.value && input.dataset.titleCaseEnabled) {
+              const formatted = toTitleCase(input.value, false, null);
+              if (input.value !== formatted) {
+                input.value = formatted;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            }
+          });
+        }
+      };
+
+      document.addEventListener('click', okButtonListener, true);
+    }
+
+    // Initialize based on current URL
+    processInputs();
+    startObserver();
+    setupOkButtonListener();
+
+    // Listen for history changes (SPA navigation)
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+
+    history.pushState = function() {
+      originalPushState.apply(this, arguments);
+      setTimeout(processInputs, 0);
+    };
+
+    history.replaceState = function() {
+      originalReplaceState.apply(this, arguments);
+      setTimeout(processInputs, 0);
+    };
+
+    window.addEventListener('popstate', () => {
+      setTimeout(processInputs, 0);
+    });
+  }
+
+  // Initialize title case formatting
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupTitleCaseFormatting);
+  } else {
+    setupTitleCaseFormatting();
+  }
 })();
