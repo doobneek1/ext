@@ -2829,6 +2829,8 @@ function pickServiceHash(services, preferId){
    ========================= */
 const locationRecordCache = new Map();
 const CACHE_DURATION_MS = 60 * 1000; // 1 minute
+const LOCATION_CACHE_PREFIX = 'gghost-location-cache-';
+const LOCATION_CACHE_MIN_PRUNE = 4;
 let activeTaxonomyBannerKey = null;
 let taxonomyRenderRequestId = 0;
 const TAXONOMY_BANNER_ATTR = 'data-gghost-service-taxonomy-v2';
@@ -2879,8 +2881,53 @@ function isServiceTaxonomyPath(pathname, locationId, serviceId) {
   return path === base || path.startsWith(`${base}/`);
 }
 
+function isQuotaExceededError(err) {
+  if (!err) return false;
+  if (err.name === 'QuotaExceededError') return true;
+  if (err.code === 22 || err.code === 1014) return true;
+  return false;
+}
+
+function listLocationCacheEntries() {
+  const entries = [];
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(LOCATION_CACHE_PREFIX)) continue;
+      let timestamp = 0;
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key));
+        timestamp = Number(parsed?.timestamp) || 0;
+      } catch {
+        timestamp = 0;
+      }
+      entries.push({ key, timestamp });
+    }
+  } catch (err) {
+    console.warn('[Service Taxonomy] Failed to list cache keys', err);
+  }
+  return entries;
+}
+
+function pruneLocationCache() {
+  const entries = listLocationCacheEntries();
+  if (!entries.length) return;
+  entries.sort((a, b) => a.timestamp - b.timestamp);
+  const removeCount = Math.max(LOCATION_CACHE_MIN_PRUNE, Math.ceil(entries.length / 2));
+  for (let i = 0; i < removeCount; i += 1) {
+    localStorage.removeItem(entries[i].key);
+  }
+}
+
+function clearLocationCache() {
+  const entries = listLocationCacheEntries();
+  entries.forEach(entry => {
+    localStorage.removeItem(entry.key);
+  });
+}
+
 function getLocationCacheKey(uuid) {
-  return `gghost-location-cache-${uuid}`;
+  return `${LOCATION_CACHE_PREFIX}${uuid}`;
 }
 
 function getCachedLocationData(uuid) {
@@ -2907,16 +2954,31 @@ function getCachedLocationData(uuid) {
 }
 
 function setCachedLocationData(uuid, data) {
+  const cacheKey = getLocationCacheKey(uuid);
+  const cacheData = {
+    timestamp: Date.now(),
+    data: data
+  };
   try {
-    const cacheKey = getLocationCacheKey(uuid);
-    const cacheData = {
-      timestamp: Date.now(),
-      data: data
-    };
     localStorage.setItem(cacheKey, JSON.stringify(cacheData));
     console.log('[Service Taxonomy] Cached location data for', uuid);
+    return;
   } catch (err) {
-    console.error('[Service Taxonomy] Failed to cache data', err);
+    if (!isQuotaExceededError(err)) {
+      console.error('[Service Taxonomy] Failed to cache data', err);
+      return;
+    }
+    pruneLocationCache();
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      console.log('[Service Taxonomy] Cached location data after pruning for', uuid);
+      return;
+    } catch (retryErr) {
+      if (isQuotaExceededError(retryErr)) {
+        clearLocationCache();
+      }
+      console.error('[Service Taxonomy] Failed to cache data after pruning', retryErr);
+    }
   }
 }
 
@@ -7669,12 +7731,671 @@ async function runAreaZipAutomation(state) {
   }
 }
 async function initializeGoGettaEnhancements() {
+  setupServiceLoadMonitor();
   await injectGoGettaButtons();
   updateEditablePlaceholder() 
   onUrlChange(() => {
+    setupServiceLoadMonitor();
     injectGoGettaButtons(); 
     updateEditablePlaceholder()
   });
+}
+
+const SERVICE_LOAD_MONITOR_BUTTON_ID = 'gghost-service-load-monitor';
+const SERVICE_LOAD_TEXT = 'loading service data';
+const SERVICE_LOAD_BUTTON_DELAY_MS = 4000;
+const SERVICE_LOAD_ERROR_WAIT_MS = 2000;
+const SERVICE_LOAD_RELOAD_COOLDOWN_MS = 2000;
+const SERVICE_LOAD_API_CHECK_INTERVAL_MS = 4000;
+const SERVICE_LOAD_API_TIMEOUT_MS = 8000;
+const SERVICE_LOAD_FORCE_TRIGGER_MS = 15000;
+const SERVICE_LOAD_MONITOR_STORAGE_PREFIX = 'gghost-service-load-monitor-state:';
+const SERVICE_LOAD_MONITOR_TAB_KEY_STORAGE = 'gghost-service-load-monitor-tab-key';
+const SERVICE_LOAD_MONITOR_TTL_MS = 12 * 60 * 60 * 1000;
+
+let serviceLoadMonitorState = null;
+
+function isGoGettaTeamLocationUrl(url = location.href) {
+  return /^https:\/\/gogetta\.nyc\/team\/location\/[a-f0-9-]+(\/|$)/i.test(url);
+}
+
+function getGoGettaTeamLocationUuid(url = location.pathname) {
+  const match = url.match(/\/team\/location\/([a-f0-9-]{12,36})/i);
+  return match ? match[1] : null;
+}
+
+function extractLocationUuidFromApiUrl(url) {
+  if (!url) return null;
+  const match = String(url).match(/\/prod\/locations\/([a-f0-9-]+)/i);
+  return match ? match[1] : null;
+}
+
+function getServiceLoadMonitorTabKey() {
+  try {
+    let tabKey = sessionStorage.getItem(SERVICE_LOAD_MONITOR_TAB_KEY_STORAGE);
+    if (!tabKey) {
+      tabKey = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      sessionStorage.setItem(SERVICE_LOAD_MONITOR_TAB_KEY_STORAGE, tabKey);
+    }
+    return tabKey;
+  } catch (err) {
+    return `fallback-${Date.now().toString(36)}`;
+  }
+}
+
+function getServiceLoadMonitorStorageKey(tabKey) {
+  return `${SERVICE_LOAD_MONITOR_STORAGE_PREFIX}${tabKey}`;
+}
+
+function readServiceLoadMonitorStorage(tabKey) {
+  try {
+    const raw = localStorage.getItem(getServiceLoadMonitorStorageKey(tabKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch (err) {
+    console.warn('[ServiceLoadMonitor] Failed to read persisted state:', err);
+    return null;
+  }
+}
+
+function writeServiceLoadMonitorStorage(tabKey, payload) {
+  try {
+    localStorage.setItem(getServiceLoadMonitorStorageKey(tabKey), JSON.stringify(payload));
+  } catch (err) {
+    console.warn('[ServiceLoadMonitor] Failed to persist state:', err);
+  }
+}
+
+function clearServiceLoadMonitorStorage(tabKey) {
+  try {
+    localStorage.removeItem(getServiceLoadMonitorStorageKey(tabKey));
+  } catch (err) {
+    console.warn('[ServiceLoadMonitor] Failed to clear persisted state:', err);
+  }
+}
+
+function cleanupServiceLoadMonitorStorage() {
+  try {
+    const now = Date.now();
+    for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(SERVICE_LOAD_MONITOR_STORAGE_PREFIX)) continue;
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || '{}');
+        const updatedAt = Number(parsed.updatedAt || 0);
+        if (!updatedAt || now - updatedAt > SERVICE_LOAD_MONITOR_TTL_MS) {
+          localStorage.removeItem(key);
+        }
+      } catch (err) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (err) {
+    console.warn('[ServiceLoadMonitor] Failed to cleanup persisted state:', err);
+  }
+}
+
+function findLoadingServiceNode() {
+  const xpath = `//*[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'${SERVICE_LOAD_TEXT}')]`;
+  return document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+}
+
+function isLoadingServiceVisible() {
+  const node = findLoadingServiceNode();
+  if (!node) return false;
+  const style = window.getComputedStyle(node);
+  if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+    return false;
+  }
+  return node.getClientRects().length > 0;
+}
+
+function isNetworkErrorScreen() {
+  const errorLabel = document.querySelector('.ErrorLabel');
+  if (!errorLabel) return false;
+  const text = (errorLabel.textContent || '').toLowerCase();
+  return text.includes('network error') || !!errorLabel.querySelector('button.default');
+}
+
+function hasProgressZeroIndicator() {
+  const textNode = document.querySelector('.ProgressBarText');
+  if (textNode && /progress\s*0\s*\/\s*7/i.test(textNode.textContent || '')) {
+    return true;
+  }
+  const bar = document.querySelector('.ProgressBarValue');
+  if (bar && bar.style && bar.style.right) {
+    const right = bar.style.right.trim();
+    if (right === '100%' || right === '100.0%') {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isRootBlankScreen() {
+  const root = document.getElementById('root');
+  if (!root) return false;
+  const text = (root.textContent || '').replace(/\s+/g, '');
+  if (text.length > 0) return false;
+  const visibleNodes = Array.from(root.querySelectorAll('*')).some((el) => {
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+      return false;
+    }
+    return el.getClientRects().length > 0;
+  });
+  return !visibleNodes;
+}
+
+function matchesServiceLoadFetchError(args) {
+  const parts = args.map((arg) => {
+    if (typeof arg === 'string') return arg;
+    if (arg && typeof arg.message === 'string') return arg.message;
+    try {
+      return JSON.stringify(arg);
+    } catch {
+      return String(arg);
+    }
+  });
+  const text = parts.join(' ').toLowerCase();
+  if (!text.includes('failed to fetch')) return false;
+  if (text.includes('notes header')) return true;
+  if (text.includes('service taxonomy')) return true;
+  if (text.includes('failed to fetch location record')) return true;
+  return false;
+}
+
+async function hasSensibleLocationResponse() {
+  if (!isGoGettaTeamLocationUrl()) return false;
+  const uuid = getGoGettaTeamLocationUuid();
+  if (!uuid) return false;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SERVICE_LOAD_API_TIMEOUT_MS);
+  try {
+    const headers = typeof getAuthHeaders === 'function' ? getAuthHeaders() : { 'Content-Type': 'application/json' };
+    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, {
+      headers,
+      signal: controller.signal
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const id = (data?.id || '').toString().toLowerCase();
+    if (!id || id !== uuid.toLowerCase()) return false;
+    return true;
+  } catch (err) {
+    if (err && err.name !== 'AbortError') {
+      console.warn('[ServiceLoadMonitor] API check failed:', err);
+    }
+    return false;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function playBeep() {
+  try {
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) return;
+    const ctx = new AudioContextCtor();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.value = 0.08;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.25);
+    osc.onended = () => {
+      ctx.close();
+    };
+  } catch (err) {
+    console.warn('[ServiceLoadMonitor] Beep failed:', err);
+  }
+}
+
+function setupServiceLoadMonitor() {
+  if (serviceLoadMonitorState) return;
+
+  const tabKey = getServiceLoadMonitorTabKey();
+  const storageKey = getServiceLoadMonitorStorageKey(tabKey);
+
+  const state = {
+    active: false,
+    button: null,
+    loadingTimer: null,
+    observer: null,
+    awaitingLoading: false,
+    awaitingLoadingGone: false,
+    awaitingErrorAfterLoad: false,
+    errorAfterLoadTimer: null,
+    lastReloadAt: 0,
+    progressBeeped: false,
+    apiCheckTimer: null,
+    apiCheckInFlight: false,
+    forceOfferUntil: 0,
+    tabKey,
+    storageKey,
+    persistedUuid: null,
+    pendingReload: false,
+    initialApiCheckDone: false
+  };
+  serviceLoadMonitorState = state;
+
+  cleanupServiceLoadMonitorStorage();
+
+  const clearLoadingTimer = () => {
+    if (state.loadingTimer) {
+      clearTimeout(state.loadingTimer);
+      state.loadingTimer = null;
+    }
+  };
+
+  const clearApiCheckTimer = () => {
+    if (state.apiCheckTimer) {
+      clearTimeout(state.apiCheckTimer);
+      state.apiCheckTimer = null;
+    }
+  };
+
+  const clearErrorAfterLoadTimer = () => {
+    if (state.errorAfterLoadTimer) {
+      clearTimeout(state.errorAfterLoadTimer);
+      state.errorAfterLoadTimer = null;
+    }
+  };
+
+  const removeButton = () => {
+    if (state.button) {
+      state.button.remove();
+      state.button = null;
+    }
+  };
+
+  const persistMonitorState = (isActive, pendingReload = false) => {
+    if (!state.tabKey || !state.storageKey) return;
+    if (!isActive) {
+      state.persistedUuid = null;
+      state.pendingReload = false;
+      clearServiceLoadMonitorStorage(state.tabKey);
+      return;
+    }
+    const uuid = getGoGettaTeamLocationUuid();
+    if (!uuid) {
+      state.persistedUuid = null;
+      state.pendingReload = false;
+      clearServiceLoadMonitorStorage(state.tabKey);
+      return;
+    }
+    state.persistedUuid = uuid;
+    state.pendingReload = !!pendingReload;
+    writeServiceLoadMonitorStorage(state.tabKey, {
+      tabId: state.tabKey,
+      uuid,
+      active: true,
+      pendingReload: state.pendingReload,
+      updatedAt: Date.now()
+    });
+  };
+
+  const updateButtonLabel = () => {
+    if (!state.button) return;
+    state.button.textContent = state.active ? 'Stop Loading Monitor' : 'Notify me when app works!';
+  };
+
+  const showButton = () => {
+    if (state.button) return;
+
+    const button = document.createElement('button');
+    button.id = SERVICE_LOAD_MONITOR_BUTTON_ID;
+    button.type = 'button';
+    button.textContent = 'Notify me when the app starts working';
+
+    Object.assign(button.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      zIndex: '10001',
+      padding: '16px 28px',
+      fontSize: '18px',
+      fontWeight: '600',
+      borderRadius: '12px',
+      border: '2px solid #000',
+      background: '#fff',
+      cursor: 'pointer',
+      boxShadow: '0 8px 20px rgba(0,0,0,0.25)'
+    });
+
+    button.addEventListener('click', () => {
+      if (state.active) {
+        stopMonitor(false);
+      } else {
+        startMonitor();
+      }
+    });
+
+    document.body.appendChild(button);
+    state.button = button;
+    updateButtonLabel();
+  };
+
+
+  const triggerMonitorOffer = () => {
+    state.forceOfferUntil = Date.now() + SERVICE_LOAD_FORCE_TRIGGER_MS;
+    clearLoadingTimer();
+    showButton();
+  };
+
+  const stopMonitor = (shouldBeep) => {
+    state.active = false;
+    state.awaitingLoading = false;
+    state.awaitingLoadingGone = false;
+    state.awaitingErrorAfterLoad = false;
+    state.progressBeeped = false;
+    state.apiCheckInFlight = false;
+    state.forceOfferUntil = 0;
+    state.pendingReload = false;
+    clearErrorAfterLoadTimer();
+    clearApiCheckTimer();
+    updateButtonLabel();
+    persistMonitorState(false);
+    if (shouldBeep) {
+      playBeep();
+    }
+    if (!isLoadingServiceVisible()) {
+      removeButton();
+    }
+  };
+
+  const scheduleApiCheck = () => {
+    if (!state.active || state.apiCheckTimer || state.apiCheckInFlight) return;
+    state.apiCheckTimer = setTimeout(async () => {
+      state.apiCheckTimer = null;
+      if (!state.active) return;
+      if (!isGoGettaTeamLocationUrl()) return;
+      state.apiCheckInFlight = true;
+      const ok = await hasSensibleLocationResponse();
+      state.apiCheckInFlight = false;
+      if (!state.active) return;
+      if (ok) {
+        stopMonitor(true);
+        return;
+      }
+      const loadingVisible = isLoadingServiceVisible();
+      const errorVisible = isNetworkErrorScreen();
+      if (!loadingVisible && !errorVisible) {
+        triggerReload();
+        return;
+      }
+      scheduleApiCheck();
+    }, SERVICE_LOAD_API_CHECK_INTERVAL_MS);
+  };
+
+  const startMonitor = () => {
+    state.active = true;
+    state.pendingReload = false;
+    state.awaitingLoading = false;
+    state.awaitingLoadingGone = false;
+    state.awaitingErrorAfterLoad = false;
+    state.progressBeeped = false;
+    clearErrorAfterLoadTimer();
+    showButton();
+    updateButtonLabel();
+    persistMonitorState(true, false);
+    scheduleApiCheck();
+    const loadingVisible = isLoadingServiceVisible();
+    const errorVisible = isNetworkErrorScreen();
+    if (errorVisible) {
+      triggerReload();
+      return;
+    }
+    if (loadingVisible) {
+      state.awaitingLoading = false;
+      state.awaitingLoadingGone = true;
+    } else {
+      state.awaitingLoading = true;
+    }
+  };
+
+  const startErrorAfterLoadTimer = () => {
+    clearErrorAfterLoadTimer();
+    state.errorAfterLoadTimer = setTimeout(() => {
+      if (!state.active) return;
+      if (!isNetworkErrorScreen()) {
+        stopMonitor(true);
+      }
+    }, SERVICE_LOAD_ERROR_WAIT_MS);
+  };
+
+  const triggerReload = () => {
+    const now = Date.now();
+    if (now - state.lastReloadAt < SERVICE_LOAD_RELOAD_COOLDOWN_MS) return;
+    state.lastReloadAt = now;
+    state.awaitingLoading = true;
+    state.awaitingLoadingGone = false;
+    state.awaitingErrorAfterLoad = false;
+    clearErrorAfterLoadTimer();
+    state.pendingReload = true;
+    persistMonitorState(true, true);
+    location.reload();
+  };
+
+  const scheduleButtonIfNeeded = (shouldOfferMonitor) => {
+    if (state.active) {
+      showButton();
+      return;
+    }
+    if (!shouldOfferMonitor) {
+      clearLoadingTimer();
+      if (!state.active) {
+        removeButton();
+      }
+      return;
+    }
+    if (state.button) return;
+    if (state.loadingTimer) return;
+    state.loadingTimer = setTimeout(() => {
+      state.loadingTimer = null;
+      if (isGoGettaTeamLocationUrl() && isLoadingServiceVisible()) {
+        showButton();
+      }
+    }, SERVICE_LOAD_BUTTON_DELAY_MS);
+  };
+
+  const checkMonitorState = () => {
+    if (!isGoGettaTeamLocationUrl()) {
+      clearLoadingTimer();
+      if (state.active) {
+        stopMonitor(false);
+      } else {
+        persistMonitorState(false);
+      }
+      removeButton();
+      return;
+    }
+
+    const currentUuid = getGoGettaTeamLocationUuid();
+    if (state.persistedUuid && currentUuid &&
+      state.persistedUuid.toLowerCase() !== currentUuid.toLowerCase()) {
+      stopMonitor(false);
+      persistMonitorState(false);
+      removeButton();
+      return;
+    }
+
+    const loadingVisible = isLoadingServiceVisible();
+    const errorVisible = isNetworkErrorScreen();
+    const progressZero = hasProgressZeroIndicator();
+    const blankScreen = isRootBlankScreen();
+    if (progressZero) {
+      clearLoadingTimer();
+      if (state.active) {
+        stopMonitor(true);
+      } else {
+        removeButton();
+        playBeep();
+      }
+      return;
+    }
+    const forceOfferActive = state.forceOfferUntil && Date.now() < state.forceOfferUntil;
+    const shouldOfferMonitor = loadingVisible || errorVisible || blankScreen || forceOfferActive;
+
+    scheduleButtonIfNeeded(shouldOfferMonitor);
+
+    if (!state.active) return;
+    scheduleApiCheck();
+
+    if (errorVisible) {
+      triggerReload();
+      return;
+    }
+
+    if (state.awaitingLoading && loadingVisible) {
+      state.awaitingLoading = false;
+      state.awaitingLoadingGone = true;
+      return;
+    }
+
+    if (state.awaitingLoadingGone && !loadingVisible) {
+      state.awaitingLoadingGone = false;
+      state.awaitingErrorAfterLoad = true;
+      startErrorAfterLoadTimer();
+      return;
+    }
+
+    if (state.awaitingErrorAfterLoad && errorVisible) {
+      triggerReload();
+    }
+  };
+
+  const resumePersistedMonitor = () => {
+    if (!isGoGettaTeamLocationUrl()) {
+      persistMonitorState(false);
+      return;
+    }
+    const stored = readServiceLoadMonitorStorage(state.tabKey);
+    if (!stored || !stored.active) return;
+    if (state.active) return;
+    const uuid = getGoGettaTeamLocationUuid();
+    if (!uuid || !stored.uuid || uuid.toLowerCase() !== stored.uuid.toLowerCase()) {
+      persistMonitorState(false);
+      return;
+    }
+    state.pendingReload = false;
+    showButton();
+    startMonitor();
+    checkMonitorState();
+  };
+
+  const runInitialApiCheckIfNeeded = () => {
+    if (state.active || state.initialApiCheckDone) return;
+    if (!isGoGettaTeamLocationUrl()) return;
+    state.initialApiCheckDone = true;
+    hasSensibleLocationResponse()
+      .then((ok) => {
+        if (!ok) {
+          triggerMonitorOffer();
+          checkMonitorState();
+        }
+      })
+      .catch(() => {
+        triggerMonitorOffer();
+        checkMonitorState();
+      });
+  };
+
+  if (!window.gghostServiceMonitorConsoleWrapped) {
+    window.gghostServiceMonitorConsoleWrapped = true;
+    const originalError = console.error.bind(console);
+    const originalWarn = console.warn.bind(console);
+    const handleConsoleTrigger = (args) => {
+      if (!matchesServiceLoadFetchError(args)) return;
+      triggerMonitorOffer();
+      checkMonitorState();
+    };
+    console.error = (...args) => {
+      originalError(...args);
+      handleConsoleTrigger(args);
+    };
+    console.warn = (...args) => {
+      originalWarn(...args);
+      handleConsoleTrigger(args);
+    };
+  }
+
+  if (!window.gghostServiceMonitorFetchWrapped) {
+    window.gghostServiceMonitorFetchWrapped = true;
+    const originalFetch = window.fetch ? window.fetch.bind(window) : null;
+    if (originalFetch) {
+      window.fetch = (input, init) => {
+        const url = typeof input === 'string' ? input : input?.url;
+        const requestUuid = extractLocationUuidFromApiUrl(url);
+        const pageUuid = getGoGettaTeamLocationUuid();
+        const shouldTrack = requestUuid && pageUuid &&
+          requestUuid.toLowerCase() === pageUuid.toLowerCase();
+        return originalFetch(input, init)
+          .then((res) => {
+            if (shouldTrack && !res.ok) {
+              triggerMonitorOffer();
+              checkMonitorState();
+            }
+            return res;
+          })
+          .catch((err) => {
+            if (shouldTrack) {
+              triggerMonitorOffer();
+              checkMonitorState();
+            }
+            throw err;
+          });
+      };
+    }
+  }
+
+  if (!window.gghostServiceMonitorErrorWrapped) {
+    window.gghostServiceMonitorErrorWrapped = true;
+    const handleGlobalFailure = (reason) => {
+      const text = String(reason?.message || reason || '').toLowerCase();
+      if (!text.includes('failed to fetch')) return;
+      if (!isGoGettaTeamLocationUrl()) return;
+      triggerMonitorOffer();
+      checkMonitorState();
+    };
+    window.addEventListener('unhandledrejection', (event) => {
+      handleGlobalFailure(event?.reason);
+    });
+    window.addEventListener('error', (event) => {
+      handleGlobalFailure(event?.error || event?.message);
+    });
+  }
+
+  state.observer = new MutationObserver(() => {
+    checkMonitorState();
+  });
+
+  if (document.body) {
+    state.observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (!state.active) {
+      persistMonitorState(false);
+      return;
+    }
+    if (state.pendingReload) return;
+    persistMonitorState(false);
+  });
+
+  onUrlChange(() => {
+    checkMonitorState();
+  });
+
+  resumePersistedMonitor();
+  runInitialApiCheckIfNeeded();
+  checkMonitorState();
 }
 // ---- Limits (tune as needed) ----
 const MAX_ORG_NAME = 140;

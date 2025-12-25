@@ -136,6 +136,31 @@ function fetchStreetViewLocation(uuid) {
   return request;
 }
 
+function decodeBasicEntities(text) {
+  return text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+function extractTextFromHtml(html) {
+  if (typeof DOMParser !== 'undefined') {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    doc.querySelectorAll('script, style, noscript').forEach(el => el.remove());
+    return (doc.body ? doc.body.textContent : doc.textContent || '');
+  }
+  const withoutScripts = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ');
+  const withoutTags = withoutScripts.replace(/<\/?[^>]+>/g, ' ');
+  return decodeBasicEntities(withoutTags);
+}
+
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'fetchFindHtml') {
@@ -379,15 +404,7 @@ if (msg.type === 'getPlaceDetails') {
     fetch(url)
       .then(res => res.text())
       .then(html => {
-        // Extract text content from HTML
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-
-        // Remove script and style tags
-        doc.querySelectorAll('script, style').forEach(el => el.remove());
-
-        // Get text content
-        const text = doc.body.textContent.toLowerCase();
+        const text = extractTextFromHtml(html).toLowerCase();
 
         // AI-powered analysis using pattern matching
         const analysis = analyzePageText(text, url);

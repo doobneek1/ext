@@ -59,7 +59,7 @@ function getValidationColor(dateStr) {
   function normalize(str) {
     return str?.toLowerCase()?.replace(/[^a-z0-9]+/g, '').trim();
   }
-  async function injectServiceEditButtons(slug, locationId, services, skipLinks = false) {
+  async function injectServiceEditButtons(slug, locationId, services, skipLinks = false, fullLocationData = null) {
     const serviceMap = {};
     for (const svc of services) {
       if (svc?.name && svc?.id) {
@@ -68,24 +68,33 @@ function getValidationColor(dateStr) {
     }
     const pageLocationId = locationId;
     let fullLocationPromise = null;
+    const buildMetadataMap = (locationData) => {
+      const metadataByServiceId = {};
+      (locationData?.Services || []).forEach(svc => {
+        if (svc?.id && Array.isArray(svc?.metadata?.service)) {
+          metadataByServiceId[svc.id] = svc.metadata.service;
+        }
+      });
+      return metadataByServiceId;
+    };
+    const hasServiceMetadata = (locationData) =>
+      Array.isArray(locationData?.Services) &&
+      locationData.Services.some(svc => Array.isArray(svc?.metadata?.service));
     const getFullLocationMetadata = () => {
       if (!pageLocationId) return Promise.resolve(null);
       if (!fullLocationPromise) {
         fullLocationPromise = (async () => {
           try {
+            if (fullLocationData && hasServiceMetadata(fullLocationData)) {
+              return buildMetadataMap(fullLocationData);
+            }
             const headers = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
             const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${pageLocationId}`, { headers });
             if (!res.ok) {
               throw new Error(`HTTP ${res.status}`);
             }
             const fullLocation = await res.json();
-            const metadataByServiceId = {};
-            (fullLocation?.Services || []).forEach(svc => {
-              if (svc?.id && Array.isArray(svc?.metadata?.service)) {
-                metadataByServiceId[svc.id] = svc.metadata.service;
-              }
-            });
-            return metadataByServiceId;
+            return buildMetadataMap(fullLocation);
           } catch (err) {
             console.error('[YP] Failed to fetch full location for description update:', err);
             return null;
@@ -670,7 +679,7 @@ Object.assign(note.style, {
       document.body.appendChild(hoverButton);
       
       if (slug) {
-        await injectServiceEditButtons(slug, uuid, json?.Services || []);
+        await injectServiceEditButtons(slug, uuid, json?.Services || [], false, json);
       }
     } catch (err) {
       console.error('[YP] ❌ Failed to inject buttons:', err);
@@ -697,7 +706,7 @@ Object.assign(note.style, {
         const services = json?.Services || [];
         console.log('[YPHost] Found', services.length, 'services for location', locationId);
 
-        await injectServiceEditButtons(slug, locationId, services, true); // true = skip links in iframe
+        await injectServiceEditButtons(slug, locationId, services, true, json); // true = skip links in iframe
         console.log('[YPHost] Validation recency injected');
       } catch (err) {
         console.error('[YP] ❌ Failed to inject validation recency:', err);
