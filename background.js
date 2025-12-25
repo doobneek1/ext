@@ -98,6 +98,44 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(maybeRedirect, {
 //   }
 // });
 
+const STREETVIEW_CACHE_MS = 60 * 1000;
+const streetViewCache = new Map();
+const streetViewInFlight = new Map();
+
+function fetchStreetViewLocation(uuid) {
+  if (!uuid) {
+    return Promise.reject(new Error("Missing UUID for street view fetch"));
+  }
+
+  const now = Date.now();
+  const cached = streetViewCache.get(uuid);
+  if (cached && now - cached.timestamp < STREETVIEW_CACHE_MS) {
+    return Promise.resolve(cached.data);
+  }
+
+  const inFlight = streetViewInFlight.get(uuid);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const apiUrl = `https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`;
+  const request = fetch(apiUrl)
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to fetch location data');
+      return res.json();
+    })
+    .then(data => {
+      streetViewCache.set(uuid, { data, timestamp: Date.now() });
+      return data;
+    })
+    .finally(() => {
+      streetViewInFlight.delete(uuid);
+    });
+
+  streetViewInFlight.set(uuid, request);
+  return request;
+}
+
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'fetchFindHtml') {
@@ -167,15 +205,9 @@ if (msg.type === 'getAddressSuggestions') {
 
 if (msg.type === 'showStreetView') {
     const uuid = msg.uuid;
-    const apiUrl = `https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`;
-
     console.log('[Background] Fetching Street View data for UUID:', uuid);
 
-    fetch(apiUrl)
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch location data');
-        return res.json();
-      })
+    fetchStreetViewLocation(uuid)
       .then(data => {
         console.log('[Background] Location data fetched, injecting Street View script');
 

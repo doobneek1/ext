@@ -405,36 +405,23 @@
       return;
     }
 
-    // First fetch location details to get address and org/location names
+    // Use provided location details to get address and org/location names
     let streetAddress = '';
     let headerTitle = 'Street View Picker';
 
-    // Extract UUID from current URL to fetch location details
-    const uuidMatch = currentUrl.match(/\/team\/location\/([a-f0-9-]+)/);
-
-    if (uuidMatch && uuidMatch[1]) {
-      try {
-        const uuid = uuidMatch[1];
-        const headers = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
-        const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          // Build street address from API data
-          streetAddress = data.address?.street || '';
-          // Build header title like in gghost notepad: locname/orgname
-          const orgName = data.Organization?.name || '';
-          const locName = data.name || '';
-          if (orgName && locName) {
-            headerTitle = `${locName} / ${orgName}`;
-          } else if (orgName) {
-            headerTitle = orgName;
-          } else if (locName) {
-            headerTitle = locName;
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch location details:', error);
+    if (locationData) {
+      streetAddress = locationData.address?.street || '';
+      const orgName = locationData.Organization?.name || '';
+      const locName = locationData.name || '';
+      if (orgName && locName) {
+        headerTitle = `${locName} / ${orgName}`;
+      } else if (orgName) {
+        headerTitle = orgName;
+      } else if (locName) {
+        headerTitle = locName;
       }
+    } else {
+      console.warn('[streetview.js] Missing location data for header details');
     }
 
     const modal = document.createElement('div');

@@ -6,7 +6,8 @@
   function redirectTelLinksToGoogleVoice() {
     if (location.hostname.includes("voice.google.com")) return;
     document.querySelectorAll('a[href^="tel:"]').forEach(link => {
-      if (link.closest(`#${EMBED_WRAPPER_ID}`)) return; // 🚫 skip inside embed
+      if (link.closest(`#${EMBED_WRAPPER_ID}`)) return;
+      if (link.closest('#gghost-location-contact-container')) return;
 
       const tel = link.getAttribute('href').replace(/^tel:/, ''); // Remove tel: prefix safely
       console.log('Processing tel link:', tel); // Debug log
@@ -41,7 +42,8 @@
   function redirectMailtoLinksToGmail() {
     if (location.hostname.includes("mail.google.com")) return;
     document.querySelectorAll('a[href^="mailto:"]').forEach(link => {
-      if (link.closest(`#${EMBED_WRAPPER_ID}`)) return; // 🚫 skip inside embed
+      if (link.closest(`#${EMBED_WRAPPER_ID}`)) return;
+      if (link.closest('#gghost-location-contact-container')) return;
 
       const email = link.getAttribute('href').replace(/^mailto:/, '').trim();
       if (!email || !email.includes('@')) return;
@@ -69,3 +71,7 @@
   });
   observer.observe(document.body, { childList: true, subtree: true });
 })();
+
+
+
+

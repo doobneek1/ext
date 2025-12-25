@@ -3,9 +3,141 @@
   let callClicked = false;
   let callButtonMutationObserver = null;
   let bannerRemovalPromise = Promise.resolve(); // Default to resolved
+  let callTargetUrl = '';
+  let callSessionStartedAt = 0;
+  let retryTimerId = null;
 
-  const TARGET_PAGE_IDENTIFIER = 'https://voice.google.com/u/0/calls?a=nc,%2B1';
+  const CALL_PARAM_PREFIX = 'nc,';
+  const CALL_SESSION_TTL_MS = 20000;
+  const RETRY_DELAY_MS = 900;
+  const MAX_RETRY_ATTEMPTS = 2;
+  const STORAGE_KEY_CALL_URL = 'doobneek:gvCallUrl';
+  const STORAGE_KEY_CALL_TS = 'doobneek:gvCallTs';
+  const STORAGE_KEY_CALL_RETRY = 'doobneek:gvCallRetry';
+  const STORAGE_KEY_CALL_CLICKED = 'doobneek:gvCallClicked';
   const BUTTON_SELECTOR = 'button[gv-test-id="dialog-confirm-button"]';
+
+  function getCallParam(url) {
+    try {
+      const parsed = new URL(url);
+      const raw = parsed.searchParams.get('a');
+      if (!raw) return null;
+      const decoded = decodeURIComponent(raw);
+      if (!decoded.toLowerCase().startsWith(CALL_PARAM_PREFIX)) return null;
+      return decoded;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function getNavigationStartUrl() {
+    try {
+      const entries = performance.getEntriesByType('navigation');
+      return entries && entries[0] ? entries[0].name : '';
+    } catch (err) {
+      return '';
+    }
+  }
+
+  function isCallTargetUrl(url) {
+    return Boolean(getCallParam(url));
+  }
+
+  function storeCallSession(url) {
+    const previousUrl = sessionStorage.getItem(STORAGE_KEY_CALL_URL);
+    const isNewCall = previousUrl !== url;
+
+    callTargetUrl = url;
+    callSessionStartedAt = Date.now();
+    sessionStorage.setItem(STORAGE_KEY_CALL_URL, url);
+    sessionStorage.setItem(STORAGE_KEY_CALL_TS, String(callSessionStartedAt));
+
+    if (isNewCall) {
+      sessionStorage.setItem(STORAGE_KEY_CALL_RETRY, '0');
+      sessionStorage.setItem(STORAGE_KEY_CALL_CLICKED, '0');
+      callClicked = false;
+    } else {
+      callClicked = sessionStorage.getItem(STORAGE_KEY_CALL_CLICKED) === '1';
+    }
+  }
+
+  function restoreCallSession() {
+    const storedUrl = sessionStorage.getItem(STORAGE_KEY_CALL_URL);
+    const storedTs = Number(sessionStorage.getItem(STORAGE_KEY_CALL_TS) || 0);
+    if (!storedUrl || !storedTs) {
+      const navUrl = getNavigationStartUrl();
+      if (isCallTargetUrl(navUrl)) {
+        storeCallSession(navUrl);
+        return true;
+      }
+      return false;
+    }
+    if (Date.now() - storedTs > CALL_SESSION_TTL_MS) {
+      clearCallSession();
+      const navUrl = getNavigationStartUrl();
+      if (isCallTargetUrl(navUrl)) {
+        storeCallSession(navUrl);
+        return true;
+      }
+      return false;
+    }
+    callTargetUrl = storedUrl;
+    callSessionStartedAt = storedTs;
+    callClicked = sessionStorage.getItem(STORAGE_KEY_CALL_CLICKED) === '1';
+    return true;
+  }
+
+  function clearCallSession() {
+    callTargetUrl = '';
+    callSessionStartedAt = 0;
+    sessionStorage.removeItem(STORAGE_KEY_CALL_URL);
+    sessionStorage.removeItem(STORAGE_KEY_CALL_TS);
+    sessionStorage.removeItem(STORAGE_KEY_CALL_RETRY);
+    sessionStorage.removeItem(STORAGE_KEY_CALL_CLICKED);
+    if (retryTimerId) {
+      clearTimeout(retryTimerId);
+      retryTimerId = null;
+    }
+  }
+
+  function isCallSessionActive() {
+    return Boolean(
+      callTargetUrl &&
+      callSessionStartedAt &&
+      Date.now() - callSessionStartedAt <= CALL_SESSION_TTL_MS
+    );
+  }
+
+  function markCallClicked() {
+    callClicked = true;
+    sessionStorage.setItem(STORAGE_KEY_CALL_CLICKED, '1');
+  }
+
+  function scheduleRetryIfNeeded(reason) {
+    if (!isCallSessionActive() || callClicked || !callTargetUrl) {
+      return;
+    }
+    if (location.href === callTargetUrl) {
+      return;
+    }
+    const retryCount = Number(sessionStorage.getItem(STORAGE_KEY_CALL_RETRY) || 0);
+    if (retryCount >= MAX_RETRY_ATTEMPTS) {
+      return;
+    }
+    if (retryTimerId) {
+      return;
+    }
+    retryTimerId = setTimeout(() => {
+      retryTimerId = null;
+      const currentRetryCount = Number(sessionStorage.getItem(STORAGE_KEY_CALL_RETRY) || 0);
+      if (currentRetryCount >= MAX_RETRY_ATTEMPTS) {
+        return;
+      }
+      sessionStorage.setItem(STORAGE_KEY_CALL_RETRY, String(currentRetryCount + 1));
+      console.log(`[voice-call] Retrying call deep-link (${currentRetryCount + 1}/${MAX_RETRY_ATTEMPTS})${reason ? `: ${reason}` : ''}.`);
+      location.href = callTargetUrl;
+    }, RETRY_DELAY_MS);
+  }
 
   function showLoadingBanner() {
     if (bannerShown) {
@@ -63,50 +195,50 @@
 
   function observeForCallButton() {
     if (callClicked) { // If call already processed or being processed
-        console.log('[ℹ️] Call button action already initiated or completed. Observer not started.');
+        console.log('[voice-call] Call button action already initiated or completed. Observer not started.');
         return;
     }
-    
+
     disconnectCallButtonObserver(); // Ensure any old observer is gone
 
-    console.log(`[ℹ️] Starting observer for button: ${BUTTON_SELECTOR}`);
+    console.log(`[voice-call] Starting observer for button: ${BUTTON_SELECTOR}`);
     callButtonMutationObserver = new MutationObserver((mutations, observer) => {
-      if (!location.href.includes(TARGET_PAGE_IDENTIFIER)) {
-        console.log('[ℹ️] No longer on voice call page (checked in observer). Disconnecting call button observer.');
-        disconnectCallButtonObserver(); // Self-disconnect if page context changes
+      if (!isCallSessionActive()) {
+        console.log('[voice-call] Call session expired or missing. Disconnecting call button observer.');
+        disconnectCallButtonObserver(); // Self-disconnect if call session expired
         return;
       }
 
       if (callClicked) { // Double check flag, in case of rapid mutations
-        // console.log('[ℹ️] Call already clicked (checked in observer). Disconnecting.'); // Can be noisy
-        disconnectCallButtonObserver(); 
+        // console.log('[voice-call] Call already clicked (checked in observer). Disconnecting.'); // Can be noisy
+        disconnectCallButtonObserver();
         return;
       }
 
       const button = document.querySelector(BUTTON_SELECTOR);
       if (button) {
-        callClicked = true; // Set flag: we found it and will attempt to click.
-        console.log('[✅] Found Call button. Waiting for banner removal if necessary, then clicking.');
-        
+        markCallClicked(); // Set flag: we found it and will attempt to click.
+        console.log('[voice-call] Found Call button. Waiting for banner removal if necessary, then clicking.');
+
         // Ensure observer doesn't fire again for this found button
-        disconnectCallButtonObserver(); 
+        disconnectCallButtonObserver();
 
         bannerRemovalPromise.then(() => {
-          console.log('[ℹ️] Banner removal promise resolved. Proceeding to click.');
+          console.log('[voice-call] Banner removal promise resolved. Proceeding to click.');
           setTimeout(() => { // Grace period after banner removal
             if (document.body.contains(button) && !button.disabled) {
-              console.log(`[Attempting click on button: ${BUTTON_SELECTOR}]`);
+              console.log(`[voice-call] Attempting click on button: ${BUTTON_SELECTOR}`);
               button.click();
-              console.log('[✅] Clicked the Call button.');
+              console.log('[voice-call] Clicked the Call button.');
             } else {
-              console.log(`[❌] Button (${BUTTON_SELECTOR}) no longer valid or available for click.`);
+              console.log(`[voice-call] Button (${BUTTON_SELECTOR}) no longer valid or available for click.`);
               // Optionally reset callClicked = false; here if a retry is desired, but can lead to loops.
               // For now, assume failure means this attempt is over.
             }
             // No need to disconnect observer here, already done after finding button.
           }, 100); // 100ms grace period
         }).catch(err => {
-            console.error("[❌] Error waiting for banner removal promise:", err);
+            console.error('[voice-call] Error waiting for banner removal promise:', err);
             // callClicked might need to be reset if we want to allow retries on error.
             // For now, the observer is already disconnected.
         });
@@ -114,27 +246,42 @@
     });
 
     callButtonMutationObserver.observe(document.body, { childList: true, subtree: true });
-    console.log('[ℹ️] Call button observer watching document.body.');
+    console.log('[voice-call] Call button observer watching document.body.');
   }
 
   function runOnVoiceCallPage() {
-    const isVoiceCallPage = location.href.includes(TARGET_PAGE_IDENTIFIER);
-    
-    if (!isVoiceCallPage) {
-      if (bannerShown || callClicked || callButtonMutationObserver) {
-          // Only log reset if there was something to reset
-          console.log(`[ℹ️] Not on target page (${TARGET_PAGE_IDENTIFIER}). Resetting state.`);
+    const isVoiceCallPage = isCallTargetUrl(location.href);
+
+    if (isVoiceCallPage) {
+      storeCallSession(location.href);
+      console.log('[voice-call] On call deep-link. Initializing script logic.');
+      if (!callClicked) {
+        showLoadingBanner();
+        observeForCallButton();
       }
-      bannerShown = false; 
-      callClicked = false; 
-      disconnectCallButtonObserver();
-      bannerRemovalPromise = Promise.resolve(); 
       return;
     }
 
-    console.log(`[ℹ️] On target page (${TARGET_PAGE_IDENTIFIER}). Initializing script logic.`);
-    showLoadingBanner(); 
-    observeForCallButton();
+    const hasActiveSession = isCallSessionActive() || restoreCallSession();
+    if (hasActiveSession) {
+      console.log('[voice-call] Call deep-link was recently seen. Continuing call attempt.');
+      if (!callClicked) {
+        showLoadingBanner();
+        observeForCallButton();
+        scheduleRetryIfNeeded('url-bounce');
+      }
+      return;
+    }
+
+    if (bannerShown || callClicked || callButtonMutationObserver) {
+      // Only log reset if there was something to reset
+      console.log('[voice-call] Not on call deep-link. Resetting state.');
+    }
+    bannerShown = false;
+    callClicked = false;
+    disconnectCallButtonObserver();
+    bannerRemovalPromise = Promise.resolve();
+    clearCallSession();
   }
 
   // Handle initial page load

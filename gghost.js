@@ -1778,62 +1778,108 @@ async function checkResponse(response, actionDescription) {
   }
 }
 
+const LOCATION_DETAILS_CACHE_MS = 60 * 1000;
+const locationDetailsCache = new Map();
+const locationDetailsInFlight = new Map();
 
-async function fetchLocationDetails(uuid) {
-  try {
-    const headers = getAuthHeaders();
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, { headers });
-    if (!res.ok) throw new Error("Fetch failed");
-    const data = await res.json();
+function buildEmptyLocationDetails() {
+  return {
+    org: "",
+    name: "",
+    slug: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
+    services: [],
+    isClosed: false
+  };
+}
 
-    const lastValidated = data.last_validated_at || null;
-    if (lastValidated) {
-      await recordLocationStat(uuid, lastValidated);
+function buildLocationDetails(data, lastValidated) {
+  // Determine if location is closed based on HolidaySchedules
+  const isLocationClosed = (() => {
+    if (!Array.isArray(data.Services) || data.Services.length === 0) {
+      return false; // No services means we can't determine closure
     }
 
-    // Determine if location is closed based on HolidaySchedules
-    const isLocationClosed = (() => {
-      if (!Array.isArray(data.Services) || data.Services.length === 0) {
-        return false; // No services means we can't determine closure
+    // Check if ALL services have closed: true in their HolidaySchedules
+    return data.Services.every(service => {
+      if (!Array.isArray(service.HolidaySchedules) || service.HolidaySchedules.length === 0) {
+        return false; // No holiday schedules means not closed
       }
 
-      // Check if ALL services have closed: true in their HolidaySchedules
-      return data.Services.every(service => {
-        if (!Array.isArray(service.HolidaySchedules) || service.HolidaySchedules.length === 0) {
-          return false; // No holiday schedules means not closed
-        }
+      // Check if any holiday schedule has closed: true
+      return service.HolidaySchedules.some(schedule => schedule.closed === true);
+    });
+  })();
 
-        // Check if any holiday schedule has closed: true
-        return service.HolidaySchedules.some(schedule => schedule.closed === true);
-      });
-    })();
+  return {
+    org: data.Organization?.name || "",
+    name: data.name || "",
+    slug: data.slug || "",
+    address: data.address?.street || "",
+    city: data.address?.city || "",
+    state: data.address?.state || "",
+    zip: data.address?.postalCode || "",
+    services: Array.isArray(data.Services) ? data.Services.map(s => s.name).filter(Boolean) : [],
+    lastValidated,
+    isClosed: isLocationClosed
+  };
+}
 
-    return {
-      org: data.Organization?.name || "",
-      name: data.name || "",
-      slug: data.slug || "",
-      address: data.address?.street || "",
-      city: data.address?.city || "",
-      state: data.address?.state || "",
-      zip: data.address?.postalCode || "",
-      services: Array.isArray(data.Services) ? data.Services.map(s => s.name).filter(Boolean) : [],
-      lastValidated,
-      isClosed: isLocationClosed
-    };
-  } catch (err) {
-    console.warn("Failed to fetch location:", err);
-    return {
-      org: "",
-      name: "",
-      slug: "",
-      address: "",
-      city: "",
-      state: "",
-      zip: "",
-      services: [],
-      isClosed: false
-    };
+async function fetchLocationDetails(uuid, { refresh = false } = {}) {
+  if (!uuid) return buildEmptyLocationDetails();
+
+  if (!refresh) {
+    const cached = locationDetailsCache.get(uuid);
+    if (cached && Date.now() - cached.timestamp < LOCATION_DETAILS_CACHE_MS) {
+      return cached.data;
+    }
+    const inFlight = locationDetailsInFlight.get(uuid);
+    if (inFlight) {
+      return inFlight;
+    }
   }
+
+  const request = (async () => {
+    try {
+      const headers = getAuthHeaders();
+      const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, { headers });
+      if (!res.ok) throw new Error("Fetch failed");
+      const data = await res.json();
+
+      const lastValidated = data.last_validated_at || null;
+      if (lastValidated) {
+        await recordLocationStat(uuid, lastValidated);
+      }
+
+      return buildLocationDetails(data, lastValidated);
+    } catch (err) {
+      console.warn("Failed to fetch location:", err);
+      return buildEmptyLocationDetails();
+    }
+  })();
+
+  if (!refresh) {
+    locationDetailsInFlight.set(uuid, request);
+  }
+
+  let result;
+  try {
+    result = await request;
+  } finally {
+    if (!refresh) {
+      locationDetailsInFlight.delete(uuid);
+    }
+  }
+
+  const hasData = result.org || result.name || result.slug || result.address || result.services.length;
+  if (!refresh && hasData) {
+    locationDetailsCache.set(uuid, { data: result, timestamp: Date.now() });
+  }
+
+  return result;
 }
 
 let isInConnectionMode = false;
@@ -2610,20 +2656,22 @@ async function getUserNameSafely() {
 }
 function onUrlChange(callback) {
   let lastUrl = location.href;
-  new MutationObserver(() => {
+  const notifyIfChanged = () => {
     const currentUrl = location.href;
-    if (currentUrl !== lastUrl) {
-      lastUrl = currentUrl;
-      try {
-        callback(currentUrl);
-      } catch (error) {
-        if (error.message && error.message.includes('Extension context invalidated')) {
-          console.warn('[gghost] Extension context invalidated, stopping URL monitoring');
-          return;
-        }
-        console.error('[gghost] URL change callback error:', error);
+    if (currentUrl === lastUrl) return;
+    lastUrl = currentUrl;
+    try {
+      callback(currentUrl);
+    } catch (error) {
+      if (error.message && error.message.includes('Extension context invalidated')) {
+        console.warn('[gghost] Extension context invalidated, stopping URL monitoring');
+        return;
       }
+      console.error('[gghost] URL change callback error:', error);
     }
+  };
+  new MutationObserver(() => {
+    notifyIfChanged();
   }).observe(document, { subtree: true, childList: true });
   const pushState = history.pushState;
   history.pushState = function () {
@@ -2640,6 +2688,9 @@ function onUrlChange(callback) {
   window.addEventListener('popstate', () => {
     window.dispatchEvent(new Event('locationchange'));
   });
+  window.addEventListener('locationchange', notifyIfChanged);
+  window.addEventListener('pushstate', notifyIfChanged);
+  window.addEventListener('replacestate', notifyIfChanged);
 }
 function findServiceName(obj, serviceId) {
   let foundName = null;
@@ -2714,6 +2765,24 @@ function coerceServicesArray(services) {
   return [];
 }
 
+function normalizeId(value) {
+  if (!value) return "";
+  return String(value).trim().toLowerCase();
+}
+
+function normalizeServices(services) {
+  const list = coerceServicesArray(services).filter(service => {
+    return service && typeof service === "object" && service.id;
+  });
+  const seen = new Set();
+  return list.filter(service => {
+    const id = normalizeId(service.id);
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
 function serviceNameToHash(name) {
   // only letters, numbers, spaces -> "#Name-With-Dashes"
   if (typeof name === "string" && /^[A-Za-z0-9 ]+$/.test(name)) {
@@ -2759,7 +2828,56 @@ function pickServiceHash(services, preferId){
    Helpers: service taxonomy
    ========================= */
 const locationRecordCache = new Map();
-const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION_MS = 60 * 1000; // 1 minute
+let activeTaxonomyBannerKey = null;
+let taxonomyRenderRequestId = 0;
+const TAXONOMY_BANNER_ATTR = 'data-gghost-service-taxonomy-v2';
+const TAXONOMY_BANNER_SELECTOR = `[${TAXONOMY_BANNER_ATTR}]`;
+const LEGACY_TAXONOMY_BANNER_SELECTOR = '[data-gghost-service-taxonomy]';
+let taxonomyBannerObserver = null;
+
+function removeLegacyTaxonomyBanners() {
+  document.querySelectorAll(LEGACY_TAXONOMY_BANNER_SELECTOR).forEach(node => node.remove());
+}
+
+function ensureTaxonomyBannerObserver() {
+  if (taxonomyBannerObserver) return;
+  if (!document.documentElement) return;
+  taxonomyBannerObserver = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      mutation.addedNodes.forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+        if (node.matches?.(LEGACY_TAXONOMY_BANNER_SELECTOR)) {
+          node.remove();
+          return;
+        }
+        node.querySelectorAll?.(LEGACY_TAXONOMY_BANNER_SELECTOR).forEach(el => el.remove());
+      });
+    }
+  });
+  taxonomyBannerObserver.observe(document.documentElement, { childList: true, subtree: true });
+}
+
+function buildTaxonomyBannerKey(locationId, serviceId) {
+  const locationKey = normalizeId(locationId);
+  const serviceKey = normalizeId(serviceId);
+  if (!locationKey || !serviceKey) return null;
+  return `${locationKey}::${serviceKey}`;
+}
+
+function invalidateServiceTaxonomyRender() {
+  taxonomyRenderRequestId += 1;
+}
+
+function isServiceTaxonomyPath(pathname, locationId, serviceId) {
+  const locationKey = normalizeId(locationId);
+  const serviceKey = normalizeId(serviceId);
+  if (!locationKey || !serviceKey || !pathname) return false;
+  const path = String(pathname).toLowerCase();
+  if (/\/questions(?:\/|$)/i.test(path)) return false;
+  const base = `/team/location/${locationKey}/services/${serviceKey}`;
+  return path === base || path.startsWith(`${base}/`);
+}
 
 function getLocationCacheKey(uuid) {
   return `gghost-location-cache-${uuid}`;
@@ -2803,19 +2921,24 @@ function setCachedLocationData(uuid, data) {
 }
 
 async function fetchFullLocationRecord(uuid, { refresh = false } = {}) {
-  if (!uuid) return null;
+  if (!uuid) return { data: null, fromCache: false };
 
   // Check localStorage cache first if not forcing refresh
   if (!refresh) {
     const cachedData = getCachedLocationData(uuid);
     if (cachedData) {
-      return cachedData;
+      return { data: cachedData, fromCache: true };
     }
   }
 
   // Check memory cache
   if (!refresh && locationRecordCache.has(uuid)) {
-    return locationRecordCache.get(uuid);
+    const memEntry = locationRecordCache.get(uuid);
+    const age = Date.now() - (memEntry?.timestamp || 0);
+    if (memEntry && age < CACHE_DURATION_MS) {
+      return { data: memEntry.data, fromCache: true };
+    }
+    locationRecordCache.delete(uuid);
   }
 
   try {
@@ -2827,24 +2950,28 @@ async function fetchFullLocationRecord(uuid, { refresh = false } = {}) {
     const data = await res.json();
 
     // Store in both memory and localStorage cache
-    locationRecordCache.set(uuid, data);
+    locationRecordCache.set(uuid, { data, timestamp: Date.now() });
     setCachedLocationData(uuid, data);
 
-    return data;
+    return { data, fromCache: false };
   } catch (err) {
     console.error('[Service Taxonomy] Failed to fetch location record', uuid, err);
-    return null;
+    return { data: null, fromCache: false };
   }
 }
 
 function findServiceRecord(locationData, serviceId) {
-  if (!locationData || !serviceId) return null;
-  const services = coerceServicesArray(locationData.Services || locationData.services);
-  return services.find(service => service?.id === serviceId) || null;
+  const targetId = normalizeId(serviceId);
+  if (!locationData || !targetId) return null;
+  const services = normalizeServices(locationData.Services || locationData.services);
+  return services.find(service => normalizeId(service?.id) === targetId) || null;
 }
 
 function removeServiceTaxonomyBanner() {
-  document.querySelectorAll('[data-gghost-service-taxonomy]').forEach(node => node.remove());
+  ensureTaxonomyBannerObserver();
+  removeLegacyTaxonomyBanners();
+  document.querySelectorAll(`${TAXONOMY_BANNER_SELECTOR}, ${LEGACY_TAXONOMY_BANNER_SELECTOR}`).forEach(node => node.remove());
+  activeTaxonomyBannerKey = null;
 }
 
 function getValidationColor(dateStr) {
@@ -3118,7 +3245,7 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
     border: '1px solid #d4c79a',
     borderRadius: '8px',
     boxShadow: '0 8px 16px rgba(0, 0, 0, 0.18)',
-    padding: '8px',
+    padding: '6px',
     maxHeight: '240px',
     overflowY: 'auto',
     opacity: '0',
@@ -3138,8 +3265,8 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
     Object.assign(row.style, {
       display: 'flex',
       flexDirection: 'column',
-      gap: '5px',
-      padding: '6px 8px',
+      gap: '4px',
+      padding: '4px 6px',
       borderBottom: idx === svcList.length - 1 ? 'none' : '1px solid #efe7c8',
       background: '#fff',
       borderRadius: '6px'
@@ -3183,7 +3310,7 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
       Object.assign(chips.style, {
         display: 'flex',
         flexWrap: 'wrap',
-        gap: '5px'
+        gap: '4px'
       });
 
       entries.forEach(entry => {
@@ -3196,7 +3323,7 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
           background: palette.background,
           color: palette.color,
           borderRadius: '4px',
-          padding: '6px 8px',
+          padding: '4px 6px',
           fontSize: '12px',
           cursor: 'pointer',
           textAlign: 'left',
@@ -3236,48 +3363,111 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
 
 function renderServiceTaxonomyBanner(taxonomies, services = [], locationId = null, currentServiceIndex = 0) {
   if (!Array.isArray(taxonomies) || taxonomies.length === 0) return;
+  ensureTaxonomyBannerObserver();
+  removeLegacyTaxonomyBanners();
+
+  const navServices = normalizeServices(services).filter(service => {
+    const id = normalizeId(service?.id);
+    return id && id !== 'null' && id !== 'undefined';
+  });
+  const showNavigation = !!locationId && navServices.length > 1;
+  const safeServiceIndex = navServices.length
+    ? Math.max(0, Math.min(currentServiceIndex, navServices.length - 1))
+    : 0;
+  const activeServiceId = navServices[safeServiceIndex]?.id || null;
+  activeTaxonomyBannerKey = buildTaxonomyBannerKey(locationId, activeServiceId);
 
   const banner = document.createElement('div');
-  banner.setAttribute('data-gghost-service-taxonomy', 'true');
+  banner.setAttribute(TAXONOMY_BANNER_ATTR, 'true');
   Object.assign(banner.style, {
     position: 'fixed',
     top: '88px',
     right: '20px',
-    background: '#fffef5',
+    background: 'rgba(255, 254, 245, 0.85)',
     border: '1px solid #d4c79a',
     borderRadius: '8px',
-    padding: '12px 16px',
+    padding: '6px 8px',
     boxShadow: '0 6px 18px rgba(0, 0, 0, 0.12)',
     maxWidth: '320px',
     fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     color: '#1f1f1f',
     zIndex: '9999',
-    lineHeight: '1.4'
+    lineHeight: '1.3'
   });
 
+  const headerRow = document.createElement('div');
+  Object.assign(headerRow.style, {
+    gap: '6px',
+    position: 'relative'
+  });
+  headerRow.style.setProperty('display', 'flex', 'important');
+  headerRow.style.setProperty('align-items', 'center', 'important');
+  headerRow.style.setProperty('flex-wrap', 'nowrap', 'important');
+  headerRow.style.setProperty('flex-direction', 'row', 'important');
+  headerRow.style.setProperty('width', '100%', 'important');
+  headerRow.style.setProperty('max-width', '100%', 'important');
+  headerRow.style.setProperty('min-width', '0', 'important');
+  headerRow.style.setProperty('gap', '8px', 'important');
+
+  const canShowHoverPanel = navServices.length > 0 && locationId;
+  let hoverPanel = null;
+  let showHoverPanel = null;
+  let hideHoverPanel = null;
+  let wireHoverPanel = null;
+  let hoverPanelAttached = false;
+  if (canShowHoverPanel) {
+    hoverPanel = createServiceHoverPanel(
+      navServices,
+      locationId,
+      navServices[safeServiceIndex]?.id || null
+    );
+    hoverPanel.style.left = 'auto';
+    hoverPanel.style.right = '0';
+    let hoverPanelTimeout = null;
+    showHoverPanel = () => {
+      clearTimeout(hoverPanelTimeout);
+      hoverPanel.style.opacity = '1';
+      hoverPanel.style.pointerEvents = 'auto';
+      hoverPanel.style.transform = 'translateY(0)';
+    };
+    hideHoverPanel = () => {
+      hoverPanelTimeout = setTimeout(() => {
+        hoverPanel.style.opacity = '0';
+        hoverPanel.style.pointerEvents = 'none';
+        hoverPanel.style.transform = 'translateY(6px)';
+      }, 120);
+    };
+    wireHoverPanel = (target) => {
+      target.addEventListener('mouseenter', showHoverPanel);
+      target.addEventListener('mouseleave', hideHoverPanel);
+      hoverPanel.addEventListener('mouseenter', showHoverPanel);
+      hoverPanel.addEventListener('mouseleave', hideHoverPanel);
+    };
+  }
 
 
-  // Add navigation controls / hover panel if we have services
-  if (services.length > 0 && locationId) {
+  // Add navigation controls / hover panel if we have multiple services
+  if (showNavigation) {
     const navContainer = document.createElement('div');
     Object.assign(navContainer.style, {
       display: 'flex',
-      gap: '8px',
-      marginBottom: '12px',
+      gap: '4px',
       alignItems: 'center',
       position: 'relative',
-      minWidth: '260px',
-      width: '280px'
+      flexShrink: '0'
     });
+    navContainer.style.setProperty('flex-wrap', 'nowrap', 'important');
+    navContainer.style.setProperty('white-space', 'nowrap', 'important');
+    navContainer.style.setProperty('flex', '0 0 auto', 'important');
 
     // Previous button
     const prevBtn = document.createElement('button');
     prevBtn.textContent = '←';
-    const prevIndex = (currentServiceIndex - 1 + services.length) % services.length;
-    const prevService = services[prevIndex];
+    const prevIndex = (safeServiceIndex - 1 + navServices.length) % navServices.length;
+    const prevService = navServices[prevIndex];
     prevBtn.title = `Previous: ${prevService?.name || 'Unknown'}`;
     Object.assign(prevBtn.style, {
-      padding: '4px 8px',
+      padding: '2px 6px',
       fontSize: '14px',
       border: '1px solid #d4c79a',
       background: '#fff',
@@ -3286,7 +3476,7 @@ function renderServiceTaxonomyBanner(taxonomies, services = [], locationId = nul
       fontWeight: 'bold'
     });
     prevBtn.addEventListener('click', () => {
-      const prevServiceId = services[prevIndex]?.id;
+      const prevServiceId = navServices[prevIndex]?.id;
       if (prevServiceId) {
         // Set flag to keep overlay visible on next page
         localStorage.setItem('gghost-taxonomy-overlay-active', 'true');
@@ -3294,38 +3484,14 @@ function renderServiceTaxonomyBanner(taxonomies, services = [], locationId = nul
       }
     });
 
-    const hoverPanel = createServiceHoverPanel(
-      services,
-      locationId,
-      services[currentServiceIndex]?.id || null
-    );
-    let hoverPanelTimeout = null;
-    const showHoverPanel = () => {
-      clearTimeout(hoverPanelTimeout);
-      hoverPanel.style.opacity = '1';
-      hoverPanel.style.pointerEvents = 'auto';
-      hoverPanel.style.transform = 'translateY(0)';
-    };
-    const hideHoverPanel = () => {
-      hoverPanelTimeout = setTimeout(() => {
-        hoverPanel.style.opacity = '0';
-        hoverPanel.style.pointerEvents = 'none';
-        hoverPanel.style.transform = 'translateY(6px)';
-      }, 120);
-    };
-    navContainer.addEventListener('mouseenter', showHoverPanel);
-    navContainer.addEventListener('mouseleave', hideHoverPanel);
-    hoverPanel.addEventListener('mouseenter', showHoverPanel);
-    hoverPanel.addEventListener('mouseleave', hideHoverPanel);
-
     // Next button
     const nextBtn = document.createElement('button');
     nextBtn.textContent = '→';
-    const nextIndex = (currentServiceIndex + 1) % services.length;
-    const nextService = services[nextIndex];
+    const nextIndex = (safeServiceIndex + 1) % navServices.length;
+    const nextService = navServices[nextIndex];
     nextBtn.title = `Next: ${nextService?.name || 'Unknown'}`;
     Object.assign(nextBtn.style, {
-      padding: '4px 8px',
+      padding: '2px 6px',
       fontSize: '14px',
       border: '1px solid #d4c79a',
       background: '#fff',
@@ -3334,7 +3500,7 @@ function renderServiceTaxonomyBanner(taxonomies, services = [], locationId = nul
       fontWeight: 'bold'
     });
     nextBtn.addEventListener('click', () => {
-      const nextServiceId = services[nextIndex]?.id;
+      const nextServiceId = navServices[nextIndex]?.id;
       if (nextServiceId) {
         // Set flag to keep overlay visible on next page
         localStorage.setItem('gghost-taxonomy-overlay-active', 'true');
@@ -3344,26 +3510,49 @@ function renderServiceTaxonomyBanner(taxonomies, services = [], locationId = nul
 
     navContainer.appendChild(prevBtn);
     navContainer.appendChild(nextBtn);
-    navContainer.appendChild(hoverPanel);
-    banner.appendChild(navContainer);
+    if (hoverPanel && wireHoverPanel) {
+      headerRow.appendChild(hoverPanel);
+      wireHoverPanel(navContainer);
+      hoverPanelAttached = true;
+    }
+    headerRow.appendChild(navContainer);
   }
+
+  const listWrap = document.createElement('div');
+  Object.assign(listWrap.style, {
+    flex: '1 1 0',
+    minWidth: '0',
+    maxWidth: '100%',
+    overflowX: 'auto',
+    overflowY: 'hidden'
+  });
+  listWrap.style.setProperty('display', 'block', 'important');
+  listWrap.style.setProperty('min-width', '0', 'important');
 
   const list = document.createElement('ul');
   Object.assign(list.style, {
     margin: '0',
     padding: '0',
     listStyle: 'none',
-    fontSize: '13px'
+    fontSize: '13px',
+    gap: '2px 6px'
   });
+  list.style.setProperty('display', 'inline-flex', 'important');
+  list.style.setProperty('flex-direction', 'row', 'important');
+  list.style.setProperty('flex-wrap', 'nowrap', 'important');
+  list.style.setProperty('align-items', 'center', 'important');
+  list.style.setProperty('white-space', 'nowrap', 'important');
 
   taxonomies.forEach(({ parent_name: parentName, name }) => {
     if (!parentName && !name) return;
 
     const item = document.createElement('li');
-    item.style.display = 'flex';
+    item.style.display = 'inline-flex';
     item.style.alignItems = 'center';
-    item.style.gap = '6px';
-    item.style.padding = '4px 0';
+    item.style.gap = '4px';
+    item.style.padding = '1px 0';
+    item.style.whiteSpace = 'nowrap';
+    item.style.flexShrink = '0';
 
     if (parentName) {
       const parent = document.createElement('span');
@@ -3396,22 +3585,31 @@ function renderServiceTaxonomyBanner(taxonomies, services = [], locationId = nul
     empty.textContent = 'No taxonomy data available for this service.';
     empty.style.fontSize = '12px';
     empty.style.color = '#6f6f6f';
-    banner.appendChild(empty);
+    listWrap.appendChild(empty);
   } else {
-    banner.appendChild(list);
+    listWrap.appendChild(list);
+  }
+  headerRow.appendChild(listWrap);
+
+  if (hoverPanel && wireHoverPanel && !hoverPanelAttached) {
+    headerRow.appendChild(hoverPanel);
+    wireHoverPanel(headerRow);
   }
 
+  banner.appendChild(headerRow);
   document.body.appendChild(banner);
 }
 
 async function showServiceTaxonomy(locationId, serviceId) {
+  const requestId = ++taxonomyRenderRequestId;
+  const normalizedServiceId = normalizeId(serviceId);
   // Set up timeout to clear the flag after 4 seconds
   const clearFlagTimeout = setTimeout(() => {
     localStorage.removeItem('gghost-taxonomy-overlay-active');
   }, 4000);
 
   // Fetch data (uses cache if available and fresh)
-  const locationData = await fetchFullLocationRecord(locationId, { refresh: false });
+  const { data: locationData, fromCache } = await fetchFullLocationRecord(locationId, { refresh: false });
 
   // Clear flag and timeout after fetch
   clearTimeout(clearFlagTimeout);
@@ -3422,44 +3620,931 @@ async function showServiceTaxonomy(locationId, serviceId) {
     return;
   }
 
-  const service = findServiceRecord(locationData, serviceId);
-  if (!service) {
-    console.warn('[Service Taxonomy] Service not found in location payload', { locationId, serviceId });
-    return;
-  }
-
-  const taxonomies = Array.isArray(service.Taxonomies)
-    ? service.Taxonomies.filter(tax => tax && (tax.parent_name || tax.name))
-    : [];
-
-  if (!taxonomies.length) {
-    console.log('[Service Taxonomy] No taxonomy entries to display for service', serviceId);
-    return;
-  }
-
-  // Get all services for navigation
-  const allServices = Array.isArray(locationData.Services) ? locationData.Services : [];
-  const currentServiceIndex = allServices.findIndex(s => s.id === serviceId);
-
-  // Render with data (either cached or freshly fetched)
-  removeServiceTaxonomyBanner();
-  renderServiceTaxonomyBanner(taxonomies, allServices, locationId, currentServiceIndex);
-
-  // Optional: Refresh cache in background if data is getting old (> 2 minutes)
-  const cacheKey = getLocationCacheKey(locationId);
-  const cachedEntry = localStorage.getItem(cacheKey);
-  if (cachedEntry) {
-    const parsed = JSON.parse(cachedEntry);
-    const age = Date.now() - parsed.timestamp;
-    const TWO_MINUTES = 2 * 60 * 1000;
-
-    if (age > TWO_MINUTES && age < CACHE_DURATION_MS) {
-      console.log('[Service Taxonomy] Refreshing cache in background');
-      // Fire and forget - update cache for next time
-      fetchFullLocationRecord(locationId, { refresh: true }).catch(err => {
-        console.error('[Service Taxonomy] Background refresh failed', err);
-      });
+  const renderWithData = (data) => {
+    if (requestId !== taxonomyRenderRequestId) return;
+    if (!isServiceTaxonomyPath(location.pathname, locationId, normalizedServiceId)) {
+      return;
     }
+    const service = findServiceRecord(data, normalizedServiceId);
+    if (!service) {
+      console.warn('[Service Taxonomy] Service not found in location payload', { locationId, serviceId });
+      return;
+    }
+
+    const taxonomies = Array.isArray(service.Taxonomies)
+      ? service.Taxonomies.filter(tax => tax && (tax.parent_name || tax.name))
+      : [];
+
+    if (!taxonomies.length) {
+      console.log('[Service Taxonomy] No taxonomy entries to display for service', serviceId);
+      return;
+    }
+
+    // Get all services for navigation
+    const allServices = normalizeServices(data.Services || data.services);
+    const currentServiceIndex = allServices.findIndex(s => normalizeId(s.id) === normalizedServiceId);
+    const safeServiceIndex = currentServiceIndex >= 0 ? currentServiceIndex : 0;
+
+    // Render with data (either cached or freshly fetched)
+    removeServiceTaxonomyBanner();
+    renderServiceTaxonomyBanner(taxonomies, allServices, locationId, safeServiceIndex);
+  };
+
+  if (fromCache) {
+    // Avoid flashing different layouts by rendering only once after a refresh attempt.
+    fetchFullLocationRecord(locationId, { refresh: true })
+      .then(({ data: freshData }) => {
+        if (requestId !== taxonomyRenderRequestId) return;
+        if (freshData) {
+          renderWithData(freshData);
+        } else {
+          renderWithData(locationData);
+        }
+      })
+      .catch(err => {
+        console.error('[Service Taxonomy] Background refresh failed', err);
+        if (requestId !== taxonomyRenderRequestId) return;
+        renderWithData(locationData);
+      });
+    return;
+  }
+
+  renderWithData(locationData);
+}
+
+/* ===========================
+   Taxonomy heart overlay
+   =========================== */
+const TAXONOMY_HEART_ID = 'gghost-taxonomy-heart';
+
+function removeTaxonomyHeartOverlay() {
+  document.getElementById(TAXONOMY_HEART_ID)?.remove();
+}
+
+function renderTaxonomyHeartOverlay(services, locationId) {
+  removeTaxonomyHeartOverlay();
+  if (!Array.isArray(services) || services.length === 0 || !locationId) return;
+
+  const container = document.createElement('div');
+  container.id = TAXONOMY_HEART_ID;
+  Object.assign(container.style, {
+    position: 'fixed',
+    top: '88px',
+    right: '20px',
+    width: '32px',
+    height: '32px',
+    zIndex: '9999',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+  });
+
+  const heartBtn = document.createElement('button');
+  heartBtn.type = 'button';
+  heartBtn.innerHTML = '&#9829;';
+  heartBtn.title = 'Services';
+  Object.assign(heartBtn.style, {
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    border: '1px solid #d4c79a',
+    background: '#fffef5',
+    color: '#b04a4a',
+    fontSize: '16px',
+    cursor: 'pointer',
+    boxShadow: '0 4px 10px rgba(0,0,0,0.12)'
+  });
+
+  const hoverPanel = createServiceHoverPanel(services, locationId, null);
+  hoverPanel.style.position = 'fixed';
+  hoverPanel.style.left = '0';
+  hoverPanel.style.top = '0';
+  hoverPanel.style.right = 'auto';
+
+  let hoverTimeout = null;
+  const positionHoverPanel = () => {
+    const padding = 8;
+    const availableWidth = Math.max(0, window.innerWidth - padding * 2);
+    const maxWidth = Math.min(320, availableWidth);
+    const minWidth = Math.min(260, maxWidth);
+    const width = Math.min(280, maxWidth);
+
+    if (maxWidth > 0) {
+      hoverPanel.style.maxWidth = `${maxWidth}px`;
+      hoverPanel.style.minWidth = `${minWidth}px`;
+      hoverPanel.style.width = `${width}px`;
+    }
+
+    const availableHeight = Math.max(0, window.innerHeight - padding * 2);
+    const maxHeight = Math.min(240, availableHeight);
+    if (maxHeight > 0) {
+      hoverPanel.style.maxHeight = `${maxHeight}px`;
+    }
+
+    const anchorRect = container.getBoundingClientRect();
+    const panelRect = hoverPanel.getBoundingClientRect();
+    let left = anchorRect.right - panelRect.width;
+    let top = anchorRect.bottom + 6;
+
+    if (left < padding) left = padding;
+    if (left + panelRect.width > window.innerWidth - padding) {
+      left = window.innerWidth - padding - panelRect.width;
+    }
+
+    if (top + panelRect.height > window.innerHeight - padding) {
+      const aboveTop = anchorRect.top - 6 - panelRect.height;
+      if (aboveTop >= padding) {
+        top = aboveTop;
+      } else {
+        top = Math.max(padding, window.innerHeight - padding - panelRect.height);
+      }
+    }
+
+    hoverPanel.style.left = `${Math.round(left)}px`;
+    hoverPanel.style.top = `${Math.round(top)}px`;
+  };
+  const showPanel = () => {
+    clearTimeout(hoverTimeout);
+    positionHoverPanel();
+    hoverPanel.style.opacity = '1';
+    hoverPanel.style.pointerEvents = 'auto';
+    hoverPanel.style.transform = 'translateY(0)';
+  };
+  const hidePanel = () => {
+    hoverTimeout = setTimeout(() => {
+      hoverPanel.style.opacity = '0';
+      hoverPanel.style.pointerEvents = 'none';
+      hoverPanel.style.transform = 'translateY(6px)';
+    }, 120);
+  };
+
+  container.addEventListener('mouseenter', showPanel);
+  container.addEventListener('mouseleave', hidePanel);
+  hoverPanel.addEventListener('mouseenter', showPanel);
+  hoverPanel.addEventListener('mouseleave', hidePanel);
+
+  container.appendChild(heartBtn);
+  container.appendChild(hoverPanel);
+  document.body.appendChild(container);
+}
+
+async function showTaxonomyHeartOverlay(locationId) {
+  if (!locationId) {
+    removeTaxonomyHeartOverlay();
+    return;
+  }
+
+  const { data: locationData, fromCache } = await fetchFullLocationRecord(locationId, { refresh: false });
+  if (!locationData) {
+    removeTaxonomyHeartOverlay();
+    return;
+  }
+
+  const services = normalizeServices(locationData.Services || locationData.services);
+  renderTaxonomyHeartOverlay(services, locationId);
+
+  if (fromCache) {
+    fetchFullLocationRecord(locationId, { refresh: true })
+      .then(({ data: freshData }) => {
+        if (!freshData) return;
+        const freshServices = normalizeServices(freshData.Services || freshData.services);
+        renderTaxonomyHeartOverlay(freshServices, locationId);
+      })
+      .catch(err => {
+        console.error('[Taxonomy Heart] Background refresh failed', err);
+      });
+  }
+}
+
+/* ===========================
+   Location contact overlay
+   =========================== */
+const LOCATION_CONTACT_CONTAINER_ID = 'gghost-location-contact-container';
+const LOCATION_CONTACT_PANEL_ID = 'gghost-location-contact-panel';
+const LOCATION_CONTACT_TOGGLE_ID = 'gghost-location-contact-toggle';
+const LOCATION_CONTACT_STATUS_TTL = 5 * 60 * 1000;
+const locationContactStatusCache = new Map();
+let locationContactRequestId = 0;
+
+const LOCATION_LINK_RE = /https?:\/\/[^\s"'<>]+/gi;
+const LOCATION_EMAIL_RE = /[\w.+-]+@[\w.-]+\.\w{2,}/g;
+const LOCATION_PHONE_RE = /(?:(?:\+?1[\s.\-]*)?)\(?\d{3}\)?[\s.\-]*\d{3}[\s.\-]*\d{4}(?:\s*(?:x|ext\.?|extension|#)\s*\d+)?/gi;
+
+function buildLocationQuestionUrl(uuid, question) {
+  return `https://gogetta.nyc/team/location/${uuid}/questions/${question}`;
+}
+
+function buildLocationPhoneEditUrl(uuid, phoneId) {
+  if (!uuid || !phoneId) return buildLocationQuestionUrl(uuid, 'phone-number');
+  return `https://gogetta.nyc/team/location/${uuid}/questions/phone-number/${phoneId}`;
+}
+
+function cleanContactMatch(value) {
+  return String(value || '').trim().replace(/[),.;]+$/, '');
+}
+
+function normalizeContactUrl(raw) {
+  const cleaned = cleanContactMatch(raw);
+  if (!cleaned) return '';
+  if (!/^https?:\/\//i.test(cleaned)) {
+    return `http://${cleaned}`;
+  }
+  return cleaned;
+}
+
+function isFeasibleContactUrl(raw) {
+  const normalized = normalizeContactUrl(raw);
+  if (!normalized || /\s/.test(normalized)) return false;
+  try {
+    const url = new URL(normalized);
+    return /^https?:$/i.test(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function collectContactStrings(value, collector, depth = 0, options = {}) {
+  if (!value || collector.length > 5000 || depth > 10) return;
+  const skipRootKeys = options.skipRootKeys instanceof Set
+    ? options.skipRootKeys
+    : new Set(options.skipRootKeys || []);
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed) collector.push(trimmed);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach(item => collectContactStrings(item, collector, depth + 1, options));
+    return;
+  }
+  if (typeof value === 'object') {
+    Object.entries(value).forEach(([key, item]) => {
+      if (depth === 0 && skipRootKeys.has(key)) return;
+      collectContactStrings(item, collector, depth + 1, options);
+    });
+  }
+}
+
+async function checkLocationUrlStatus(rawUrl) {
+  const normalized = normalizeContactUrl(rawUrl);
+  if (!normalized || !isFeasibleContactUrl(normalized)) {
+    return { status: 'invalid', isHttps: false, workingUrl: normalized || rawUrl };
+  }
+
+  const cached = locationContactStatusCache.get(normalized);
+  if (cached && Date.now() - cached.timestamp < LOCATION_CONTACT_STATUS_TTL) {
+    return cached;
+  }
+
+  if (!chrome?.runtime?.sendMessage) {
+    return { status: 'unknown', isHttps: false, workingUrl: normalized };
+  }
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ type: 'CHECK_URL_STATUS', url: normalized }, response => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(response);
+        }
+      });
+    });
+
+    const payload = {
+      status: result?.status || 'unknown',
+      isHttps: !!result?.isHttps,
+      workingUrl: result?.workingUrl || normalized,
+      httpStatus: result?.httpStatus,
+      timestamp: Date.now()
+    };
+    locationContactStatusCache.set(normalized, payload);
+    return payload;
+  } catch (error) {
+    console.warn('[Location Contact] URL status check failed:', error);
+    return { status: 'unknown', isHttps: false, workingUrl: normalized };
+  }
+}
+
+async function showLocationLinkPreview(url, isHttps = true) {
+  const normalized = normalizeContactUrl(url);
+  if (!normalized) return;
+
+  const needsProxy = !isHttps && window.location.protocol === 'https:';
+  let iframeUrl = normalized;
+
+  if (needsProxy && chrome?.runtime?.sendMessage) {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: 'PROXY_WEBSITE', url: normalized }, response => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        });
+      });
+      if (result?.success) {
+        const blob = new Blob([result.html], { type: 'text/html' });
+        iframeUrl = URL.createObjectURL(blob);
+      }
+    } catch (error) {
+      console.error('[Location Contact] Preview proxy failed:', error);
+    }
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'link-validator-preview-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
+
+  const previewContainer = document.createElement('div');
+  previewContainer.style.cssText = `
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  `;
+
+  const header = document.createElement('div');
+  header.style.cssText = `
+    padding: 10px 12px;
+    background: #f7f7f7;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  `;
+
+  const title = document.createElement('div');
+  title.textContent = normalized;
+  title.style.cssText = `
+    font-weight: 600;
+    font-size: 12px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  `;
+
+  const openBtn = document.createElement('button');
+  openBtn.type = 'button';
+  openBtn.textContent = 'Open';
+  openBtn.style.cssText = `
+    background: #0d6efd;
+    color: #fff;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  `;
+  openBtn.addEventListener('click', () => window.open(normalized, '_blank'));
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'x';
+  closeBtn.style.cssText = `
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: #555;
+  `;
+  closeBtn.addEventListener('click', () => {
+    if (needsProxy && iframeUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(iframeUrl);
+    }
+    overlay.remove();
+  });
+
+  header.appendChild(title);
+  header.appendChild(openBtn);
+  header.appendChild(closeBtn);
+
+  const iframe = document.createElement('iframe');
+  iframe.src = iframeUrl;
+  iframe.style.cssText = `
+    width: 420px;
+    height: 320px;
+    border: none;
+  `;
+
+  iframe.onerror = () => {
+    const errorMsg = document.createElement('div');
+    errorMsg.style.cssText = `
+      padding: 20px;
+      text-align: center;
+      color: #c62828;
+      font-size: 13px;
+    `;
+    errorMsg.textContent = 'Unable to load preview.';
+    iframe.replaceWith(errorMsg);
+  };
+
+  previewContainer.appendChild(header);
+  previewContainer.appendChild(iframe);
+  overlay.appendChild(previewContainer);
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      if (needsProxy && iframeUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(iframeUrl);
+      }
+      overlay.remove();
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
+
+function buildLocationContactData(locationData, locationId) {
+  const linkItems = [];
+  const emailItems = [];
+  const phoneItems = [];
+  const seenLinkKeys = new Set();
+  const seenLinkNormalized = new Set();
+  const seenEmailKeys = new Set();
+  const seenEmailNormalized = new Set();
+  const emailIndexByNormalized = new Map();
+  const seenPhoneKeys = new Set();
+
+  const addLink = (rawUrl, targetUrl, sourceLabel, options = {}) => {
+    const cleaned = cleanContactMatch(rawUrl);
+    if (!cleaned) return;
+    const normalized = normalizeContactUrl(cleaned);
+    if (!normalized) return;
+    const key = `${normalized}||${targetUrl || ''}`;
+    if (seenLinkKeys.has(key)) return;
+    if (options.skipIfSeenNormalized && seenLinkNormalized.has(normalized)) return;
+    seenLinkKeys.add(key);
+    seenLinkNormalized.add(normalized);
+    linkItems.push({
+      display: cleaned,
+      normalizedUrl: normalized,
+      targetUrl,
+      sourceLabel
+    });
+  };
+
+  const addEmail = (rawEmail, sourceLabel, targetUrl) => {
+    const cleaned = cleanContactMatch(rawEmail);
+    if (!cleaned) return;
+    const normalized = cleaned.toLowerCase();
+    const existingIndex = emailIndexByNormalized.get(normalized);
+    if (existingIndex !== undefined) {
+      const existing = emailItems[existingIndex];
+      const existingUrl = existing?.targetUrl || '';
+      const existingIsGoGetta = /\/team\/location\//i.test(existingUrl);
+      const newIsGoGetta = targetUrl && /\/team\/location\//i.test(targetUrl);
+      const existingIsGmail = /mail\.google\.com/i.test(existingUrl);
+
+      if (targetUrl && (!existingUrl || existingIsGmail || (!existingIsGoGetta && newIsGoGetta))) {
+        existing.targetUrl = targetUrl;
+        if (sourceLabel) {
+          existing.sourceLabel = sourceLabel;
+        }
+      }
+      return;
+    }
+    const key = `${normalized}||${targetUrl || ''}`;
+    if (seenEmailKeys.has(key)) return;
+    if (!targetUrl && seenEmailNormalized.has(normalized)) return;
+    seenEmailKeys.add(key);
+    seenEmailNormalized.add(normalized);
+    emailItems.push({
+      display: cleaned,
+      targetUrl: targetUrl || buildGmailUrl(cleaned),
+      sourceLabel
+    });
+    emailIndexByNormalized.set(normalized, emailItems.length - 1);
+  };
+
+  const addPhone = (rawPhone, targetUrl, sourceLabel) => {
+    const cleaned = cleanContactMatch(rawPhone);
+    if (!cleaned) return;
+    const digits = digitsOnly(cleaned);
+    const key = `${digits || cleaned}||${targetUrl || ''}`;
+    if (seenPhoneKeys.has(key)) return;
+    seenPhoneKeys.add(key);
+    phoneItems.push({
+      display: cleaned,
+      targetUrl,
+      sourceLabel
+    });
+  };
+
+  const services = coerceServicesArray(locationData?.Services || locationData?.services);
+  services.forEach(service => {
+    const serviceName = service?.name ? truncateText(service.name, 40) : 'Service';
+    const serviceId = service?.id;
+    if (!serviceId) return;
+    const descTarget = buildServiceUrl(locationId, serviceId, 'description');
+
+    const desc = String(service?.description || '').trim();
+    if (desc) {
+      const links = desc.match(LOCATION_LINK_RE) || [];
+      links.forEach(link => addLink(link, descTarget, `Service: ${serviceName} (description)`));
+      const emails = desc.match(LOCATION_EMAIL_RE) || [];
+      emails.forEach(email => addEmail(email, `Service: ${serviceName} (description)`, descTarget));
+      const phones = desc.match(LOCATION_PHONE_RE) || [];
+      phones.forEach(phone => addPhone(phone, descTarget, `Service: ${serviceName} (description)`));
+    }
+
+    const eventInfos = Array.isArray(service?.EventRelatedInfos) ? service.EventRelatedInfos : [];
+    eventInfos.forEach(info => {
+      const infoText = String(info?.information || '').trim();
+      if (!infoText) return;
+      const eventTarget = buildServiceUrl(locationId, serviceId, 'other-info');
+      const links = infoText.match(LOCATION_LINK_RE) || [];
+      links.forEach(link => addLink(link, eventTarget, `Service: ${serviceName} (event info)`));
+      const emails = infoText.match(LOCATION_EMAIL_RE) || [];
+      emails.forEach(email => addEmail(email, `Service: ${serviceName} (event info)`, eventTarget));
+      const phones = infoText.match(LOCATION_PHONE_RE) || [];
+      phones.forEach(phone => addPhone(phone, eventTarget, `Service: ${serviceName} (event info)`));
+    });
+
+    const serviceStrings = [];
+    collectContactStrings(service, serviceStrings, 0, {
+      skipRootKeys: ['EventRelatedInfos', 'Taxonomies', 'RegularSchedules', 'HolidaySchedules', 'Eligibilities']
+    });
+    const serviceText = serviceStrings.join(' ');
+    const serviceEmails = serviceText.match(LOCATION_EMAIL_RE) || [];
+    serviceEmails.forEach(email => addEmail(email, `Service: ${serviceName} (details)`, descTarget));
+  });
+
+  const locationPhones = Array.isArray(locationData?.Phones) ? locationData.Phones : [];
+  const visibleLocationPhoneIndex = locationPhones.length > 1 ? 0 : -1;
+  const phoneQuestionUrl = buildLocationQuestionUrl(locationId, 'phone-number');
+  locationPhones.forEach((phone, index) => {
+    if (phone?.number) {
+      const phoneTarget = phone?.id ? buildLocationPhoneEditUrl(locationId, phone.id) : phoneQuestionUrl;
+      let label = 'Location phone';
+      if (visibleLocationPhoneIndex !== -1) {
+        label = index === visibleLocationPhoneIndex ? 'Location phone (visible)' : 'Location phone (invisible)';
+      }
+      addPhone(phone.number, phoneTarget, label);
+    }
+  });
+
+  const websiteQuestionUrl = buildLocationQuestionUrl(locationId, 'website');
+  const urlFields = [];
+  if (locationData?.url) urlFields.push({ value: locationData.url, label: 'Location url' });
+  if (locationData?.Organization?.url) urlFields.push({ value: locationData.Organization.url, label: 'Organization url' });
+  services.forEach(service => {
+    if (service?.url) {
+      const serviceName = service?.name ? truncateText(service.name, 40) : 'Service';
+      urlFields.push({ value: service.url, label: `Service url: ${serviceName}` });
+    }
+  });
+  urlFields.forEach(entry => addLink(entry.value, websiteQuestionUrl, entry.label));
+
+  const allStrings = [];
+  collectContactStrings(locationData, allStrings, 0, { skipRootKeys: ['streetview_url'] });
+  const allText = allStrings.join(' ');
+  const generalLinks = allText.match(LOCATION_LINK_RE) || [];
+  generalLinks.forEach(link => addLink(link, normalizeContactUrl(link), 'Detected link', { skipIfSeenNormalized: true }));
+
+  const generalEmails = allText.match(LOCATION_EMAIL_RE) || [];
+  generalEmails.forEach(email => addEmail(email, 'Detected email'));
+
+  return { linkItems, emailItems, phoneItems };
+}
+
+function removeLocationContactOverlay() {
+  document.getElementById(LOCATION_CONTACT_CONTAINER_ID)?.remove();
+}
+
+function renderLocationContactOverlay(locationId, locationData) {
+  const existing = document.getElementById(LOCATION_CONTACT_CONTAINER_ID);
+  const wasOpen = existing?.dataset?.open === 'true';
+  if (existing) existing.remove();
+
+  const { linkItems, emailItems, phoneItems } = buildLocationContactData(locationData, locationId);
+  if (!linkItems.length && !emailItems.length && !phoneItems.length) {
+    return;
+  }
+
+  const container = document.createElement('div');
+  container.id = LOCATION_CONTACT_CONTAINER_ID;
+  container.dataset.open = wasOpen ? 'true' : 'false';
+  Object.assign(container.style, {
+    position: 'fixed',
+    top: '88px',
+    left: '20px',
+    zIndex: '10000',
+    fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    color: '#1f1f1f'
+  });
+
+  const toggle = document.createElement('button');
+  toggle.id = LOCATION_CONTACT_TOGGLE_ID;
+  toggle.type = 'button';
+  toggle.textContent = wasOpen ? 'x' : '?';
+  Object.assign(toggle.style, {
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    border: '1px solid #c9c9c9',
+    background: '#fff',
+    fontSize: '16px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+  });
+
+  const panel = document.createElement('div');
+  panel.id = LOCATION_CONTACT_PANEL_ID;
+  Object.assign(panel.style, {
+    marginTop: '8px',
+    padding: '12px',
+    background: '#ffffff',
+    border: '1px solid #dedede',
+    borderRadius: '8px',
+    boxShadow: '0 6px 18px rgba(0, 0, 0, 0.12)',
+    maxWidth: '360px',
+    maxHeight: '70vh',
+    overflowY: 'auto',
+    display: wasOpen ? 'block' : 'none'
+  });
+
+  const setOpenState = (open) => {
+    container.dataset.open = open ? 'true' : 'false';
+    toggle.textContent = open ? 'x' : '?';
+    panel.style.display = open ? 'block' : 'none';
+  };
+
+  toggle.addEventListener('click', () => {
+    const isOpen = container.dataset.open === 'true';
+    setOpenState(!isOpen);
+  });
+
+  const appendSection = (title, items, renderer) => {
+    if (!items.length) return;
+    const section = document.createElement('div');
+    section.style.marginBottom = '12px';
+
+    const header = document.createElement('div');
+    header.textContent = title;
+    header.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 6px;';
+    section.appendChild(header);
+
+    items.forEach(item => section.appendChild(renderer(item)));
+    panel.appendChild(section);
+  };
+
+  const createMeta = (text) => {
+    const meta = document.createElement('div');
+    meta.textContent = text;
+    meta.style.cssText = 'font-size: 11px; color: #666; margin-top: 2px;';
+    return meta;
+  };
+
+  const copyToClipboard = async (text) => {
+    const value = String(text || '');
+    if (!value) return false;
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(value);
+        return true;
+      } catch {
+        // fall through to legacy path
+      }
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const ok = document.execCommand('copy');
+    textarea.remove();
+    return ok;
+  };
+
+  const createActionButton = (label) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = label;
+    Object.assign(btn.style, {
+      background: 'none',
+      border: 'none',
+      padding: '0',
+      color: '#0d6efd',
+      fontSize: '12px',
+      textAlign: 'left',
+      cursor: 'pointer',
+      flex: '1'
+    });
+    return btn;
+  };
+
+  const createCopyButton = (text) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Copy';
+    btn.style.cssText = `
+      background: #f1f1f1;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 11px;
+      cursor: pointer;
+    `;
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const ok = await copyToClipboard(text);
+      if (!btn.isConnected) return;
+      const original = btn.textContent;
+      btn.textContent = ok ? 'Copied' : 'Copy failed';
+      setTimeout(() => {
+        if (btn.isConnected) btn.textContent = original;
+      }, 1200);
+    });
+    return btn;
+  };
+
+  const createLinkEntry = (item) => {
+    const entry = document.createElement('div');
+    entry.style.marginBottom = '8px';
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+
+    const actionBtn = createActionButton(truncateText(item.display, 60));
+    actionBtn.title = item.display;
+    actionBtn.addEventListener('click', () => {
+      if (item.targetUrl) {
+        window.location.href = item.targetUrl;
+      }
+    });
+
+    const status = document.createElement('span');
+    status.textContent = '...';
+    status.style.cssText = 'font-size: 11px; color: #666; min-width: 36px; text-align: right;';
+
+    const previewBtn = document.createElement('button');
+    previewBtn.type = 'button';
+    previewBtn.textContent = 'Preview';
+    previewBtn.disabled = true;
+    previewBtn.style.cssText = `
+      background: #f1f1f1;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 11px;
+      cursor: pointer;
+    `;
+
+    previewBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const workingUrl = previewBtn.dataset.workingUrl || item.normalizedUrl;
+      const isHttps = previewBtn.dataset.isHttps === 'true';
+      showLocationLinkPreview(workingUrl, isHttps);
+    });
+
+    row.appendChild(actionBtn);
+    row.appendChild(status);
+    row.appendChild(previewBtn);
+    entry.appendChild(row);
+
+    if (item.sourceLabel) {
+      entry.appendChild(createMeta(item.sourceLabel));
+    }
+
+    checkLocationUrlStatus(item.normalizedUrl).then(result => {
+      if (!status.isConnected) return;
+      const statusValue = result?.status || 'unknown';
+      if (statusValue === 'valid') {
+        status.textContent = 'OK';
+        status.style.color = '#2e7d32';
+        previewBtn.disabled = false;
+        previewBtn.style.background = '#fff';
+      } else if (statusValue === 'broken') {
+        status.textContent = 'BAD';
+        status.style.color = '#c62828';
+      } else if (statusValue === 'invalid') {
+        status.textContent = 'INVALID';
+        status.style.color = '#666';
+      } else {
+        status.textContent = '??';
+        status.style.color = '#666';
+      }
+
+      previewBtn.dataset.workingUrl = result?.workingUrl || item.normalizedUrl;
+      previewBtn.dataset.isHttps = result?.isHttps ? 'true' : 'false';
+    });
+
+    return entry;
+  };
+
+  const createEmailEntry = (item) => {
+    const entry = document.createElement('div');
+    entry.style.marginBottom = '8px';
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+
+    const actionBtn = createActionButton(truncateText(item.display, 60));
+    actionBtn.title = item.display;
+    actionBtn.addEventListener('click', () => {
+      if (item.targetUrl) {
+        if (/\/team\/location\//i.test(item.targetUrl)) {
+          window.location.href = item.targetUrl;
+        } else {
+          window.open(item.targetUrl, '_blank');
+        }
+      }
+    });
+
+    row.appendChild(actionBtn);
+    row.appendChild(createCopyButton(item.display));
+    entry.appendChild(row);
+
+    if (item.sourceLabel) {
+      entry.appendChild(createMeta(item.sourceLabel));
+    }
+
+    return entry;
+  };
+
+  const createPhoneEntry = (item) => {
+    const entry = document.createElement('div');
+    entry.style.marginBottom = '8px';
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+
+    const actionBtn = createActionButton(truncateText(item.display, 60));
+    actionBtn.title = item.display;
+    actionBtn.addEventListener('click', () => {
+      if (item.targetUrl) {
+        window.location.href = item.targetUrl;
+      }
+    });
+
+    row.appendChild(actionBtn);
+    row.appendChild(createCopyButton(item.display));
+    entry.appendChild(row);
+
+    if (item.sourceLabel) {
+      entry.appendChild(createMeta(item.sourceLabel));
+    }
+
+    return entry;
+  };
+
+  appendSection('Links', linkItems, createLinkEntry);
+  appendSection('Emails', emailItems, createEmailEntry);
+  appendSection('Phones', phoneItems, createPhoneEntry);
+
+  container.appendChild(toggle);
+  container.appendChild(panel);
+  document.body.appendChild(container);
+}
+
+async function updateLocationContactOverlay(locationId) {
+  const isLocationPath = /^\/team\/location\/[a-f0-9-]{12,36}(?:\/|$)/i.test(location.pathname);
+  if (!isLocationPath || !locationId) {
+    removeLocationContactOverlay();
+    return;
+  }
+
+  const requestId = ++locationContactRequestId;
+  try {
+    const { data: locationData, fromCache } = await fetchFullLocationRecord(locationId, { refresh: false });
+    if (requestId !== locationContactRequestId) return;
+    if (!locationData) {
+      removeLocationContactOverlay();
+      return;
+    }
+
+    renderLocationContactOverlay(locationId, locationData);
+
+    if (fromCache) {
+      fetchFullLocationRecord(locationId, { refresh: true })
+        .then(({ data: freshData }) => {
+          if (!freshData || requestId !== locationContactRequestId) return;
+          renderLocationContactOverlay(locationId, freshData);
+        })
+        .catch(err => {
+          console.error('[Location Contact] Background refresh failed', err);
+        });
+    }
+  } catch (err) {
+    console.error('[Location Contact] Failed to load overlay', err);
   }
 }
 
@@ -3506,6 +4591,7 @@ function linkifyPhonesAndEmails(rootDoc){
 
   // 1) Rewrite existing <a href="tel:"> and <a href="mailto:">
   root.querySelectorAll('a[href^="tel:"], a[href^="mailto:"]').forEach(a => {
+    if (a.closest(`#${LOCATION_CONTACT_CONTAINER_ID}`)) return;
     const href = a.getAttribute('href') || "";
     if (href.startsWith("tel:")) {
       const url = buildGVUrl(href.slice(4));
@@ -3526,7 +4612,7 @@ function linkifyPhonesAndEmails(rootDoc){
       acceptNode(node){
         if (!node.nodeValue || !/[A-Za-z0-9@]/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
         // skip inside these
-        if (node.parentElement?.closest('a,script,style,textarea,select,code,pre,svg,#yp-embed-wrapper')) {
+        if (node.parentElement?.closest(`a,script,style,textarea,select,code,pre,svg,#yp-embed-wrapper,#${LOCATION_CONTACT_CONTAINER_ID}`)) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
@@ -3865,28 +4951,54 @@ function attachMicButtonHandler() {
 document.addEventListener("DOMContentLoaded", () => {
   initializeSpeechRecognition(); 
 });
+function isTaxonomyBannerActive(locationId, serviceId) {
+  const key = buildTaxonomyBannerKey(locationId, serviceId);
+  if (!key) return false;
+  if (key !== activeTaxonomyBannerKey) return false;
+  return !!document.querySelector('[data-gghost-service-taxonomy]');
+}
+
 async function injectGoGettaButtons() {
-  removeServiceTaxonomyBanner();
   const host = location.hostname;
   if (!host.includes('gogetta.nyc')) {
+    removeServiceTaxonomyBanner();
+    removeTaxonomyHeartOverlay();
     return;
   }
   const path = location.pathname;
   updateAreaZipOverlayForPath(path);
-  const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/);
+  const fullServiceMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/services\/([a-f0-9-]+)(?:\/|$)/i);
+  const isQuestionsPath = /\/questions(?:\/|$)/i.test(path);
+  const canShowServiceTaxonomy = fullServiceMatch && !isQuestionsPath;
   const teamMatch = path.match(/^\/team\/location\/([a-f0-9-]+)\/?/);
   const findMatch = path.match(/^\/find\/location\/([a-f0-9-]+)\/?/);
   const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
+  updateLocationContactOverlay((fullServiceMatch || teamMatch)?.[1] || null);
 
-  if (fullServiceMatch) {
+  if (canShowServiceTaxonomy) {
     const locationId = fullServiceMatch[1];
     const serviceId = fullServiceMatch[2];
+    removeTaxonomyHeartOverlay();
+    if (!isTaxonomyBannerActive(locationId, serviceId)) {
+      removeServiceTaxonomyBanner();
 
-    // Always show taxonomy on service pages
-    // The overlay will prioritize cached data if navigating from another service
-    showServiceTaxonomy(locationId, serviceId).catch(err => {
-      console.error('[Service Taxonomy] Failed to render taxonomy banner', err);
+      // Always show taxonomy on service pages
+      // The overlay will prioritize cached data if navigating from another service
+      showServiceTaxonomy(locationId, serviceId).catch(err => {
+        console.error('[Service Taxonomy] Failed to render taxonomy banner', err);
+      });
+    }
+  } else if (teamMatch) {
+    const locationId = teamMatch[1];
+    invalidateServiceTaxonomyRender();
+    removeServiceTaxonomyBanner();
+    showTaxonomyHeartOverlay(locationId).catch(err => {
+      console.error('[Taxonomy Heart] Failed to render heart overlay', err);
     });
+  } else {
+    invalidateServiceTaxonomyRender();
+    removeServiceTaxonomyBanner();
+    removeTaxonomyHeartOverlay();
   }
 
   if (document.body.dataset.gghostRendered === 'true') {

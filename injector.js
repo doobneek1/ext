@@ -965,7 +965,7 @@ function previewText(raw) {
   //     return `${s.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} — ${e.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${nextDay}`;
   //   });
   // }
-  function expandDayRange(text) {
+function expandDayRange(text) {
   const days = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
   const fullDays = {
     su: 'Sunday',
@@ -993,6 +993,37 @@ function previewText(raw) {
     }
 
     return `${fullDays[start]} through ${fullDays[end]}`;
+  });
+}
+
+function normalizeClockTimes(text) {
+  const timeRegex = /(\d{1,2})(?::(\d{1,2}))?\s*([ap])\s*\.?\s*m\.?/gi;
+  return text.replace(timeRegex, (match, hourStr, minuteStr, periodChar, offset, full) => {
+    let tokenStart = offset;
+    while (tokenStart > 0 && !/\s/.test(full[tokenStart - 1])) {
+      tokenStart -= 1;
+    }
+    let tokenEnd = offset + match.length;
+    while (tokenEnd < full.length && !/\s/.test(full[tokenEnd])) {
+      tokenEnd += 1;
+    }
+    const token = full.slice(tokenStart, tokenEnd);
+
+    if (/https?:\/\//i.test(token) || /www\./i.test(token) || /@/.test(token)) {
+      return match;
+    }
+
+    const hour = parseInt(hourStr, 10);
+    if (!hour || hour < 1 || hour > 12) return match;
+
+    const minuteValue = minuteStr == null ? 0 : parseInt(minuteStr, 10);
+    if (Number.isNaN(minuteValue) || minuteValue < 0 || minuteValue > 59) {
+      return match;
+    }
+
+    const minutes = String(minuteValue).padStart(2, '0');
+    const period = `${periodChar.toUpperCase()}M`;
+    return `${hour}:${minutes} ${period}`;
   });
 }
 
@@ -1109,7 +1140,10 @@ function safeHyperlink(text) {
           return originalMatch;
         }
 
-        const display = label || (urlObj.host + urlObj.pathname + urlObj.search + urlObj.hash).replace(/^www\./, '');
+        let display = label || (urlObj.host + urlObj.pathname + urlObj.search + urlObj.hash).replace(/^www\./, '');
+        if (!label && display.endsWith('/')) {
+          display = display.slice(0, -1);
+        }
         const anchor = buildInjectorLinkMarkup(display, urlObj);
         if (!anchor) {
           return originalMatch;
@@ -1839,11 +1873,39 @@ if (document.readyState === 'loading') {
 
 console.log('[LinkPreview] injector.js link preview module loaded');
 
+function trimExcessBlankLines(text) {
+  const lines = text.split('\n');
+  while (lines.length && lines[0].trim() === '') {
+    lines.shift();
+  }
+  while (lines.length && lines[lines.length - 1].trim() === '') {
+    lines.pop();
+  }
+
+  const cleaned = [];
+  let blankCount = 0;
+  lines.forEach((line) => {
+    if (line.trim() === '') {
+      blankCount += 1;
+      if (blankCount <= 2) {
+        cleaned.push('');
+      }
+      return;
+    }
+    blankCount = 0;
+    cleaned.push(line);
+  });
+
+  return cleaned.join('\n');
+}
+
 function processText(input) {
-  const normalized = input
-    .replace(/\r\n/g, '\n')
-    .replace(/([^\r\n])\s*•\s+/g, '$1\n• ')
-    .replace(/^\s*•/gm, '•');
+  const normalized = trimExcessBlankLines(
+    input
+      .replace(/\r\n/g, '\n')
+      .replace(/([^\r\n])\s*\u2022\s+/g, '$1\n\u2022 ')
+      .replace(/^\s*\u2022/gm, '\u2022')
+  );
   const lines = normalized.split('\n');
   let output = [];
   let pendingBreak = false;
@@ -1863,27 +1925,27 @@ function processText(input) {
     }
 
     const isFirst = i === 0;
-    const alreadyBullet = raw.startsWith('•') || raw.startsWith('<br>&emsp;—') || raw.startsWith('<br>');
+    const alreadyBullet = raw.startsWith('\u2022') || raw.startsWith('<br>&emsp;\u2014') || raw.startsWith('<br>');
     const hadPendingBreak = pendingBreak;
     pendingBreak = false;
 
     if (!alreadyBullet && !(isFirst && raw.endsWith(':'))) {
       if (raw.startsWith('-')) {
-        raw = `<br>&emsp;— ${raw.slice(1).trim()}`;
+        raw = `<br>&emsp;\u2014 ${raw.slice(1).trim()}`;
       } else if (hadPendingBreak) {
         raw = `<br>${raw}`;
       } else if (shouldAddBullets) {
-        raw = `• ${raw}`;
+        raw = `\u2022 ${raw}`;
       }
     }
 
-
-    // 👇 Add weekday formatting here
-    const formatted = formatAge(formatTimeRange(expandDayRange(raw)));
+    // Add weekday formatting here
+    const formatted = formatAge(formatTimeRange(normalizeClockTimes(expandDayRange(raw))));
     output.push(safeHyperlink(formatted));
   });
 
   return output.join('\n');
 }
+
 
 })();

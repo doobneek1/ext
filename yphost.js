@@ -66,6 +66,34 @@ function getValidationColor(dateStr) {
         serviceMap[normalize(svc.name)] = svc.id;
       }
     }
+    const pageLocationId = locationId;
+    let fullLocationPromise = null;
+    const getFullLocationMetadata = () => {
+      if (!pageLocationId) return Promise.resolve(null);
+      if (!fullLocationPromise) {
+        fullLocationPromise = (async () => {
+          try {
+            const headers = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
+            const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${pageLocationId}`, { headers });
+            if (!res.ok) {
+              throw new Error(`HTTP ${res.status}`);
+            }
+            const fullLocation = await res.json();
+            const metadataByServiceId = {};
+            (fullLocation?.Services || []).forEach(svc => {
+              if (svc?.id && Array.isArray(svc?.metadata?.service)) {
+                metadataByServiceId[svc.id] = svc.metadata.service;
+              }
+            });
+            return metadataByServiceId;
+          } catch (err) {
+            console.error('[YP] Failed to fetch full location for description update:', err);
+            return null;
+          }
+        })();
+      }
+      return fullLocationPromise;
+    };
 document.querySelectorAll('div[id]').forEach(section => {
   const rawId = section.id;
   const normalized = normalize(rawId);
@@ -143,62 +171,55 @@ document.querySelectorAll('div[id]').forEach(async section => {
   const serviceId = service.id;
   if (!locationId || !serviceId) return;
 
-  try {
-    const headers = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
-    const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`, { headers });
-    const fullLocation = await res.json();
-    const matchingService = fullLocation?.Services?.find(s => s.id === serviceId);
-    const metadataList = matchingService?.metadata?.service;
+  const metadataByServiceId = await getFullLocationMetadata();
+  if (!metadataByServiceId) return;
+  const metadataList = metadataByServiceId[serviceId];
 
-    if (!Array.isArray(metadataList)) {
-      console.warn(`[⚠️ Missing metadata.service for] ${service.name}`);
-      return;
+  if (!Array.isArray(metadataList)) {
+    console.warn(`[?s??,? Missing metadata.service for] ${service.name}`);
+    return;
+  }
+
+  const lastDescriptionUpdate = metadataList.find(f => f.field_name === 'description')?.last_action_date;
+  if (!lastDescriptionUpdate) {
+    console.warn(`[?s??,? Missing description update for] ${service.name}`);
+    return;
+  }
+
+  const pTag = section.querySelector('p.text-sm.text-dark.mb-4.have-links');
+  if (!pTag) return;
+
+  // Remove duplicates (optional safety net)
+  const existing = section.querySelectorAll('[data-description-link]');
+  existing.forEach((el, i) => {
+    if (i > 0) el.remove(); // remove all but the first
+  });
+
+  const alreadyInjected = existing.length > 0;
+  if (!alreadyInjected) {
+    const statusText = formatTimeAgo(lastDescriptionUpdate);
+    const color = getValidationColor(lastDescriptionUpdate);
+    const dash = document.createTextNode(' ??" ');
+    const element = skipLinks ? document.createElement('span') : document.createElement('a');
+    if (!skipLinks) {
+      element.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/description`;
     }
-
-    const lastDescriptionUpdate = metadataList.find(f => f.field_name === 'description')?.last_action_date;
-    if (!lastDescriptionUpdate) {
-      console.warn(`[⚠️ Missing description update for] ${service.name}`);
-      return;
-    }
-
-    const pTag = section.querySelector('p.text-sm.text-dark.mb-4.have-links');
-    if (!pTag) return;
-
-    // Remove duplicates (optional safety net)
-    const existing = section.querySelectorAll('[data-description-link]');
-    existing.forEach((el, i) => {
-      if (i > 0) el.remove(); // remove all but the first
+    element.textContent = statusText;
+    element.setAttribute('data-description-link', 'true');
+    Object.assign(element.style, {
+      color: color,
+      fontWeight: 'bold',
+      marginLeft: '2px',
+      textDecoration: skipLinks ? 'none' : 'underline',
+      pointerEvents: skipLinks ? 'none' : 'auto',
+      display: 'inline',
+      position: 'relative',
     });
-
-    const alreadyInjected = existing.length > 0;
-    if (!alreadyInjected) {
-      const statusText = formatTimeAgo(lastDescriptionUpdate);
-      const color = getValidationColor(lastDescriptionUpdate);
-      const dash = document.createTextNode(' – ');
-      const element = skipLinks ? document.createElement('span') : document.createElement('a');
-      if (!skipLinks) {
-        element.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/description`;
-      }
-      element.textContent = statusText;
-      element.setAttribute('data-description-link', 'true');
-      Object.assign(element.style, {
-        color: color,
-        fontWeight: 'bold',
-        marginLeft: '2px',
-        textDecoration: skipLinks ? 'none' : 'underline',
-        pointerEvents: skipLinks ? 'none' : 'auto',
-        display: 'inline',
-        position: 'relative',
-      });
-      pTag.after(dash, element);
-    }
-
-  } catch (err) {
-    console.error(`[⚠️ Failed to fetch full location for description update]`, err);
+    pTag.after(dash, element);
   }
 });
 
-    // Only add edit buttons if not skipping links (i.e., not in iframe)
+// Only add edit buttons if not skipping links (i.e., not in iframe)
     if (!skipLinks) {
     document.querySelectorAll('div[id]').forEach(section => {
       const rawId = section.id;

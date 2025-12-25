@@ -35,6 +35,7 @@
   function initializeLinkHighlighter() {
     const validationCache = new Map();
     const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+    const shouldRunPhoneOverlay = !isIframe && !isGoGettaDomain && !isYourPeerFrame;
 
     async function validateLink(url) {
       const cached = validationCache.get(url);
@@ -162,5 +163,238 @@
     });
 
     console.log('[LinkHighlighter] Loaded and observing');
+
+    if (shouldRunPhoneOverlay) {
+      initializePhoneOverlay();
+    }
+
+    function initializePhoneOverlay() {
+      const PHONE_OVERLAY_ID = 'dnk-phone-overlay';
+      const PHONE_HIGHLIGHT_ID = 'dnk-phone-highlight';
+      const PHONE_REGEX = /(?:(?:\+?1[\s.\-]*)?)\(?\d{3}\)?[\s.\-]*\d{3}[\s.\-]*\d{4}(?:\s*(?:x|ext\.?|extension|#)\s*\d+)?/gi;
+      const MAX_MATCHES = 200;
+      let overlayOpen = false;
+      let scanTimer = null;
+      let entries = [];
+
+      const digitsOnly = (value) => String(value || '').replace(/\D/g, '');
+
+      const isOverlayMutation = (mutation) => {
+        const target = mutation.target;
+        const el = target?.nodeType === Node.TEXT_NODE ? target.parentElement : target;
+        return !!el?.closest?.(`#${PHONE_OVERLAY_ID}`);
+      };
+
+      const collectPhoneEntries = () => {
+        const results = [];
+        const index = new Map();
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+          {
+            acceptNode(node) {
+              if (!node.nodeValue || !/\d/.test(node.nodeValue)) {
+                return NodeFilter.FILTER_REJECT;
+              }
+              const parent = node.parentElement;
+              if (!parent) return NodeFilter.FILTER_REJECT;
+              if (parent.closest(`script,style,textarea,input,select,code,pre,noscript,#${PHONE_OVERLAY_ID}`)) {
+                return NodeFilter.FILTER_REJECT;
+              }
+              return NodeFilter.FILTER_ACCEPT;
+            }
+          }
+        );
+
+        let count = 0;
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const text = node.nodeValue;
+          if (!text) continue;
+          const regex = new RegExp(PHONE_REGEX.source, 'gi');
+          let match;
+          while ((match = regex.exec(text))) {
+            const raw = match[0].trim();
+            const digits = digitsOnly(raw);
+            if (digits.length < 10) continue;
+            const key = digits || raw;
+            let entry = index.get(key);
+            if (!entry) {
+              entry = { key, display: raw, matches: [] };
+              index.set(key, entry);
+              results.push(entry);
+            }
+            entry.matches.push({ node, start: match.index, end: match.index + raw.length });
+            count += 1;
+            if (count >= MAX_MATCHES) {
+              return results;
+            }
+          }
+        }
+        return results;
+      };
+
+      const removeOverlay = () => {
+        document.getElementById(PHONE_OVERLAY_ID)?.remove();
+      };
+
+      const highlightMatch = (match) => {
+        const existing = document.getElementById(PHONE_HIGHLIGHT_ID);
+        if (existing) existing.remove();
+
+        const range = document.createRange();
+        range.setStart(match.node, match.start);
+        range.setEnd(match.node, match.end);
+        const rect = range.getBoundingClientRect();
+        if (!rect || rect.width === 0 || rect.height === 0) return;
+
+        const highlight = document.createElement('div');
+        highlight.id = PHONE_HIGHLIGHT_ID;
+        Object.assign(highlight.style, {
+          position: 'absolute',
+          top: `${window.scrollY + rect.top - 4}px`,
+          left: `${window.scrollX + rect.left - 4}px`,
+          width: `${rect.width + 8}px`,
+          height: `${rect.height + 8}px`,
+          background: 'rgba(255, 230, 80, 0.7)',
+          border: '2px solid rgba(255, 185, 0, 0.9)',
+          borderRadius: '6px',
+          pointerEvents: 'none',
+          zIndex: '2147483647',
+          boxSizing: 'border-box'
+        });
+        document.body.appendChild(highlight);
+
+        highlight.animate(
+          [
+            { opacity: 0, transform: 'scale(0.98)' },
+            { opacity: 1, transform: 'scale(1)' },
+            { opacity: 0, transform: 'scale(1.02)' }
+          ],
+          { duration: 1200, easing: 'ease-out' }
+        );
+        setTimeout(() => highlight.remove(), 1300);
+      };
+
+      const focusEntry = (entry) => {
+        if (!entry?.matches?.length) return;
+        const match = entry.matches.find(m => m.node?.isConnected) || entry.matches[0];
+        if (!match?.node?.isConnected) {
+          scheduleScan();
+          return;
+        }
+
+        const range = document.createRange();
+        range.setStart(match.node, match.start);
+        range.setEnd(match.node, match.end);
+        const rect = range.getBoundingClientRect();
+        const targetY = rect.top + window.scrollY - Math.max(120, window.innerHeight * 0.3);
+        window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+        setTimeout(() => highlightMatch(match), 350);
+      };
+
+      const renderOverlay = () => {
+        removeOverlay();
+        if (!entries.length) return;
+
+        const container = document.createElement('div');
+        container.id = PHONE_OVERLAY_ID;
+        container.dataset.open = overlayOpen ? 'true' : 'false';
+        Object.assign(container.style, {
+          position: 'fixed',
+          top: '88px',
+          left: '20px',
+          zIndex: '10000',
+          fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          color: '#1f1f1f'
+        });
+
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.textContent = overlayOpen ? 'x' : '?';
+        Object.assign(toggle.style, {
+          width: '28px',
+          height: '28px',
+          borderRadius: '50%',
+          border: '1px solid #c9c9c9',
+          background: '#fff',
+          fontSize: '16px',
+          fontWeight: '700',
+          cursor: 'pointer',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+        });
+
+        const panel = document.createElement('div');
+        Object.assign(panel.style, {
+          marginTop: '8px',
+          padding: '12px',
+          background: '#ffffff',
+          border: '1px solid #dedede',
+          borderRadius: '8px',
+          boxShadow: '0 6px 18px rgba(0, 0, 0, 0.12)',
+          maxWidth: '280px',
+          maxHeight: '60vh',
+          overflowY: 'auto',
+          display: overlayOpen ? 'block' : 'none'
+        });
+
+        toggle.addEventListener('click', () => {
+          overlayOpen = !overlayOpen;
+          panel.style.display = overlayOpen ? 'block' : 'none';
+          toggle.textContent = overlayOpen ? 'x' : '?';
+        });
+
+        entries.forEach(entry => {
+          const row = document.createElement('div');
+          row.style.marginBottom = '8px';
+
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = entry.display;
+          btn.title = entry.display;
+          Object.assign(btn.style, {
+            background: 'none',
+            border: 'none',
+            padding: '0',
+            color: '#0d6efd',
+            fontSize: '12px',
+            textAlign: 'left',
+            cursor: 'pointer',
+            width: '100%'
+          });
+          btn.addEventListener('click', () => focusEntry(entry));
+
+          row.appendChild(btn);
+          panel.appendChild(row);
+        });
+
+        container.appendChild(toggle);
+        container.appendChild(panel);
+        document.body.appendChild(container);
+      };
+
+      const scanAndRender = () => {
+        entries = collectPhoneEntries();
+        renderOverlay();
+      };
+
+      const scheduleScan = () => {
+        clearTimeout(scanTimer);
+        scanTimer = setTimeout(scanAndRender, 400);
+      };
+
+      scanAndRender();
+
+      const phoneObserver = new MutationObserver((mutations) => {
+        if (mutations.every(isOverlayMutation)) {
+          return;
+        }
+        scheduleScan();
+      });
+      phoneObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+    }
   }
 })();
