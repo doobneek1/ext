@@ -14,6 +14,39 @@ window.gghost.NOTE_API = NOTE_API;
 const baseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/";
 window.gghost.baseURL = baseURL;
 
+const LOCATION_INVOCATION_BUCKET_SECONDS = 1;
+
+function getInvocationBucketSeconds() {
+  return Math.floor(Date.now() / 1000).toString();
+}
+
+async function recordLocationInvocation(uuid, source = 'unknown') {
+  if (!uuid) return;
+  const bucket = getInvocationBucketSeconds();
+  const url = `${baseURL}locationNotes/${uuid}/invocations/${bucket}.json`;
+  try {
+    const existingRes = await fetch(url, { cache: "no-store" });
+    let current = 0;
+    if (existingRes.ok) {
+      const existing = await existingRes.json();
+      if (typeof existing === "number") {
+        current = existing;
+      }
+    }
+    const next = current + 1;
+    const writeRes = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next)
+    });
+    if (!writeRes.ok) {
+      console.warn(`[LocationInvocation] Write failed for ${uuid}:`, await writeRes.text());
+    }
+  } catch (err) {
+    console.warn(`[LocationInvocation] Failed to record invocation for ${uuid} (${source}):`, err);
+  }
+}
+
 // Shared Cognito authentication utilities
 window.gghost = window.gghost || {};
 console.log('[gghost.js] Script loaded, setting up getCognitoTokens');
@@ -1845,6 +1878,7 @@ async function fetchLocationDetails(uuid, { refresh = false } = {}) {
   const request = (async () => {
     try {
       const headers = getAuthHeaders();
+      void recordLocationInvocation(uuid, "fetchLocationDetails");
       const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, { headers });
       if (!res.ok) throw new Error("Fetch failed");
       const data = await res.json();
@@ -3005,6 +3039,7 @@ async function fetchFullLocationRecord(uuid, { refresh = false } = {}) {
 
   try {
     const headers = getAuthHeaders();
+    void recordLocationInvocation(uuid, "fetchFullLocationRecord");
     const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, { headers });
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
@@ -5226,6 +5261,7 @@ if (fullServiceMatch) {
   const serviceId = fullServiceMatch[2];
   try {
     const headers = getAuthHeaders();
+    void recordLocationInvocation(locationId, "ypButtonServicePage");
     const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${locationId}`, { headers });
     const data = await res.json();
 
@@ -5261,6 +5297,7 @@ if (fullServiceMatch) {
 } else {
   try {
     const headers = getAuthHeaders();
+    void recordLocationInvocation(uuid, "ypButtonLocationPage");
     const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, { headers });
     const data = await res.json();
 
@@ -6360,6 +6397,7 @@ try {
 
   const headers = getAuthHeaders();
   console.log('[YP Mini] 🔑 Using auth headers:', headers);
+  void recordLocationInvocation(uuid, "ypMini");
   const res = await fetch(apiUrl, { headers });
   
   if (!res.ok) {
@@ -6526,6 +6564,7 @@ if (currentUuid) {
   try {
     console.log(`[Notes Header] Attempting to fetch details for UUID: ${currentUuid}`);
     const headers = getAuthHeaders();
+    void recordLocationInvocation(currentUuid, "notesHeader");
     const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${currentUuid}`, { headers });
     if (!res.ok) {
       throw new Error(`API request failed with status ${res.status}`);
@@ -7228,7 +7267,7 @@ document.body.appendChild(noteWrapper);
         console.warn("⏳ Timeout: Did not find pagination element.");
       }, timeout);
     });
-    mostOutdatedBtn.setAttribute('data-most-outdated', 'true');
+    mostOutdatedBtn.element?.setAttribute('data-most-outdated', 'true');
   }
 }
 function isGoGettaAreaPath(pathname = location.pathname) {
@@ -7730,7 +7769,451 @@ async function runAreaZipAutomation(state) {
     updateAreaZipAvailability(state);
   }
 }
+
+const TEAM_MAP_PINS_DATA_ATTR = 'data-gghost-team-map-pins';
+
+function isGoGettaTeamMapRoot(url = location.href) {
+  try {
+    const parsed = new URL(url);
+    return /(^|\.)gogetta\.nyc$/i.test(parsed.hostname)
+      && /^\/team\/?$/.test(parsed.pathname);
+  } catch (err) {
+    return false;
+  }
+}
+
+function teamMapPinsBootstrap() {
+  if (window.__gghostTeamMapPinsBootstrap) return;
+  window.__gghostTeamMapPinsBootstrap = true;
+
+  const API_BASE = 'https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations';
+  const HOST_RE = /(^|\.)gogetta\.nyc$/i;
+  const PATH_RE = /^\/team\/?$/;
+  const TYPE_STYLES = {
+    default: { color: '#1e88e5', scale: 6 },
+    partner: { color: '#fb8c00', scale: 8 },
+    closed: { color: '#9e9e9e', scale: 5 }
+  };
+
+  const state = {
+    active: false,
+    map: null,
+    markers: new Map(),
+    listeners: [],
+    pendingTimer: null,
+    fetchAbort: null,
+    lastRequestKey: null,
+    mapPoll: null,
+    infoWindow: null
+  };
+
+  function isTeamMapPage() {
+    return HOST_RE.test(location.hostname) && PATH_RE.test(location.pathname);
+  }
+
+  function hookHistory() {
+    if (window.__gghostTeamMapPinsHistoryWrapped) return;
+    window.__gghostTeamMapPinsHistoryWrapped = true;
+    const onChange = () => handleLocationChange();
+    const pushState = history.pushState;
+    history.pushState = function () {
+      pushState.apply(this, arguments);
+      onChange();
+    };
+    const replaceState = history.replaceState;
+    history.replaceState = function () {
+      replaceState.apply(this, arguments);
+      onChange();
+    };
+    window.addEventListener('popstate', onChange);
+  }
+
+  function handleLocationChange() {
+    if (isTeamMapPage()) {
+      start();
+    } else {
+      stop();
+    }
+  }
+
+  function start() {
+    if (state.active) return;
+    state.active = true;
+    ensureMapsReady().then((ready) => {
+      if (!ready || !state.active) return;
+      hookMapConstructor();
+      const existing = findExistingMap();
+      if (existing) {
+        attachMap(existing);
+        return;
+      }
+      state.mapPoll = setInterval(() => {
+        const map = findExistingMap();
+        if (map) {
+          clearInterval(state.mapPoll);
+          state.mapPoll = null;
+          attachMap(map);
+        }
+      }, 500);
+    });
+  }
+
+  function stop() {
+    state.active = false;
+    if (state.mapPoll) {
+      clearInterval(state.mapPoll);
+      state.mapPoll = null;
+    }
+    if (state.pendingTimer) {
+      clearTimeout(state.pendingTimer);
+      state.pendingTimer = null;
+    }
+    if (state.fetchAbort) {
+      state.fetchAbort.abort();
+      state.fetchAbort = null;
+    }
+    detachMap();
+    clearMarkers();
+  }
+
+  function ensureMapsReady() {
+    if (window.google && window.google.maps && window.google.maps.Map) {
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const timer = setInterval(() => {
+        if (window.google && window.google.maps && window.google.maps.Map) {
+          clearInterval(timer);
+          resolve(true);
+          return;
+        }
+        if (Date.now() - start > 30000) {
+          clearInterval(timer);
+          resolve(false);
+        }
+      }, 250);
+    });
+  }
+
+  function hookMapConstructor() {
+    if (!window.google || !window.google.maps || !window.google.maps.Map) return;
+    const MapCtor = window.google.maps.Map;
+    if (MapCtor.__gghostWrapped) return;
+    function WrappedMap() {
+      const map = new MapCtor(...arguments);
+      tryCaptureMap(map);
+      return map;
+    }
+    WrappedMap.prototype = MapCtor.prototype;
+    Object.keys(MapCtor).forEach((key) => {
+      try {
+        WrappedMap[key] = MapCtor[key];
+      } catch (err) {
+        // ignore readonly props
+      }
+    });
+    WrappedMap.__gghostWrapped = true;
+    window.google.maps.Map = WrappedMap;
+  }
+
+  function tryCaptureMap(map) {
+    if (!map) return;
+    if (window.__gghostTeamMapInstance !== map) {
+      window.__gghostTeamMapInstance = map;
+    }
+  }
+
+  function findExistingMap() {
+    if (!window.google || !window.google.maps || !window.google.maps.Map) return null;
+    const MapCtor = window.google.maps.Map;
+    if (window.__gghostTeamMapInstance instanceof MapCtor) {
+      return window.__gghostTeamMapInstance;
+    }
+    try {
+      for (const key of Object.keys(window)) {
+        const value = window[key];
+        if (value && value instanceof MapCtor) {
+          return value;
+        }
+      }
+    } catch (err) {
+      // ignore scan errors
+    }
+    return null;
+  }
+
+  function attachMap(map) {
+    if (!map || state.map === map) return;
+    detachMap();
+    state.map = map;
+    state.infoWindow = state.infoWindow || new google.maps.InfoWindow();
+    state.listeners.push(map.addListener('idle', scheduleFetch));
+    scheduleFetch();
+  }
+
+  function detachMap() {
+    state.listeners.forEach(listener => listener.remove());
+    state.listeners = [];
+    state.map = null;
+  }
+
+  function scheduleFetch() {
+    if (!state.active || !state.map) return;
+    if (state.pendingTimer) clearTimeout(state.pendingTimer);
+    state.pendingTimer = setTimeout(() => {
+      state.pendingTimer = null;
+      fetchLocations();
+    }, 300);
+  }
+
+  async function fetchLocations() {
+    const map = state.map;
+    if (!map) return;
+    const center = map.getCenter();
+    const bounds = map.getBounds();
+    if (!center || !bounds) return;
+    const radius = computeRadiusMeters(center, bounds);
+    if (!radius) return;
+    const requestKey = `${center.lat().toFixed(4)}:${center.lng().toFixed(4)}:${Math.round(radius / 50)}`;
+    if (requestKey === state.lastRequestKey) return;
+    state.lastRequestKey = requestKey;
+    if (state.fetchAbort) state.fetchAbort.abort();
+    const controller = new AbortController();
+    state.fetchAbort = controller;
+    const url = `${API_BASE}?latitude=${center.lat()}&longitude=${center.lng()}&radius=${Math.round(radius)}`;
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { accept: 'application/json' },
+        cache: 'no-store'
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+      updateMarkers(data);
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      console.warn('[gghost-team-map] Failed to fetch locations', err);
+    }
+  }
+
+  function computeRadiusMeters(center, bounds) {
+    const ne = bounds.getNorthEast && bounds.getNorthEast();
+    if (!ne) return null;
+    return haversineMeters(center.lat(), center.lng(), ne.lat(), ne.lng());
+  }
+
+  function haversineMeters(lat1, lon1, lat2, lon2) {
+    const rad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * rad;
+    const dLon = (lon2 - lon1) * rad;
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+    return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function updateMarkers(locations) {
+    const seen = new Set();
+    locations.forEach((loc) => {
+      const position = getLocationLatLng(loc);
+      if (!position) return;
+      const id = getLocationId(loc, position);
+      if (!id) return;
+      seen.add(id);
+      let marker = state.markers.get(id);
+      const icon = buildMarkerIcon(loc);
+      const title = getLocationTitle(loc);
+      if (!marker) {
+        marker = new google.maps.Marker({
+          map: state.map,
+          position,
+          icon,
+          title
+        });
+        marker.__gghostLoc = loc;
+        marker.addListener('mouseover', () => showInfo(marker));
+        marker.addListener('mouseout', () => state.infoWindow && state.infoWindow.close());
+        state.markers.set(id, marker);
+      } else {
+        marker.__gghostLoc = loc;
+        marker.setPosition(position);
+        marker.setIcon(icon);
+        marker.setTitle(title);
+      }
+    });
+    for (const [id, marker] of state.markers.entries()) {
+      if (!seen.has(id)) {
+        marker.setMap(null);
+        state.markers.delete(id);
+      }
+    }
+  }
+
+  function showInfo(marker) {
+    if (!state.infoWindow || !state.map) return;
+    const loc = marker.__gghostLoc;
+    if (!loc) return;
+    const content = buildInfoContent(loc);
+    state.infoWindow.setContent(content);
+    state.infoWindow.open({ map: state.map, anchor: marker, shouldFocus: false });
+  }
+
+  function buildInfoContent(loc) {
+    const wrapper = document.createElement('div');
+    wrapper.style.maxWidth = '260px';
+    wrapper.style.fontSize = '12px';
+    const title = document.createElement('div');
+    title.style.fontWeight = '600';
+    title.style.marginBottom = '4px';
+    title.textContent = getLocationTitle(loc) || 'Location';
+    wrapper.appendChild(title);
+    const desc = getLocationDescription(loc);
+    if (desc) {
+      const descEl = document.createElement('div');
+      appendMultilineText(descEl, desc);
+      wrapper.appendChild(descEl);
+    }
+    const address = getLocationAddress(loc);
+    if (address) {
+      const addrEl = document.createElement('div');
+      addrEl.style.marginTop = '6px';
+      addrEl.style.color = '#555';
+      addrEl.textContent = address;
+      wrapper.appendChild(addrEl);
+    }
+    return wrapper;
+  }
+
+  function appendMultilineText(node, text) {
+    String(text).split(/\r?\n/).forEach((line, index) => {
+      if (index > 0) node.appendChild(document.createElement('br'));
+      node.appendChild(document.createTextNode(line));
+    });
+  }
+
+  function getLocationTitle(loc) {
+    return loc?.name || loc?.Organization?.name || loc?.slug || '';
+  }
+
+  function getLocationDescription(loc) {
+    const raw = loc?.description || loc?.additional_info || loc?.Organization?.description || loc?.EventRelatedInfos?.[0]?.information || '';
+    return sanitizeText(raw);
+  }
+
+  function getLocationAddress(loc) {
+    const address = loc?.PhysicalAddresses?.[0];
+    if (!address) return '';
+    return [
+      address.address_1,
+      address.city,
+      address.state_province,
+      address.postal_code
+    ].filter(Boolean).join(', ');
+  }
+
+  function sanitizeText(value) {
+    return String(value || '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]*>/g, '')
+      .trim();
+  }
+
+  function getLocationLatLng(loc) {
+    const coords = loc?.position?.coordinates;
+    if (Array.isArray(coords) && coords.length >= 2) {
+      const lng = Number(coords[0]);
+      const lat = Number(coords[1]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    }
+    const lat = Number(loc?.latitude ?? loc?.lat);
+    const lng = Number(loc?.longitude ?? loc?.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    return null;
+  }
+
+  function getLocationId(loc, position) {
+    return loc?.id || loc?.location_id || loc?.slug || (position ? `${position.lat},${position.lng}` : null);
+  }
+
+  function getLocationType(loc) {
+    if (!loc) return 'default';
+    if (loc.closed) return 'closed';
+    const raw = loc.locationtype || loc.locationType || loc.location_type || loc.type;
+    if (raw) return String(raw).toLowerCase();
+    if (loc.Organization && loc.Organization.partners) return 'partner';
+    const taxonomy = loc?.Services?.[0]?.Taxonomies?.[0]?.name;
+    return taxonomy ? String(taxonomy).toLowerCase() : 'default';
+  }
+
+  function buildMarkerIcon(loc) {
+    const type = getLocationType(loc);
+    let style = TYPE_STYLES[type];
+    if (!style) {
+      const hash = hashString(type || 'default');
+      const hue = Math.abs(hash) % 360;
+      style = {
+        color: `hsl(${hue}, 70%, 45%)`,
+        scale: 6 + (Math.abs(hash) % 3)
+      };
+    }
+    return {
+      path: google.maps.SymbolPath.CIRCLE,
+      fillColor: style.color,
+      fillOpacity: 0.9,
+      strokeColor: '#ffffff',
+      strokeWeight: 1,
+      scale: style.scale
+    };
+  }
+
+  function hashString(text) {
+    let hash = 0;
+    for (let i = 0; i < text.length; i += 1) {
+      hash = ((hash << 5) - hash) + text.charCodeAt(i);
+      hash |= 0;
+    }
+    return hash;
+  }
+
+  function clearMarkers() {
+    state.markers.forEach(marker => marker.setMap(null));
+    state.markers.clear();
+  }
+
+  hookHistory();
+  handleLocationChange();
+}
+
+function injectTeamMapPinsBootstrap() {
+  if (!isGoGettaTeamMapRoot()) return;
+  if (!chrome?.runtime?.getURL) return;
+  if (document.querySelector(`script[${TEAM_MAP_PINS_DATA_ATTR}]`)) return;
+  if (document.documentElement.dataset.gghostTeamMapPinsInjected === 'true') return;
+  const script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.setAttribute(TEAM_MAP_PINS_DATA_ATTR, 'true');
+  script.async = true;
+  script.src = chrome.runtime.getURL('teamMapPinsPage.js');
+  script.onload = () => {
+    document.documentElement.dataset.gghostTeamMapPinsInjected = 'true';
+    script.remove();
+  };
+  script.onerror = () => {
+    script.remove();
+  };
+  (document.head || document.documentElement).appendChild(script);
+}
+
+function initializeTeamMapPins() {
+  injectTeamMapPinsBootstrap();
+  onUrlChange(() => {
+    injectTeamMapPinsBootstrap();
+  });
+}
+
 async function initializeGoGettaEnhancements() {
+  initializeTeamMapPins();
   setupServiceLoadMonitor();
   await injectGoGettaButtons();
   updateEditablePlaceholder() 
@@ -7748,6 +8231,17 @@ const SERVICE_LOAD_ERROR_WAIT_MS = 2000;
 const SERVICE_LOAD_RELOAD_COOLDOWN_MS = 2000;
 const SERVICE_LOAD_API_CHECK_INTERVAL_MS = 4000;
 const SERVICE_LOAD_API_TIMEOUT_MS = 8000;
+const SERVICE_LOAD_API_CHECK_ENABLED = false;
+const SERVICE_LOAD_AUTO_RETRY_ENABLED = false;
+const SERVICE_LOAD_ERROR_LABEL_RETRY_ENABLED = true;
+const SERVICE_LOAD_PERSISTENT_MONITOR = true;
+const SERVICE_LOAD_SNAKE_GAME_SIZE = 240;
+const SERVICE_LOAD_SNAKE_CELL = 12;
+const SERVICE_LOAD_SNAKE_SPEED_MS = 120;
+const SERVICE_LOAD_SNAKE_FOCUS_STORAGE_PREFIX = 'gghost-service-load-monitor-snake-focus:';
+const SERVICE_LOAD_PROBLEM_STABLE_MS = 1000;
+const SERVICE_LOAD_RECOVERY_STABLE_MS = 1000;
+const SERVICE_LOAD_USER_IDLE_BEFORE_BEEP_MS = 1000;
 const SERVICE_LOAD_FORCE_TRIGGER_MS = 15000;
 const SERVICE_LOAD_MONITOR_STORAGE_PREFIX = 'gghost-service-load-monitor-state:';
 const SERVICE_LOAD_MONITOR_TAB_KEY_STORAGE = 'gghost-service-load-monitor-tab-key';
@@ -7837,6 +8331,31 @@ function cleanupServiceLoadMonitorStorage() {
   }
 }
 
+function getServiceLoadMonitorSnakeFocusKey(tabKey) {
+  return `${SERVICE_LOAD_SNAKE_FOCUS_STORAGE_PREFIX}${tabKey}`;
+}
+
+function readServiceLoadMonitorSnakeFocus(tabKey) {
+  try {
+    return localStorage.getItem(getServiceLoadMonitorSnakeFocusKey(tabKey)) === 'true';
+  } catch (err) {
+    return false;
+  }
+}
+
+function writeServiceLoadMonitorSnakeFocus(tabKey, shouldFocus) {
+  try {
+    const key = getServiceLoadMonitorSnakeFocusKey(tabKey);
+    if (shouldFocus) {
+      localStorage.setItem(key, 'true');
+    } else {
+      localStorage.removeItem(key);
+    }
+  } catch (err) {
+    console.warn('[ServiceLoadMonitor] Failed to persist snake focus:', err);
+  }
+}
+
 function findLoadingServiceNode() {
   const xpath = `//*[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'${SERVICE_LOAD_TEXT}')]`;
   return document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
@@ -7870,6 +8389,22 @@ function hasProgressZeroIndicator() {
     if (right === '100%' || right === '100.0%') {
       return true;
     }
+  }
+  return false;
+}
+
+function isProgressIndicatorVisible() {
+  const bar = document.querySelector('.ProgressBar');
+  if (bar && bar.getClientRects().length > 0) {
+    return true;
+  }
+  const textNode = document.querySelector('.ProgressBarText');
+  if (textNode && textNode.getClientRects().length > 0) {
+    return true;
+  }
+  const valueNode = document.querySelector('.ProgressBarValue');
+  if (valueNode && valueNode.getClientRects().length > 0) {
+    return true;
   }
   return false;
 }
@@ -7915,6 +8450,7 @@ async function hasSensibleLocationResponse() {
   const timeoutId = setTimeout(() => controller.abort(), SERVICE_LOAD_API_TIMEOUT_MS);
   try {
     const headers = typeof getAuthHeaders === 'function' ? getAuthHeaders() : { 'Content-Type': 'application/json' };
+    void recordLocationInvocation(uuid, "serviceLoadMonitorApiCheck");
     const res = await fetch(`https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`, {
       headers,
       signal: controller.signal
@@ -7980,7 +8516,18 @@ function setupServiceLoadMonitor() {
     storageKey,
     persistedUuid: null,
     pendingReload: false,
-    initialApiCheckDone: false
+    initialApiCheckDone: false,
+    hadProblem: false,
+    beepArmed: false,
+    lastProblemVisible: false,
+    problemSince: null,
+    recoverySince: null,
+    lastPointerMoveAt: 0,
+    tabWasHidden: false,
+    beepRetryTimer: null,
+    wrapper: null,
+    snakeCleanup: null,
+    snakeFocusKey: getServiceLoadMonitorSnakeFocusKey(tabKey)
   };
   serviceLoadMonitorState = state;
 
@@ -8000,6 +8547,21 @@ function setupServiceLoadMonitor() {
     }
   };
 
+  const clearBeepRetryTimer = () => {
+    if (state.beepRetryTimer) {
+      clearTimeout(state.beepRetryTimer);
+      state.beepRetryTimer = null;
+    }
+  };
+
+  const scheduleBeepRetry = (delayMs) => {
+    if (state.beepRetryTimer) return;
+    state.beepRetryTimer = setTimeout(() => {
+      state.beepRetryTimer = null;
+      checkMonitorState();
+    }, delayMs);
+  };
+
   const clearErrorAfterLoadTimer = () => {
     if (state.errorAfterLoadTimer) {
       clearTimeout(state.errorAfterLoadTimer);
@@ -8008,6 +8570,16 @@ function setupServiceLoadMonitor() {
   };
 
   const removeButton = () => {
+    if (state.snakeCleanup) {
+      state.snakeCleanup();
+      state.snakeCleanup = null;
+    }
+    if (state.wrapper) {
+      state.wrapper.remove();
+      state.wrapper = null;
+      state.button = null;
+      return;
+    }
     if (state.button) {
       state.button.remove();
       state.button = null;
@@ -8042,11 +8614,191 @@ function setupServiceLoadMonitor() {
 
   const updateButtonLabel = () => {
     if (!state.button) return;
-    state.button.textContent = state.active ? 'Stop Loading Monitor' : 'Notify me when app works!';
+    state.button.textContent = state.active ? 'Stop Monitoring' : 'Notify me when the app starts working';
+  };
+
+  const startSnakeGame = (container) => {
+    if (!container) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = SERVICE_LOAD_SNAKE_GAME_SIZE;
+    canvas.height = SERVICE_LOAD_SNAKE_GAME_SIZE;
+    Object.assign(canvas.style, {
+      border: '1px solid #000',
+      borderRadius: '6px',
+      background: '#111',
+      display: 'block'
+    });
+
+    const label = document.createElement('div');
+    label.textContent = 'doobneek Inc Snake (click to control)';
+    Object.assign(label.style, {
+      fontSize: '12px',
+      fontWeight: '600',
+      color: '#111',
+      textAlign: 'center'
+    });
+
+    const wrap = document.createElement('div');
+    Object.assign(wrap.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '6px'
+    });
+    wrap.appendChild(label);
+    wrap.appendChild(canvas);
+    container.appendChild(wrap);
+
+    const ctx = canvas.getContext('2d');
+    const gridSize = Math.floor(SERVICE_LOAD_SNAKE_GAME_SIZE / SERVICE_LOAD_SNAKE_CELL);
+    let direction = { x: 1, y: 0 };
+    let nextDirection = { x: 1, y: 0 };
+    let snake = [{ x: 6, y: 6 }, { x: 5, y: 6 }, { x: 4, y: 6 }];
+    let food = { x: 10, y: 10 };
+    let tick = 0;
+    let focused = readServiceLoadMonitorSnakeFocus(state.tabKey);
+
+    const randomCell = () => Math.floor(Math.random() * gridSize);
+    const placeFood = () => {
+      let tries = 0;
+      while (tries < 100) {
+        const candidate = { x: randomCell(), y: randomCell() };
+        if (!snake.some((seg) => seg.x === candidate.x && seg.y === candidate.y)) {
+          food = candidate;
+          return;
+        }
+        tries += 1;
+      }
+    };
+
+    const resetGame = () => {
+      direction = { x: 1, y: 0 };
+      nextDirection = { x: 1, y: 0 };
+      snake = [{ x: 6, y: 6 }, { x: 5, y: 6 }, { x: 4, y: 6 }];
+      placeFood();
+    };
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#f5f5f5';
+      ctx.fillRect(
+        food.x * SERVICE_LOAD_SNAKE_CELL,
+        food.y * SERVICE_LOAD_SNAKE_CELL,
+        SERVICE_LOAD_SNAKE_CELL,
+        SERVICE_LOAD_SNAKE_CELL
+      );
+
+      const baseHue = (tick * 6) % 360;
+      snake.forEach((seg, idx) => {
+        const hue = (baseHue + idx * 18) % 360;
+        ctx.fillStyle = `hsl(${hue}, 90%, 60%)`;
+        ctx.fillRect(
+          seg.x * SERVICE_LOAD_SNAKE_CELL,
+          seg.y * SERVICE_LOAD_SNAKE_CELL,
+          SERVICE_LOAD_SNAKE_CELL - 1,
+          SERVICE_LOAD_SNAKE_CELL - 1
+        );
+      });
+    };
+
+    const step = () => {
+      direction = nextDirection;
+      const head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
+      if (head.x < 0 || head.y < 0 || head.x >= gridSize || head.y >= gridSize) {
+        resetGame();
+        return;
+      }
+      if (snake.some((seg) => seg.x === head.x && seg.y === head.y)) {
+        resetGame();
+        return;
+      }
+      snake.unshift(head);
+      if (head.x === food.x && head.y === food.y) {
+        placeFood();
+      } else {
+        snake.pop();
+      }
+    };
+
+    const loop = () => {
+      tick += 1;
+      step();
+      draw();
+    };
+
+    const intervalId = setInterval(loop, SERVICE_LOAD_SNAKE_SPEED_MS);
+
+    const handleKeyDown = (event) => {
+      if (!focused) return;
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || document.activeElement?.isContentEditable) {
+        return;
+      }
+      switch (event.key) {
+        case 'ArrowUp':
+          if (direction.y === 0) nextDirection = { x: 0, y: -1 };
+          event.preventDefault();
+          break;
+        case 'ArrowDown':
+          if (direction.y === 0) nextDirection = { x: 0, y: 1 };
+          event.preventDefault();
+          break;
+        case 'ArrowLeft':
+          if (direction.x === 0) nextDirection = { x: -1, y: 0 };
+          event.preventDefault();
+          break;
+        case 'ArrowRight':
+          if (direction.x === 0) nextDirection = { x: 1, y: 0 };
+          event.preventDefault();
+          break;
+        default:
+          break;
+      }
+    };
+
+    const handleFocus = (event) => {
+      if (canvas.contains(event.target)) {
+        focused = true;
+        writeServiceLoadMonitorSnakeFocus(state.tabKey, true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    document.addEventListener('pointerdown', handleFocus);
+    canvas.addEventListener('pointerdown', () => {
+      focused = true;
+      writeServiceLoadMonitorSnakeFocus(state.tabKey, true);
+    });
+
+    draw();
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+      document.removeEventListener('pointerdown', handleFocus);
+      wrap.remove();
+    };
   };
 
   const showButton = () => {
     if (state.button) return;
+
+    const wrapper = document.createElement('div');
+    Object.assign(wrapper.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      zIndex: '10001',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '12px',
+      pointerEvents: 'auto'
+    });
 
     const button = document.createElement('button');
     button.id = SERVICE_LOAD_MONITOR_BUTTON_ID;
@@ -8054,11 +8806,6 @@ function setupServiceLoadMonitor() {
     button.textContent = 'Notify me when the app starts working';
 
     Object.assign(button.style, {
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      zIndex: '10001',
       padding: '16px 28px',
       fontSize: '18px',
       fontWeight: '600',
@@ -8077,9 +8824,14 @@ function setupServiceLoadMonitor() {
       }
     });
 
-    document.body.appendChild(button);
+    wrapper.appendChild(button);
+    document.body.appendChild(wrapper);
     state.button = button;
+    state.wrapper = wrapper;
     updateButtonLabel();
+    if (!state.snakeCleanup) {
+      state.snakeCleanup = startSnakeGame(wrapper);
+    }
   };
 
 
@@ -8090,6 +8842,7 @@ function setupServiceLoadMonitor() {
   };
 
   const stopMonitor = (shouldBeep) => {
+    const shouldPlayBeep = shouldBeep && state.beepArmed;
     state.active = false;
     state.awaitingLoading = false;
     state.awaitingLoadingGone = false;
@@ -8098,12 +8851,22 @@ function setupServiceLoadMonitor() {
     state.apiCheckInFlight = false;
     state.forceOfferUntil = 0;
     state.pendingReload = false;
+    state.beepArmed = false;
+    state.hadProblem = false;
+    state.lastProblemVisible = false;
+    state.problemSince = null;
+    state.recoverySince = null;
+    state.tabWasHidden = false;
+    clearBeepRetryTimer();
+    writeServiceLoadMonitorSnakeFocus(state.tabKey, false);
     clearErrorAfterLoadTimer();
     clearApiCheckTimer();
     updateButtonLabel();
     persistMonitorState(false);
-    if (shouldBeep) {
-      playBeep();
+    if (shouldPlayBeep) {
+      if (tryPlayBeep()) {
+        state.beepArmed = false;
+      }
     }
     if (!isLoadingServiceVisible()) {
       removeButton();
@@ -8111,6 +8874,7 @@ function setupServiceLoadMonitor() {
   };
 
   const scheduleApiCheck = () => {
+    if (!SERVICE_LOAD_API_CHECK_ENABLED) return;
     if (!state.active || state.apiCheckTimer || state.apiCheckInFlight) return;
     state.apiCheckTimer = setTimeout(async () => {
       state.apiCheckTimer = null;
@@ -8137,17 +8901,33 @@ function setupServiceLoadMonitor() {
   const startMonitor = () => {
     state.active = true;
     state.pendingReload = false;
+    state.beepArmed = false;
     state.awaitingLoading = false;
     state.awaitingLoadingGone = false;
     state.awaitingErrorAfterLoad = false;
     state.progressBeeped = false;
+    state.hadProblem = false;
+    state.lastProblemVisible = false;
+    state.problemSince = null;
+    state.recoverySince = null;
+    state.tabWasHidden = false;
+    clearBeepRetryTimer();
     clearErrorAfterLoadTimer();
     showButton();
     updateButtonLabel();
     persistMonitorState(true, false);
     scheduleApiCheck();
+    const now = Date.now();
     const loadingVisible = isLoadingServiceVisible();
     const errorVisible = isNetworkErrorScreen();
+    const blankScreen = isRootBlankScreen();
+    const initialProblem = loadingVisible || errorVisible || blankScreen;
+    const forceOfferActive = state.forceOfferUntil && now < state.forceOfferUntil;
+    if (initialProblem || forceOfferActive) {
+      state.hadProblem = true;
+      state.beepArmed = true;
+      state.problemSince = initialProblem ? now : null;
+    }
     if (errorVisible) {
       triggerReload();
       return;
@@ -8170,7 +8950,13 @@ function setupServiceLoadMonitor() {
     }, SERVICE_LOAD_ERROR_WAIT_MS);
   };
 
-  const triggerReload = () => {
+  const triggerReload = (forceReload = false) => {
+    if (!SERVICE_LOAD_AUTO_RETRY_ENABLED && !forceReload) {
+      state.awaitingLoading = true;
+      state.awaitingLoadingGone = false;
+      state.awaitingErrorAfterLoad = false;
+      return;
+    }
     const now = Date.now();
     if (now - state.lastReloadAt < SERVICE_LOAD_RELOAD_COOLDOWN_MS) return;
     state.lastReloadAt = now;
@@ -8184,15 +8970,13 @@ function setupServiceLoadMonitor() {
   };
 
   const scheduleButtonIfNeeded = (shouldOfferMonitor) => {
-    if (state.active) {
-      showButton();
-      return;
-    }
     if (!shouldOfferMonitor) {
       clearLoadingTimer();
-      if (!state.active) {
-        removeButton();
-      }
+      removeButton();
+      return;
+    }
+    if (state.active) {
+      showButton();
       return;
     }
     if (state.button) return;
@@ -8228,28 +9012,81 @@ function setupServiceLoadMonitor() {
 
     const loadingVisible = isLoadingServiceVisible();
     const errorVisible = isNetworkErrorScreen();
-    const progressZero = hasProgressZeroIndicator();
+    const progressVisible = isProgressIndicatorVisible();
     const blankScreen = isRootBlankScreen();
-    if (progressZero) {
+    const now = Date.now();
+    const wasProblemVisible = state.lastProblemVisible;
+    const forceOfferActive = state.forceOfferUntil && now < state.forceOfferUntil;
+    if (progressVisible) {
       clearLoadingTimer();
-      if (state.active) {
-        stopMonitor(true);
-      } else {
-        removeButton();
-        playBeep();
+      removeButton();
+      state.problemSince = null;
+      if (state.hadProblem && !state.recoverySince) {
+        state.recoverySince = now;
       }
+      if (state.hadProblem && state.recoverySince && now - state.recoverySince >= SERVICE_LOAD_RECOVERY_STABLE_MS) {
+        if (state.active && state.hadProblem && state.beepArmed) {
+          if (tryPlayBeep()) {
+            state.beepArmed = false;
+          }
+        }
+        state.hadProblem = false;
+        state.recoverySince = null;
+        if (!SERVICE_LOAD_PERSISTENT_MONITOR && state.active) {
+          stopMonitor(false);
+        }
+      }
+      state.lastProblemVisible = false;
       return;
     }
-    const forceOfferActive = state.forceOfferUntil && Date.now() < state.forceOfferUntil;
-    const shouldOfferMonitor = loadingVisible || errorVisible || blankScreen || forceOfferActive;
+    const problemVisible = loadingVisible || errorVisible || blankScreen;
+    if (problemVisible) {
+      state.recoverySince = null;
+      if (!wasProblemVisible) {
+        state.problemSince = now;
+      }
+      if (state.problemSince && now - state.problemSince >= SERVICE_LOAD_PROBLEM_STABLE_MS && !state.hadProblem) {
+        state.hadProblem = true;
+        state.beepArmed = true;
+      }
+    } else {
+      state.problemSince = null;
+    }
+    state.lastProblemVisible = problemVisible;
+    if (forceOfferActive && state.active && !state.hadProblem) {
+      state.hadProblem = true;
+      state.beepArmed = true;
+    }
+    const shouldOfferMonitor = problemVisible || forceOfferActive;
 
     scheduleButtonIfNeeded(shouldOfferMonitor);
 
     if (!state.active) return;
     scheduleApiCheck();
 
+    if (!problemVisible) {
+      if (state.hadProblem && !state.recoverySince) {
+        state.recoverySince = now;
+      }
+      if (state.hadProblem && state.recoverySince && now - state.recoverySince >= SERVICE_LOAD_RECOVERY_STABLE_MS) {
+        if (state.active && state.hadProblem && state.beepArmed) {
+          if (tryPlayBeep()) {
+            state.beepArmed = false;
+          }
+        }
+        state.hadProblem = false;
+        state.recoverySince = null;
+        if (!SERVICE_LOAD_PERSISTENT_MONITOR) {
+          stopMonitor(false);
+        }
+      }
+      return;
+    }
+
     if (errorVisible) {
-      triggerReload();
+      if (SERVICE_LOAD_ERROR_LABEL_RETRY_ENABLED) {
+        triggerReload(true);
+      }
       return;
     }
 
@@ -8267,7 +9104,9 @@ function setupServiceLoadMonitor() {
     }
 
     if (state.awaitingErrorAfterLoad && errorVisible) {
-      triggerReload();
+      if (SERVICE_LOAD_ERROR_LABEL_RETRY_ENABLED) {
+        triggerReload(true);
+      }
     }
   };
 
@@ -8291,6 +9130,7 @@ function setupServiceLoadMonitor() {
   };
 
   const runInitialApiCheckIfNeeded = () => {
+    if (!SERVICE_LOAD_API_CHECK_ENABLED) return;
     if (state.active || state.initialApiCheckDone) return;
     if (!isGoGettaTeamLocationUrl()) return;
     state.initialApiCheckDone = true;
@@ -8380,13 +9220,61 @@ function setupServiceLoadMonitor() {
     state.observer.observe(document.body, { childList: true, subtree: true });
   }
 
+  const getBeepEligibility = () => {
+    if (document.visibilityState === 'hidden') {
+      state.tabWasHidden = true;
+      return { allowed: false, reason: 'hidden' };
+    }
+    if (state.tabWasHidden) {
+      return { allowed: true, reason: 'return' };
+    }
+    if (!state.lastPointerMoveAt) {
+      return { allowed: true, reason: 'idle' };
+    }
+    if (Date.now() - state.lastPointerMoveAt < SERVICE_LOAD_USER_IDLE_BEFORE_BEEP_MS) {
+      return { allowed: false, reason: 'moving' };
+    }
+    return { allowed: true, reason: 'idle' };
+  };
+
+  const tryPlayBeep = () => {
+    const eligibility = getBeepEligibility();
+    if (!eligibility.allowed) {
+      if (eligibility.reason === 'moving') {
+        scheduleBeepRetry(SERVICE_LOAD_USER_IDLE_BEFORE_BEEP_MS);
+      }
+      return false;
+    }
+    clearBeepRetryTimer();
+    playBeep();
+    state.tabWasHidden = false;
+    return true;
+  };
+
+  const handlePointerMove = () => {
+    state.lastPointerMoveAt = Date.now();
+  };
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      state.tabWasHidden = true;
+    }
+    checkMonitorState();
+  };
+
+  window.addEventListener('mousemove', handlePointerMove, { passive: true });
+  window.addEventListener('pointermove', handlePointerMove, { passive: true });
+  window.addEventListener('blur', () => {
+    state.tabWasHidden = true;
+  });
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
   window.addEventListener('beforeunload', () => {
     if (!state.active) {
       persistMonitorState(false);
       return;
     }
-    if (state.pendingReload) return;
-    persistMonitorState(false);
+    persistMonitorState(true, state.pendingReload);
   });
 
   onUrlChange(() => {
