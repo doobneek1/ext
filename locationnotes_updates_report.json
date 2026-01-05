@@ -1,0 +1,100 @@
+{
+  "input": "rtdb_updates_manifest_cleaned.json",
+  "total_updates": 136503,
+  "non_locationnotes": 0,
+  "unique_nodes": 23554,
+  "top_nodes": [
+    {
+      "decoded": "/team/location/a9dbdf24-2c3b-4d73-bec8-8216f9136ca6/services/6845cd01-e6fa-4859-8e6a-83fcfbf1470f/documents/proofs-required",
+      "encoded": "%2Fteam%2Flocation%2Fa9dbdf24-2c3b-4d73-bec8-8216f9136ca6%2Fservices%2F6845cd01-e6fa-4859-8e6a-83fcfbf1470f%2Fdocuments%2Fproofs-required",
+      "count": 130
+    },
+    {
+      "decoded": "/team/location/01c41e86-3392-4513-85db-791b03a16bfe/services/bc2d5166-3925-4df9-949a-37f29a4bd726/opening-hours",
+      "encoded": "%2Fteam%2Flocation%2F01c41e86-3392-4513-85db-791b03a16bfe%2Fservices%2Fbc2d5166-3925-4df9-949a-37f29a4bd726%2Fopening-hours",
+      "count": 126
+    },
+    {
+      "decoded": "/team/location/7de42e40-4c50-43b4-b655-12ac8b20013c/services/1b943c43-4049-4dc1-9ba1-e7acb26c5b67/opening-hours",
+      "encoded": "%2Fteam%2Flocation%2F7de42e40-4c50-43b4-b655-12ac8b20013c%2Fservices%2F1b943c43-4049-4dc1-9ba1-e7acb26c5b67%2Fopening-hours",
+      "count": 126
+    },
+    {
+      "decoded": "/team/location/ac70737b-3d9d-4aff-9aba-710d6289da12/services/b6fa1253-59a5-4390-a4d9-3e8f76552229/opening-hours",
+      "encoded": "%2Fteam%2Flocation%2Fac70737b-3d9d-4aff-9aba-710d6289da12%2Fservices%2Fb6fa1253-59a5-4390-a4d9-3e8f76552229%2Fopening-hours",
+      "count": 126
+    },
+    {
+      "decoded": "/team/location/1edfab8e-0d7c-437e-a14c-6b9ca0eb5d93/services/299640ce-48a4-4e55-8608-b889ed3160a7/other-info",
+      "encoded": "%2Fteam%2Flocation%2F1edfab8e-0d7c-437e-a14c-6b9ca0eb5d93%2Fservices%2F299640ce-48a4-4e55-8608-b889ed3160a7%2Fother-info",
+      "count": 100
+    },
+    {
+      "decoded": "/team/location/1e5308e5-dc25-4517-b216-e87393e86b61/services/b5a94f68-e59e-430b-bfbd-3c26350141ab/opening-hours",
+      "encoded": "%2Fteam%2Flocation%2F1e5308e5-dc25-4517-b216-e87393e86b61%2Fservices%2Fb5a94f68-e59e-430b-bfbd-3c26350141ab%2Fopening-hours",
+      "count": 90
+    },
+    {
+      "decoded": "/team/location/0d381537-31c4-4165-a5a0-4d7ffc02bace/services/c30ffc85-405a-4ce6-b5ae-820ff83208b1/opening-hours",
+      "encoded": "%2Fteam%2Flocation%2F0d381537-31c4-4165-a5a0-4d7ffc02bace%2Fservices%2Fc30ffc85-405a-4ce6-b5ae-820ff83208b1%2Fopening-hours",
+      "count": 90
+    },
+    {
+      "decoded": "/team/location/2b08a07b-bfe7-4ff5-a397-ac1fbd0468f5/questions/street-view",
+      "encoded": "%2Fteam%2Flocation%2F2b08a07b-bfe7-4ff5-a397-ac1fbd0468f5%2Fquestions%2Fstreet-view",
+      "count": 85
+    },
+    {
+      "decoded": "/team/location/282af04c-6da6-45da-a0d5-3032467d07ac/questions/street-view",
+      "encoded": "%2Fteam%2Flocation%2F282af04c-6da6-45da-a0d5-3032467d07ac%2Fquestions%2Fstreet-view",
+      "count": 84
+    },
+    {
+      "decoded": "/team/location/bd0e8924-b7d1-43bc-a2fa-9babf09555ca/services/8d910015-44d0-42f7-abf6-4dfe304a200d/opening-hours",
+      "encoded": "%2Fteam%2Flocation%2Fbd0e8924-b7d1-43bc-a2fa-9babf09555ca%2Fservices%2F8d910015-44d0-42f7-abf6-4dfe304a200d%2Fopening-hours",
+      "count": 84
+    }
+  ],
+  "target": null,
+  "top_detail": {
+    "decoded": "/team/location/a9dbdf24-2c3b-4d73-bec8-8216f9136ca6/services/6845cd01-e6fa-4859-8e6a-83fcfbf1470f/documents/proofs-required",
+    "encoded": "%2Fteam%2Flocation%2Fa9dbdf24-2c3b-4d73-bec8-8216f9136ca6%2Fservices%2F6845cd01-e6fa-4859-8e6a-83fcfbf1470f%2Fdocuments%2Fproofs-required",
+    "count": 130,
+    "unique_users": 1,
+    "unique_timestamps": 130,
+    "users": [
+      "doobneek"
+    ]
+  },
+  "uuid_users": {
+    "mapped_total": 28414,
+    "unmapped_total": 215,
+    "mapped_unique": [
+      "20d73400-51ea-41c8-be17-372c673c2813",
+      "283260dc-b39d-4e34-aefe-78a13934ee0f",
+      "410370eb-f81b-474e-bdce-ba0994761730",
+      "433d1ddd-0f8d-4eab-a5c5-f803deb930e3",
+      "4b29ecaf-34cb-44ab-8621-34ab1b893a85",
+      "52bbd857-b059-4047-9907-9a91d3877bc4",
+      "83aa7f1c-94a9-49a1-9f16-dad0d78b69e1",
+      "8c77ad47-58dd-405f-a8b0-3e18d332dcbb",
+      "a08c2aec-d851-4ae7-9078-fda567c70b39",
+      "b388b48e-e5c4-4618-b853-71972a21bdeb",
+      "b471674a-0d9f-4c32-96e5-dbc9249398d2",
+      "b539ae29-b908-490d-889c-2ccb312b43ad",
+      "bad22eff-a513-4028-9db6-e500e71d199a",
+      "d793930b-d4cd-4961-b5b4-cdfca8dfc1f0",
+      "fb446568-2d37-4e56-a402-04c02ab9ed78",
+      "fdecefaa-6936-461c-b51e-e3cb9119948c"
+    ],
+    "unmapped_unique": [
+      "16d2a117-a867-46b7-9964-9de2a94fffb1",
+      "2add3ef0-af3e-4375-8a2b-0b6298654c79",
+      "50920863-ca99-409f-a370-0c4dba09304d",
+      "7031b930-6254-449c-aeb0-3fa2647c265a",
+      "9db80f76-510e-43f4-be68-aa09a36a97bf",
+      "b07d9919-cdcc-4975-a4cb-b74461b3e7f4",
+      "e0aa6ba3-0c1d-4b15-98e4-9a5f06a02377"
+    ]
+  }
+}

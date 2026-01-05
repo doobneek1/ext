@@ -1,4 +1,319 @@
+const CONTENT_SCRIPTS = [
+  {
+    id: "dnk-team-map-pins",
+    matches: [
+      "https://gogetta.nyc/*",
+      "https://test.gogetta.nyc/*",
+      "https://www.test.gogetta.nyc/*"
+    ],
+    js: ["teamMapPinsLoader.js"],
+    runAt: "document_start"
+  },
+  {
+    id: "dnk-main",
+    matches: [
+      "https://gogetta.nyc/*",
+      "https://gogetta.nyc/*",
+      "https://test.gogetta.nyc/*",
+      "https://www.test.gogetta.nyc/*",
+      "https://yourpeer.nyc/locations*",
+      "http://localhost:3210/*",
+      "https://*.doobneek.org/*",
+      "http://localhost:3000/*",
+      "http://localhost:3210/*"
+    ],
+    js: [
+      "injector.js",
+      "content-script.js",
+      "listener.js",
+      "autocomplOrg.js",
+      "autocompladdy.js",
+      "streetview.js",
+      "power.js",
+      "close.js",
+      "telpaste.js",
+      "themeOverride.js",
+      "minimap.js",
+      "recenter.js",
+      "autoClicker.js",
+      "proofsRequired.js",
+      "gghost.js",
+      "lastpage.js",
+      "snackbar.js",
+      "linkValidator.js"
+    ],
+    css: ["style.css"],
+    runAt: "document_idle"
+  },
+  {
+    id: "dnk-gmail",
+    matches: ["https://mail.google.com/*"],
+    js: [
+      "gmail_injector.js",
+      "power.js",
+      "themeOverride.js",
+      "autoClicker.js",
+      "yphost.js"
+    ],
+    css: ["style.css"],
+    runAt: "document_idle"
+  },
+  {
+    id: "dnk-voice",
+    matches: ["https://voice.google.com/*"],
+    js: ["buttoncall.js"],
+    runAt: "document_idle"
+  },
+  {
+    id: "dnk-yphost",
+    matches: ["https://yourpeer.nyc/locations*"],
+    js: ["yphost.js"],
+    runAt: "document_idle",
+    allFrames: true
+  },
+  {
+    id: "dnk-all-urls",
+    matches: ["<all_urls>"],
+    js: ["tel.js", "tesser.js", "linkHighlighter.js"],
+    runAt: "document_idle"
+  }
+];
+const CONTENT_SCRIPT_IDS = CONTENT_SCRIPTS.map((script) => script.id);
+let extensionPaused = false;
+const REMINDERS_URL = "https://locationnote1-iygwucy2fa-uc.a.run.app?uuid=reminders";
+const FIREBASE_REMINDERS_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes.json";
+const REMINDERS_CACHE_KEY = "remindersCache";
+const REMINDERS_FETCH_TIMEOUT_MS = 8000;
+const REMINDERS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const REMINDERS_ALARM_NAME = "refreshReminders";
+const REMINDERS_POLL_MINUTES = 5;
+let remindersRefreshInFlight = null;
+
+function isDoneBy(note = "") {
+  return /\bDone by [a-zA-Z]+$/.test(note.trim());
+}
+
+function buildRemindersUrl(extraParams = {}) {
+  const url = new URL(REMINDERS_URL);
+  Object.entries(extraParams).forEach(([key, value]) => {
+    if (value == null) return;
+    url.searchParams.set(key, String(value));
+  });
+  return url.toString();
+}
+
+async function fetchJsonWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    if (err && err.name === "AbortError") {
+      throw new Error(`Fetch timeout after ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchRemindersFromApi() {
+  return fetchJsonWithTimeout(buildRemindersUrl(), REMINDERS_FETCH_TIMEOUT_MS);
+}
+
+async function fetchRemindersFromFirebase() {
+  return fetchJsonWithTimeout(FIREBASE_REMINDERS_URL, REMINDERS_FETCH_TIMEOUT_MS);
+}
+
+function buildReminderList(data) {
+  const reminders = [];
+  if (!data || typeof data !== "object") return reminders;
+  for (const uuid in data) {
+    const locationData = data[uuid];
+    if (locationData && typeof locationData === "object" && locationData.reminder) {
+      for (const date in locationData.reminder) {
+        const note = locationData.reminder[date];
+        if (isDoneBy(note)) continue;
+        reminders.push({ uuid, date, note });
+      }
+    }
+  }
+  reminders.sort((a, b) => a.date.localeCompare(b.date));
+  return reminders;
+}
+
+async function readRemindersCache() {
+  try {
+    const payload = await chrome.storage.local.get(REMINDERS_CACHE_KEY);
+    const cached = payload[REMINDERS_CACHE_KEY];
+    if (!cached || !Array.isArray(cached.reminders)) return null;
+    if (cached.ts && (Date.now() - cached.ts) > REMINDERS_CACHE_TTL_MS) return null;
+    return cached.reminders;
+  } catch (err) {
+    console.warn("[Background] Failed to read reminders cache:", err);
+    return null;
+  }
+}
+
+async function writeRemindersCache(reminders) {
+  try {
+    await chrome.storage.local.set({
+      [REMINDERS_CACHE_KEY]: { ts: Date.now(), reminders }
+    });
+  } catch (err) {
+    console.warn("[Background] Failed to store reminders cache:", err);
+  }
+}
+
+function updateReminderBadge(reminders) {
+  const list = Array.isArray(reminders) ? reminders : [];
+  const today = new Date().toISOString().split("T")[0];
+  const upcoming = list.filter((r) => r.date >= today);
+  const count = upcoming.length;
+  const text = count > 0 ? String(count) : "";
+  chrome.action.setBadgeText({ text });
+  chrome.action.setBadgeBackgroundColor({ color: "#f44336" });
+}
+
+function refreshReminders() {
+  if (remindersRefreshInFlight) return remindersRefreshInFlight;
+  remindersRefreshInFlight = (async () => {
+    let data = null;
+    try {
+      data = await fetchRemindersFromApi();
+    } catch (err) {
+      const errMessage = err?.message || String(err || "unknown error");
+      console.warn("[Background] Reminders API failed:", errMessage);
+      try {
+        data = await fetchRemindersFromFirebase();
+      } catch (fbErr) {
+        const fbMessage = fbErr?.message || String(fbErr || "unknown error");
+        console.warn("[Background] Failed to fetch reminders:", fbMessage);
+      }
+    }
+
+    if (data) {
+      const reminders = buildReminderList(data);
+      await writeRemindersCache(reminders);
+      updateReminderBadge(reminders);
+      return;
+    }
+
+    const cachedReminders = await readRemindersCache();
+    if (cachedReminders) {
+      updateReminderBadge(cachedReminders);
+      return;
+    }
+
+    updateReminderBadge([]);
+  })();
+
+  return remindersRefreshInFlight.finally(() => {
+    remindersRefreshInFlight = null;
+  });
+}
+
+function ensureRemindersAlarm() {
+  chrome.alarms.get(REMINDERS_ALARM_NAME, (alarm) => {
+    if (!alarm) {
+      chrome.alarms.create(REMINDERS_ALARM_NAME, { periodInMinutes: REMINDERS_POLL_MINUTES });
+    }
+  });
+}
+
+async function unregisterContentScriptsSafe() {
+  try {
+    await chrome.scripting.unregisterContentScripts({ ids: CONTENT_SCRIPT_IDS });
+  } catch (err) {
+    const lastError = chrome.runtime.lastError;
+    if (lastError) {
+      console.warn("[Background] unregisterContentScripts failed:", lastError.message);
+    } else if (err) {
+      console.warn("[Background] unregisterContentScripts failed:", err);
+    }
+  }
+}
+
+async function registerContentScriptsSafe() {
+  const scripts = CONTENT_SCRIPTS.map((script) => ({
+    ...script,
+    persistAcrossSessions: true
+  }));
+  try {
+    await chrome.scripting.registerContentScripts(scripts);
+  } catch (err) {
+    const lastError = chrome.runtime.lastError;
+    if (lastError) {
+      console.warn("[Background] registerContentScripts failed:", lastError.message);
+    } else if (err) {
+      console.warn("[Background] registerContentScripts failed:", err);
+    }
+  }
+}
+
+async function loadPausedState() {
+  const data = await chrome.storage.local.get("extensionPaused");
+  extensionPaused = !!data.extensionPaused;
+  return extensionPaused;
+}
+
+async function initializeContentScripts() {
+  await loadPausedState();
+  if (extensionPaused) {
+    await unregisterContentScriptsSafe();
+  } else {
+    await unregisterContentScriptsSafe();
+    await registerContentScriptsSafe();
+  }
+}
+
+async function setExtensionPaused(paused) {
+  extensionPaused = !!paused;
+  await chrome.storage.local.set({ extensionPaused });
+  if (extensionPaused) {
+    await unregisterContentScriptsSafe();
+  } else {
+    await unregisterContentScriptsSafe();
+    await registerContentScriptsSafe();
+  }
+}
+
+loadPausedState().catch((err) => {
+  console.warn("[Background] Failed to load pause state:", err);
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+  initializeContentScripts().catch((err) => {
+    console.warn("[Background] Failed to register content scripts on install:", err);
+  });
+  ensureRemindersAlarm();
+  refreshReminders().catch((err) => {
+    console.warn("[Background] Failed to refresh reminders on install:", err);
+  });
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  initializeContentScripts().catch((err) => {
+    console.warn("[Background] Failed to register content scripts on startup:", err);
+  });
+  ensureRemindersAlarm();
+  refreshReminders().catch((err) => {
+    console.warn("[Background] Failed to refresh reminders on startup:", err);
+  });
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm && alarm.name === REMINDERS_ALARM_NAME) {
+    refreshReminders().catch((err) => {
+      console.warn("[Background] Failed to refresh reminders on alarm:", err);
+    });
+  }
+});
+
 function maybeRedirect(details) {
+  if (extensionPaused) return;
   chrome.storage.local.get("redirectEnabled", (data) => {
     const redirectEnabled = data.redirectEnabled;
     const url = details.url;
@@ -59,7 +374,7 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(maybeRedirect, {
 //     fetch(msg.url, { credentials: 'include' })
 //       .then(res => res.text())
 //       .then(html => {
-//         const isValid = !html.includes('Oops!') && !html.includes("We can’t seem to find");
+//         const isValid = !html.includes('Oops!') && !html.includes("We can't seem to find");
 //         sendResponse({ success: true, valid: isValid });
 //       })
 //       .catch(err => {
@@ -102,6 +417,27 @@ const STREETVIEW_CACHE_MS = 60 * 1000;
 const streetViewCache = new Map();
 const streetViewInFlight = new Map();
 
+function normalizeCityName(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const lower = text.toLowerCase();
+  return lower.replace(/(^|[\s-])([a-z])/g, (match, sep, letter) => `${sep}${letter.toUpperCase()}`);
+}
+
+function normalizeLocationCity(data) {
+  if (!data || typeof data !== 'object') return;
+  if (data.address && typeof data.address === 'object' && data.address.city) {
+    data.address.city = normalizeCityName(data.address.city);
+  }
+  if (data.Address && typeof data.Address === 'object' && data.Address.city) {
+    data.Address.city = normalizeCityName(data.Address.city);
+  }
+  const physical = data.PhysicalAddresses?.[0];
+  if (physical && physical.city) {
+    physical.city = normalizeCityName(physical.city);
+  }
+}
+
 function fetchStreetViewLocation(uuid) {
   if (!uuid) {
     return Promise.reject(new Error("Missing UUID for street view fetch"));
@@ -125,6 +461,7 @@ function fetchStreetViewLocation(uuid) {
       return res.json();
     })
     .then(data => {
+      normalizeLocationCity(data);
       streetViewCache.set(uuid, { data, timestamp: Date.now() });
       return data;
     })
@@ -163,6 +500,107 @@ function extractTextFromHtml(html) {
 
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "SET_EXTENSION_PAUSED") {
+    setExtensionPaused(msg.paused)
+      .then(() => sendResponse({ ok: true, paused: !!msg.paused }))
+      .catch((err) => {
+        console.error("[Background] Failed to update pause state:", err);
+        sendResponse({ ok: false, error: err?.message || String(err) });
+      });
+    return true;
+  }
+
+  if (msg.type === "GET_EXTENSION_PAUSED") {
+    sendResponse({ paused: extensionPaused });
+    return true;
+  }
+
+  if (msg.type === 'FETCH_LOCATION_DETAILS') {
+    const uuid = msg.uuid;
+    if (!uuid) {
+      sendResponse({ ok: false, error: 'Missing uuid' });
+      return true;
+    }
+    const url = `https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/${uuid}`;
+    const headers = msg.headers && typeof msg.headers === 'object' ? msg.headers : {};
+    fetch(url, { headers })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        sendResponse({ ok: true, data });
+      })
+      .catch((err) => {
+        sendResponse({ ok: false, error: err?.message || String(err) });
+      });
+    return true;
+  }
+
+  if (msg.type === 'BACKGROUND_FETCH') {
+    const url = msg?.url;
+    if (!url) {
+      sendResponse({
+        ok: false,
+        status: 0,
+        statusText: 'Missing url',
+        body: '',
+        headers: {}
+      });
+      return true;
+    }
+    const options = msg?.options && typeof msg.options === 'object' ? msg.options : {};
+    fetch(url, options)
+      .then(async (res) => {
+        const text = await res.text();
+        sendResponse({
+          ok: res.ok,
+          status: res.status,
+          statusText: res.statusText,
+          body: text,
+          headers: { 'content-type': res.headers.get('content-type') || '' }
+        });
+      })
+      .catch((err) => {
+        sendResponse({
+          ok: false,
+          status: 0,
+          statusText: err?.message || 'fetch failed',
+          body: '',
+          headers: {}
+        });
+      });
+    return true;
+  }
+
+  if (msg.type === 'SERVICE_TAXONOMY_UPDATE') {
+    const { url, method, headers, body, credentials, mode } = msg || {};
+    const options = { method, headers, body };
+    if (credentials) options.credentials = credentials;
+    if (mode) options.mode = mode;
+    fetch(url, options)
+      .then(async (res) => {
+        const text = await res.text();
+        sendResponse({
+          ok: res.ok,
+          status: res.status,
+          statusText: res.statusText,
+          body: text,
+          headers: { 'content-type': res.headers.get('content-type') || '' }
+        });
+      })
+      .catch((err) => {
+        sendResponse({
+          ok: false,
+          status: 0,
+          statusText: err?.message || 'fetch failed',
+          body: '',
+          headers: {}
+        });
+      });
+    return true;
+  }
+
   if (msg.type === 'fetchFindHtml') {
     const url = `https://gogetta.nyc/find/location/${msg.uuid}`;
     fetch(url, { credentials: 'include' })
@@ -193,7 +631,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     fetch(msg.url, { credentials: 'include' })
       .then(res => res.text())
       .then(html => {
-        const isValid = !html.includes('Oops!') && !html.includes("We can’t seem to find");
+        const normalizedHtml = html.replace(/[\u2018\u2019\uFFFD]/g, "'");
+        const isValid = !normalizedHtml.includes('Oops!') && !normalizedHtml.includes("We can't seem to find");
         sendResponse({ success: true, valid: isValid });
       })
       .catch(err => {

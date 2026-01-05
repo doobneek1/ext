@@ -31,6 +31,100 @@ function waitForElement(selector, timeout = 10000) {
     }, intervalTime);
   });
 }
+
+const ADVOCATES_SERVICE_PATH_RE = /^\/team\/location\/[^/]+\/services(?:\/|$)/i;
+const ADVOCATES_BUTTON_TEXT = 'Advocates / Legal Aid';
+const ADVOCATES_BUTTON_TEXT_RE = /advocates\s*(?:\/|&|and)\s*legal\s*aid/i;
+const ADVOCATES_BUTTON_PRIMARY_SELECTOR = 'button.Option, [role="button"].Option, button.Item, [role="button"].Item';
+const ADVOCATES_BUTTON_FALLBACK_SELECTOR = 'button, [role="button"], [role="menuitem"], [role="option"]';
+
+function getAdvocatesButtonCandidates() {
+  const primary = document.querySelectorAll(ADVOCATES_BUTTON_PRIMARY_SELECTOR);
+  return primary.length ? primary : document.querySelectorAll(ADVOCATES_BUTTON_FALLBACK_SELECTOR);
+}
+
+function getButtonLabel(button) {
+  const rawLabel =
+    button.textContent ||
+    button.getAttribute('aria-label') ||
+    button.getAttribute('title') ||
+    '';
+  return rawLabel.replace(/\s+/g, ' ').trim();
+}
+
+function isAdvocatesLegalAidLabel(label) {
+  if (!label) return false;
+  if (label === ADVOCATES_BUTTON_TEXT) return true;
+  return ADVOCATES_BUTTON_TEXT_RE.test(label);
+}
+
+function hideAdvocatesLegalAidButton() {
+  if (!ADVOCATES_SERVICE_PATH_RE.test(location.pathname)) return;
+  const buttons = getAdvocatesButtonCandidates();
+  if (!buttons.length) return;
+  buttons.forEach((button) => {
+    if (button.getAttribute('data-yp-hidden') === 'true') return;
+    const label = getButtonLabel(button);
+    if (!isAdvocatesLegalAidLabel(label)) return;
+    const target = button.closest(ADVOCATES_BUTTON_FALLBACK_SELECTOR) || button;
+    target.style.display = 'none';
+    target.setAttribute('data-yp-hidden', 'true');
+  });
+}
+
+function initAdvocatesButtonWatcher() {
+  if (window.__gghostAdvocatesButtonWatcher) return;
+  window.__gghostAdvocatesButtonWatcher = true;
+  let observer = null;
+
+  const ensureObserver = () => {
+    if (observer || !document.body) return;
+    observer = new MutationObserver(() => hideAdvocatesLegalAidButton());
+    observer.observe(document.body, { childList: true, subtree: true });
+  };
+
+  const teardownObserver = () => {
+    if (!observer) return;
+    observer.disconnect();
+    observer = null;
+  };
+
+  const handleRouteChange = () => {
+    if (ADVOCATES_SERVICE_PATH_RE.test(location.pathname)) {
+      ensureObserver();
+      hideAdvocatesLegalAidButton();
+    } else {
+      teardownObserver();
+    }
+  };
+
+  if (!window.__gghostAdvocatesHistoryWrapped) {
+    window.__gghostAdvocatesHistoryWrapped = true;
+    const pushState = history.pushState;
+    history.pushState = function () {
+      const result = pushState.apply(this, arguments);
+      window.dispatchEvent(new Event('gghost:advocates-route-change'));
+      return result;
+    };
+    const replaceState = history.replaceState;
+    history.replaceState = function () {
+      const result = replaceState.apply(this, arguments);
+      window.dispatchEvent(new Event('gghost:advocates-route-change'));
+      return result;
+    };
+  }
+
+  window.addEventListener('popstate', handleRouteChange);
+  window.addEventListener('gghost:advocates-route-change', handleRouteChange);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', handleRouteChange, { once: true });
+  } else {
+    handleRouteChange();
+  }
+}
+
+initAdvocatesButtonWatcher();
 function refreshYourPeerEmbed1() {
   return window.gghost?.refreshYourPeerEmbed || null;
 }
@@ -90,10 +184,22 @@ const today = new Date().toISOString().slice(0, 10);
     note: "done"
   };
 
+
   try {
+    const postNote = window.gghost?.postToNoteAPI;
+    if (typeof postNote === "function") {
+      const res = await postNote(payload);
+      if (!res || !res.ok) {
+        const t = res && res.text ? await res.text().catch(() => "") : "";
+        throw new Error(`NOTE_API error ${res?.status || "unknown"}: ${t}`);
+      }
+      console.log("[YP] ? Posted OK-click note to NOTE_API", payload);
+      return;
+    }
+
     // Use getAuthHeaders() from gghost.js for JWT authentication
     const authHeaders = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
-    console.log("[YP] 🔑 Using auth headers:", authHeaders);
+    console.log("[YP] ?? Using auth headers:", authHeaders);
 
     const res = await fetch(NOTE_API_URL, {
       method: "POST",
@@ -105,7 +211,7 @@ const today = new Date().toISOString().slice(0, 10);
       const t = await res.text().catch(() => "");
       throw new Error(`NOTE_API error ${res.status}: ${t}`);
     }
-    console.log("[YP] ✅ Posted OK-click note to NOTE_API", payload);
+    console.log("[YP] ? Posted OK-click note to NOTE_API", payload);
   } catch (err) {
     console.warn("[YP] ⚠️ Failed to post OK-click note:", err);
   }
@@ -117,7 +223,7 @@ document.addEventListener('click', (e) => {
 
   const btnText = okBtn.textContent.trim().toUpperCase();
   if (btnText !== 'OK' && btnText !== 'DONE EDITING') return;
-  (async () => { await postOkClickNote(); })();
+  // OK-click note posting disabled; rely on API-call logging instead.
 
   const currentUrl = window.location.href.replace(/\/$/, ''); // remove trailing slash if present
   localStorage.setItem('ypLastOkClickTime', Date.now().toString());
@@ -665,8 +771,8 @@ function checkAndClickAddGroupButton(retryCount = 0) {
     button.textContent = 'set 9-5mofri';
     button.style.cssText = `
       position: fixed;
-      top: 20px;
-      right: 20px;
+      top: 40px;
+      right: 10px;
       z-index: 9999;
       padding: 10px 15px;
       background-color: #007bff;

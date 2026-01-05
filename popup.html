@@ -7,9 +7,14 @@
     label { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
     .sub-options { margin-left:12px; display:none; flex-direction:column; }
     #reminderSection { margin-top:20px; max-height:150px; overflow-y:auto; border-top:1px solid #ccc; padding-top:10px; }
+    #reminderList { font-size: 13px; padding: 0; margin: 0; list-style-position: inside; }
+    #pauseExtensionBtn { width: 100%; margin-bottom: 6px; }
+    .pause-note { font-size: 12px; margin: 0 0 10px; color: #555; }
   </style>
 </head>
 <body>
+  <button id="pauseExtensionBtn" type="button">Pause Extension</button>
+  <div class="pause-note" id="pauseExtensionNote">Pausing stops new injections. Refresh tabs to fully remove scripts.</div>
   <button id="buildSiteVisitLoopBtn" type="button">Build site-visit loop</button>
 
   <label>
@@ -33,11 +38,15 @@
     </label>
   </div>
 
+  <label>
+    <input type="checkbox" id="hideNotesToggle">
+    Hide Notes
+  </label>
 
 <div id="reminderSection"
      style="margin-top: 20px; max-height: 150px; overflow-y: auto; border-top: 1px solid #ccc; padding-top: 10px;">
   <strong>Upcoming Reminders</strong>
-  <ul id="reminderList" style="font-size: 13px; padding-left: 16px; margin: 0;"></ul>
+  <ul id="reminderList"></ul>
   <button id="clearReminderFilter" style="width: 100%; margin-top: 5px; display: none;">Show All</button>
 </div>
 

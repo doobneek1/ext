@@ -1,0 +1,22 @@
+{
+  "timezone": "America/New_York",
+  "user": "doobneek",
+  "days": [
+    {
+      "date": "2025-01-06",
+      "calls_minutes": 40,
+      "emails_minutes": 20,
+      "calendar_minutes": 45,
+      "site_visit_minutes": 0,
+      "notes": "Cold calls + weekly check-in"
+    },
+    {
+      "date": "2025-01-07",
+      "calls_minutes": 25,
+      "emails_minutes": 15,
+      "calendar_minutes": 0,
+      "site_visit_minutes": 60,
+      "notes": "Site visit"
+    }
+  ]
+}

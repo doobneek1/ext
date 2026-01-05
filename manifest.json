@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "doobneek feat YourPeer",
-  "version": "5.9.116",
+  "version": "5.9.119",
   "description": "Injects text formatting buttons and redirect logic.",
   "permissions": [
     "storage",
     "tabs",
     "webNavigation",
-    "scripting"
+    "scripting",
+    "alarms"
   ],
   "host_permissions": [
     "https://gogetta.nyc/*",
@@ -18,11 +19,15 @@
     "https://mail.google.com/*",
     "https://voice.google.com/*",
     "http://localhost:3210/*",
+    "http://localhost:3000/*",
     "https://maps.googleapis.com/",
     "https://doobneek-fe7b7-default-rtdb.firebaseio.com/*",
+    "https://locationnote1-iygwucy2fa-uc.a.run.app/*",
+    "https://us-central1-doobneek-fe7b7.cloudfunctions.net/*",
     "http://localhost:3210/*",
     "https://*.doobneek.org/*",
-    "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/*"
+    "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/*",
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
@@ -39,102 +44,6 @@
     },
     "default_title": "doobneek inline formatter"
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://gogetta.nyc/*",
-        "https://test.gogetta.nyc/*",
-        "https://www.test.gogetta.nyc/*"
-      ],
-      "js": [
-        "teamMapPinsLoader.js"
-      ],
-      "run_at": "document_start"
-    },
-    {
-      "matches": [
-        "https://gogetta.nyc/*",
-        "https://gogetta.nyc/*",
-        "https://test.gogetta.nyc/*",
-        "https://www.test.gogetta.nyc/*",
-        "https://yourpeer.nyc/locations*",
-        "http://localhost:3210/*",
-        "https://*.doobneek.org/*",
-        "http://localhost:3000/*",
-        "http://localhost:3210/*"
-      ],
-      "js": [
-        "injector.js",
-        "content-script.js",
-        "listener.js",
-        "autocomplOrg.js",
-        "autocompladdy.js",
-        "streetview.js",
-        "power.js",
-        "close.js",
-        "telpaste.js",
-        "themeOverride.js",
-        "minimap.js",
-        "recenter.js",
-        "autoClicker.js",
-        "proofsRequired.js",
-        "gghost.js",
-        "lastpage.js",
-        "snackbar.js",
-        "linkValidator.js"
-      ],
-      "css": [
-        "style.css"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://mail.google.com/*"
-      ],
-      "js": [
-        "gmail_injector.js",
-        "power.js",
-        "themeOverride.js",
-        "autoClicker.js",
-        "yphost.js"
-      ],
-      "css": [
-        "style.css"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://voice.google.com/*"
-      ],
-      "js": [
-        "buttoncall.js"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://yourpeer.nyc/locations*"
-      ],
-      "js": [
-        "yphost.js"
-      ],
-      "run_at": "document_idle",
-      "all_frames": true
-    },
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "tel.js",
-        "tesser.js",
-        "linkHighlighter.js"
-      ],
-      "run_at": "document_idle"
-    }
-  ],
   "web_accessible_resources": [
     {
       "resources": [
@@ -147,7 +56,8 @@
         "tesseract.min.js",
         "leaflet/leaflet.js",
         "leaflet/leaflet.css",
-        "leaflet/images/*"
+        "leaflet/images/*",
+        "serviceApiMonitor.js"
       ],
       "matches": [
         "<all_urls>"

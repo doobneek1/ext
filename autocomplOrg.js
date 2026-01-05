@@ -5,20 +5,29 @@ async function loadOrgList() {
 }
 
 (function () {
-  async function waitForInput(selector, timeout = 3000) {
-    return new Promise((resolve, reject) => {
-      const interval = 100;
-      let waited = 0;
-      const timer = setInterval(() => {
+  function waitForInput(selector, timeout = 8000) {
+    return new Promise((resolve) => {
+      const existing = document.querySelector(selector);
+      if (existing) return resolve(existing);
+
+      let settled = false;
+      const observer = new MutationObserver(() => {
         const input = document.querySelector(selector);
-        if (input) {
-          clearInterval(timer);
-          resolve(input);
-        } else if ((waited += interval) >= timeout) {
-          clearInterval(timer);
-          reject(new Error('Input not found'));
-        }
-      }, interval);
+        if (!input || settled) return;
+        settled = true;
+        observer.disconnect();
+        clearTimeout(timer);
+        resolve(input);
+      });
+
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        observer.disconnect();
+        resolve(null);
+      }, timeout);
     });
   }
 
@@ -63,6 +72,7 @@ async function loadOrgList() {
     try {
       const orgList = await loadOrgList();
       const input = await waitForInput('input.Input.Input-fluid');
+      if (!input) return;
 
       input.addEventListener('input', (e) => {
         const value = e.target.value.toLowerCase();

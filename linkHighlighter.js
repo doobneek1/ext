@@ -176,6 +176,10 @@
       let overlayOpen = false;
       let scanTimer = null;
       let entries = [];
+      let overlayPosition = { top: 88, left: 20 };
+      const DRAG_HOLD_MS = 350;
+      const DRAG_MOVE_TOLERANCE_PX = 6;
+      const OVERLAY_PADDING_PX = 8;
 
       const digitsOnly = (value) => String(value || '').replace(/\D/g, '');
 
@@ -183,6 +187,74 @@
         const target = mutation.target;
         const el = target?.nodeType === Node.TEXT_NODE ? target.parentElement : target;
         return !!el?.closest?.(`#${PHONE_OVERLAY_ID}`);
+      };
+
+      const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+      const attachLongPressDrag = (handle, container, onDragStart, onDragEnd) => {
+        let holdTimer = null;
+        let dragActive = false;
+        let startX = 0;
+        let startY = 0;
+        let originLeft = 0;
+        let originTop = 0;
+
+        const clearHold = () => {
+          if (holdTimer) {
+            clearTimeout(holdTimer);
+            holdTimer = null;
+          }
+        };
+
+        const endDrag = () => {
+          clearHold();
+          if (!dragActive) return;
+          dragActive = false;
+          container.style.cursor = '';
+          container.style.userSelect = '';
+          onDragEnd?.();
+        };
+
+        handle.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          startX = e.clientX;
+          startY = e.clientY;
+          originLeft = overlayPosition.left;
+          originTop = overlayPosition.top;
+          clearHold();
+          holdTimer = setTimeout(() => {
+            dragActive = true;
+            container.style.cursor = 'grabbing';
+            container.style.userSelect = 'none';
+            onDragStart?.();
+          }, DRAG_HOLD_MS);
+          handle.setPointerCapture?.(e.pointerId);
+        });
+
+        handle.addEventListener('pointermove', (e) => {
+          if (!holdTimer && !dragActive) return;
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          if (!dragActive) {
+            if (Math.hypot(dx, dy) > DRAG_MOVE_TOLERANCE_PX) {
+              clearHold();
+            }
+            return;
+          }
+          e.preventDefault();
+          const rect = container.getBoundingClientRect();
+          const maxLeft = Math.max(OVERLAY_PADDING_PX, window.innerWidth - rect.width - OVERLAY_PADDING_PX);
+          const maxTop = Math.max(OVERLAY_PADDING_PX, window.innerHeight - rect.height - OVERLAY_PADDING_PX);
+          const nextLeft = clamp(originLeft + dx, OVERLAY_PADDING_PX, maxLeft);
+          const nextTop = clamp(originTop + dy, OVERLAY_PADDING_PX, maxTop);
+          overlayPosition = { top: nextTop, left: nextLeft };
+          container.style.left = `${nextLeft}px`;
+          container.style.top = `${nextTop}px`;
+        });
+
+        handle.addEventListener('pointerup', () => endDrag());
+        handle.addEventListener('pointercancel', () => endDrag());
+        handle.addEventListener('lostpointercapture', () => endDrag());
       };
 
       const collectPhoneEntries = () => {
@@ -301,12 +373,13 @@
         container.dataset.open = overlayOpen ? 'true' : 'false';
         Object.assign(container.style, {
           position: 'fixed',
-          top: '88px',
-          left: '20px',
+          top: `${overlayPosition.top}px`,
+          left: `${overlayPosition.left}px`,
           zIndex: '10000',
           fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
           color: '#1f1f1f'
         });
+        let suppressToggleClick = false;
 
         const toggle = document.createElement('button');
         toggle.type = 'button';
@@ -337,7 +410,13 @@
           display: overlayOpen ? 'block' : 'none'
         });
 
-        toggle.addEventListener('click', () => {
+        toggle.addEventListener('click', (e) => {
+          if (suppressToggleClick) {
+            suppressToggleClick = false;
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
           overlayOpen = !overlayOpen;
           panel.style.display = overlayOpen ? 'block' : 'none';
           toggle.textContent = overlayOpen ? 'x' : '?';
@@ -370,6 +449,18 @@
         container.appendChild(toggle);
         container.appendChild(panel);
         document.body.appendChild(container);
+        attachLongPressDrag(
+          toggle,
+          container,
+          () => {
+            suppressToggleClick = true;
+          },
+          () => {
+            setTimeout(() => {
+              suppressToggleClick = false;
+            }, 0);
+          }
+        );
       };
 
       const scanAndRender = () => {

@@ -5,17 +5,9 @@
     return;
   }
 
-  // Check if we're coming from browser back/forward navigation
-  if (performance.navigation && performance.navigation.type === 2) {
-    console.log('[streetview.js] Back/forward navigation detected, deferring script activation');
-    // Wait longer before activating to ensure previous cleanup is complete
-    setTimeout(() => {
-      if (!window.doobneekStreetViewActive) {
-        window.doobneekStreetViewActive = true;
-        console.log('[streetview.js] Script activated after navigation delay');
-      }
-    }, 1000);
-    return;
+  const isBackForwardNavigation = performance.navigation && performance.navigation.type === 2;
+  if (isBackForwardNavigation) {
+    console.log('[streetview.js] Back/forward navigation detected, delaying initialization');
   }
 
   window.doobneekStreetViewActive = true;
@@ -40,6 +32,9 @@
   let activeModals = [];
   let mapsInstances = [];
   let injectedScripts = [];
+  let lastStreetViewPayload = null;
+  let lastStreetViewApiKey = null;
+  let streetViewReopenButton = null;
   let originalPushState = null;
   let originalReplaceState = null;
 
@@ -66,6 +61,244 @@
   // Check if we're on street-view page with proper regex
   function isStreetViewPage(url) {
     return /\/questions\/street-view\/?$/.test(url);
+  }
+
+  const LOCATION_API_BASE = 'https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations';
+  const RELOCATE_PROMPT_DISTANCE_METERS = 20;
+  const MIDTOWN_CENTER = { lat: 40.754932, lng: -73.984016 };
+  const MIDTOWN_RADIUS_METERS = 15 * 1609.34;
+  const STREETVIEW_REOPEN_BUTTON_ID = 'gghost-streetview-reopen-button';
+
+  function resolveLocationId(locationData) {
+    const candidate = locationData?.id || locationData?.location_id || locationData?.uuid || locationData?.slug;
+    if (typeof candidate !== 'string') return null;
+    const trimmed = candidate.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  function normalizeCityName(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    const lower = text.toLowerCase();
+    return lower.replace(/(^|[\s-])([a-z])/g, (match, sep, letter) => `${sep}${letter.toUpperCase()}`);
+  }
+
+  function normalizeLocationAddress(locationData) {
+    const raw = locationData?.address || locationData?.Address || locationData?.PhysicalAddresses?.[0] || null;
+    if (!raw) return {};
+    if (typeof raw === 'string') {
+      const street = raw.trim();
+      return street ? { street } : {};
+    }
+    const address = {};
+    const street = raw.street || raw.address_1 || raw.address1;
+    const city = raw.city;
+    const state = raw.state || raw.state_province || raw.region;
+    const postalCode = raw.postalCode || raw.postal_code;
+    const country = raw.country || raw.country_code;
+    const region = raw.region;
+    if (street) address.street = String(street).trim();
+    if (city) address.city = normalizeCityName(city);
+    if (state) address.state = String(state).trim();
+    if (postalCode) address.postalCode = String(postalCode).trim();
+    if (country) address.country = String(country).trim();
+    if (region && !address.state) address.region = String(region).trim();
+    return address;
+  }
+
+  function resolveLocationPosition(locationData) {
+    const coords = locationData?.position?.coordinates;
+    if (Array.isArray(coords) && coords.length >= 2) {
+      const lng = Number(coords[0]);
+      const lat = Number(coords[1]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    }
+    const lat = Number(locationData?.latitude ?? locationData?.lat);
+    const lng = Number(locationData?.longitude ?? locationData?.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    return null;
+  }
+
+  function decodeJwtPayload(token) {
+    if (!token || typeof token !== 'string') return null;
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+    try {
+      return JSON.parse(atob(padded));
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function getTokenExp(token) {
+    const payload = decodeJwtPayload(token);
+    const exp = Number(payload?.exp);
+    return Number.isFinite(exp) ? exp : null;
+  }
+
+  function collectStorageTokens(storage) {
+    const tokens = [];
+    if (!storage) return tokens;
+    const keys = [];
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i);
+      if (!key || key.indexOf('CognitoIdentityServiceProvider.') === -1) continue;
+      if (!/\.accessToken$|\.idToken$/i.test(key)) continue;
+      keys.push(key);
+    }
+    keys.forEach((key) => {
+      const value = storage.getItem(key);
+      if (!value) return;
+      tokens.push({ token: value, exp: getTokenExp(value) });
+    });
+    const nowSec = Date.now() / 1000;
+    tokens.sort((a, b) => (b.exp || 0) - (a.exp || 0));
+    const valid = tokens.filter(item => !item.exp || item.exp > nowSec + 60);
+    return (valid.length ? valid : tokens).map(item => item.token);
+  }
+
+  function expandAuthTokens(tokens) {
+    const expanded = [];
+    const seen = new Set();
+    tokens.forEach((token) => {
+      if (!token) return;
+      const trimmed = String(token).trim();
+      if (!trimmed) return;
+      const candidates = /^Bearer\s+/i.test(trimmed)
+        ? [trimmed, trimmed.replace(/^Bearer\s+/i, '')]
+        : [`Bearer ${trimmed}`, trimmed];
+      candidates.forEach((candidate) => {
+        if (!candidate || seen.has(candidate)) return;
+        seen.add(candidate);
+        expanded.push(candidate);
+      });
+    });
+    return expanded;
+  }
+
+  function getLocationAuthTokens() {
+    const tokens = [];
+    const gghost = window.gghost;
+    if (gghost && typeof gghost.getCognitoTokens === 'function') {
+      const { idToken, accessToken } = gghost.getCognitoTokens() || {};
+      if (idToken) tokens.push(idToken);
+      if (accessToken && accessToken !== idToken) tokens.push(accessToken);
+    }
+    if (!tokens.length) {
+      tokens.push(...collectStorageTokens(localStorage));
+      tokens.push(...collectStorageTokens(sessionStorage));
+    }
+    const unique = [];
+    const seen = new Set();
+    tokens.forEach((token) => {
+      if (!token || seen.has(token)) return;
+      seen.add(token);
+      unique.push(token);
+    });
+    const expanded = expandAuthTokens(unique);
+    if (!expanded.length) expanded.push(null);
+    return expanded;
+  }
+
+  async function patchLocationRecord(locationId, payload) {
+    if (!locationId) throw new Error('Missing location id.');
+    const url = `${LOCATION_API_BASE}/${locationId}`;
+    const tokens = getLocationAuthTokens();
+    let lastError = '';
+    for (const token of tokens) {
+      const headers = {
+        accept: 'application/json, text/plain, */*',
+        'content-type': 'application/json'
+      };
+      if (token) headers.Authorization = token;
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(payload),
+        mode: 'cors'
+      });
+      if (res.ok) return res.json().catch(() => ({}));
+      lastError = await res.text().catch(() => res.statusText);
+      if (res.status !== 401 && res.status !== 403) break;
+    }
+    throw new Error(lastError || 'Failed to update location.');
+  }
+
+  function toLatLngLiteral(value) {
+    if (!value) return null;
+    if (typeof value.lat === 'function' && typeof value.lng === 'function') {
+      return { lat: value.lat(), lng: value.lng() };
+    }
+    const lat = Number(value.lat ?? value.latitude);
+    const lng = Number(value.lng ?? value.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    return null;
+  }
+
+  function computeDistanceMeters(a, b) {
+    const pointA = toLatLngLiteral(a);
+    const pointB = toLatLngLiteral(b);
+    if (!pointA || !pointB) return null;
+    const maps = window.google?.maps;
+    if (maps?.geometry?.spherical?.computeDistanceBetween && maps?.LatLng) {
+      return maps.geometry.spherical.computeDistanceBetween(
+        new maps.LatLng(pointA.lat, pointA.lng),
+        new maps.LatLng(pointB.lat, pointB.lng)
+      );
+    }
+    const rad = Math.PI / 180;
+    const dLat = (pointB.lat - pointA.lat) * rad;
+    const dLon = (pointB.lng - pointA.lng) * rad;
+    const lat1 = pointA.lat * rad;
+    const lat2 = pointB.lat * rad;
+    const aVal = Math.sin(dLat / 2) ** 2
+      + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return 6371000 * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
+  }
+
+  function ensureStreetViewReopenButton() {
+    if (streetViewReopenButton && document.contains(streetViewReopenButton)) {
+      return streetViewReopenButton;
+    }
+    streetViewReopenButton = null;
+    if (!document.body) return null;
+    const button = document.createElement('button');
+    button.id = STREETVIEW_REOPEN_BUTTON_ID;
+    button.type = 'button';
+    button.textContent = 'PIN';
+    button.setAttribute('data-doobneek-streetview-reopen', 'true');
+    button.title = 'Reopen Street View overlay';
+    Object.assign(button.style, {
+      position: 'fixed',
+      top: '88px',
+      left: '20px',
+      zIndex: 100002,
+      width: '32px',
+      height: '32px',
+      borderRadius: '50%',
+      border: '1px solid #c9c9c9',
+      background: '#fff',
+      fontSize: '11px',
+      fontWeight: '700',
+      cursor: 'pointer',
+      boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+    });
+    button.addEventListener('click', () => {
+      if (activeModals.length) return;
+      if (!lastStreetViewPayload) return;
+      createStreetViewPicker(lastStreetViewPayload, lastStreetViewApiKey);
+    });
+    document.body.appendChild(button);
+    streetViewReopenButton = button;
+    return button;
+  }
+
+  function setStreetViewReopenVisible(visible) {
+    const button = ensureStreetViewReopenButton();
+    if (!button) return;
+    button.style.display = visible ? 'block' : 'none';
   }
 
   // URL change detection function
@@ -405,12 +638,25 @@
       return;
     }
 
+    lastStreetViewPayload = locationData || null;
+    lastStreetViewApiKey = apiKey || null;
+
     // Use provided location details to get address and org/location names
-    let streetAddress = '';
+    const locationId = resolveLocationId(locationData);
+    let addressData = normalizeLocationAddress(locationData);
+    let streetAddress = addressData.street || '';
     let headerTitle = 'Street View Picker';
+    const redirectEnabled = isYourPeerRedirectEnabled();
+    const canEditLocation = Boolean(locationId && redirectEnabled);
+    const relocateState = {
+      original: resolveLocationPosition(locationData),
+      pending: null,
+      dismissed: null,
+      promptOpen: false,
+      lastPromptAt: 0
+    };
 
     if (locationData) {
-      streetAddress = locationData.address?.street || '';
       const orgName = locationData.Organization?.name || '';
       const locName = locationData.name || '';
       if (orgName && locName) {
@@ -454,6 +700,7 @@
     header.innerHTML = `<span style="font-weight:bold; font-size:16px;">${headerTitle}</span>`;
 
     const closeButton = document.createElement('button');
+    closeButton.setAttribute('data-doobneek-modal-close', 'true');
     closeButton.textContent = '✕';
     Object.assign(closeButton.style, {
       background: 'transparent',
@@ -466,18 +713,25 @@
     const style = document.createElement('style');
     style.textContent = '.pac-container { z-index: 100002 !important; }';
 
-    closeButton.onclick = () => {
-      // Clean up maps instances before closing modal
+    const closeModal = () => {
       cleanupModalMaps(modal);
       modal.remove();
-      // Remove from tracking array
       const index = activeModals.indexOf(modal);
       if (index > -1) activeModals.splice(index, 1);
       if (style.parentNode) {
         style.parentNode.removeChild(style);
       }
+      setStreetViewReopenVisible(true);
     };
-    header.appendChild(closeButton);
+    closeButton.onclick = closeModal;
+    const headerActions = document.createElement('div');
+    Object.assign(headerActions.style, {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    });
+    headerActions.appendChild(closeButton);
+    header.appendChild(headerActions);
     modal.appendChild(header);
     document.head.appendChild(style);
 
@@ -485,6 +739,15 @@
     const searchContainer = document.createElement('div');
     searchContainer.style.padding = '12px 16px';
     searchContainer.style.borderBottom = '1px solid #ddd';
+
+    const searchLabel = document.createElement('div');
+    searchLabel.textContent = 'Search for address';
+    Object.assign(searchLabel.style, {
+      fontSize: '12px',
+      fontWeight: '600',
+      color: '#555',
+      marginBottom: '6px'
+    });
 
     const searchInput = document.createElement('input');
     Object.assign(searchInput.style, {
@@ -501,14 +764,281 @@
       searchInput.value = streetAddress;
     }
 
+    searchContainer.appendChild(searchLabel);
     searchContainer.appendChild(searchInput);
+    if (canEditLocation) {
+      const addressRow = document.createElement('div');
+      Object.assign(addressRow.style, {
+        display: 'flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '8px',
+        marginTop: '8px'
+      });
+
+      const addressLabel = document.createElement('div');
+      addressLabel.textContent = 'Edit address';
+      Object.assign(addressLabel.style, {
+        fontSize: '11px',
+        fontWeight: '600',
+        color: '#555',
+        whiteSpace: 'nowrap',
+        flex: '0 0 auto'
+      });
+
+      const addressInput = document.createElement('input');
+      addressInput.type = 'text';
+      addressInput.placeholder = 'Street address (line 1)';
+      addressInput.setAttribute('data-doobneek-address-input', 'true');
+      Object.assign(addressInput.style, {
+        padding: '6px 8px',
+        border: '1px solid #ccc',
+        borderRadius: '4px',
+        fontSize: '12px',
+        flex: '1 1 auto',
+        minWidth: '0'
+      });
+
+      const addressSaveButton = document.createElement('button');
+      addressSaveButton.type = 'button';
+      addressSaveButton.textContent = 'Save';
+      addressSaveButton.setAttribute('data-doobneek-address-save', 'true');
+      Object.assign(addressSaveButton.style, {
+        background: '#1f6feb',
+        border: '1px solid #1f6feb',
+        borderRadius: '4px',
+        color: '#fff',
+        cursor: 'pointer',
+        flex: '0 0 auto',
+        fontSize: '11px',
+        padding: '6px 10px'
+      });
+      addressSaveButton.disabled = true;
+
+      const addressAdornment = document.createElement('div');
+      Object.assign(addressAdornment.style, {
+        fontSize: '11px',
+        color: '#666',
+        maxWidth: '160px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        textAlign: 'right'
+      });
+
+      addressRow.appendChild(addressLabel);
+      addressRow.appendChild(addressInput);
+      addressRow.appendChild(addressSaveButton);
+      addressRow.appendChild(addressAdornment);
+
+      const addressMessage = document.createElement('div');
+      addressMessage.style.fontSize = '11px';
+      addressMessage.style.color = '#666';
+      addressMessage.style.minHeight = '14px';
+      addressMessage.style.marginTop = '4px';
+
+      searchContainer.appendChild(addressRow);
+      searchContainer.appendChild(addressMessage);
+
+      let addressSync = false;
+      let addressSaving = false;
+      let lastSavedStreet = addressData.street || '';
+      let addressBlurFromOverlay = false;
+
+      const buildAddressAdornment = (data) => {
+        if (!data) return '';
+        const city = normalizeCityName(data.city);
+        const parts = [city, data.state, data.postalCode].filter(Boolean);
+        const suffix = parts.join(', ');
+        const country = String(data.country || '').trim();
+        if (country && country.toUpperCase() !== 'US') {
+          return suffix ? `${suffix} ${country}` : country;
+        }
+        return suffix;
+      };
+
+      const setAddressMessage = (text, tone) => {
+        addressMessage.textContent = text || '';
+        addressMessage.style.color = tone === 'error' ? '#b42318' : '#666';
+      };
+
+      const sanitizeStreetInput = (value) => {
+        const raw = String(value || '');
+        return raw.split(/\r?\n/)[0].trim();
+      };
+
+      const isStreetValid = (value) => {
+        if (!value) return false;
+        if (value.length < 3) return false;
+        if (!/\d/.test(value)) return false;
+        if (!/[A-Za-z]/.test(value)) return false;
+        return true;
+      };
+
+      const updateSaveButton = () => {
+        const sanitized = sanitizeStreetInput(addressInput.value);
+        const isValid = isStreetValid(sanitized);
+        const hasChanges = sanitized && sanitized !== lastSavedStreet;
+        addressSaveButton.textContent = addressSaving ? 'Saving...' : 'Save';
+        addressSaveButton.disabled = addressSaving || !isValid || !hasChanges;
+        addressSaveButton.style.opacity = addressSaveButton.disabled ? '0.6' : '1';
+        addressSaveButton.style.cursor = addressSaveButton.disabled ? 'not-allowed' : 'pointer';
+      };
+
+      const syncAddressInput = (value) => {
+        addressSync = true;
+        addressInput.value = value || '';
+        addressAdornment.textContent = buildAddressAdornment(addressData);
+        addressSync = false;
+        updateSaveButton();
+      };
+
+      const applyAddressPatch = async (streetValue) => {
+        if (addressSaving) return;
+        if (!isStreetValid(streetValue)) {
+          setAddressMessage('Enter a valid street address.', 'error');
+          updateSaveButton();
+          return;
+        }
+        if (streetValue === lastSavedStreet) {
+          setAddressMessage('', 'info');
+          updateSaveButton();
+          return;
+        }
+        addressSaving = true;
+        updateSaveButton();
+        setAddressMessage('Saving address...', 'info');
+        try {
+          const nextAddress = { ...addressData, street: streetValue };
+          if (addressData.region && !nextAddress.region && !nextAddress.state) {
+            nextAddress.region = addressData.region;
+          }
+          const response = await patchLocationRecord(locationId, { address: nextAddress });
+          const normalized = (response && (response.address || response.Address || response.PhysicalAddresses))
+            ? normalizeLocationAddress(response)
+            : nextAddress;
+          addressData = { ...addressData, ...normalized };
+          addressData.city = normalizeCityName(addressData.city);
+          if (locationData) {
+            locationData.address = { ...(locationData.address || {}), ...addressData };
+          }
+          const previousStreet = streetAddress;
+          streetAddress = addressData.street || '';
+          if (searchInput.value.trim() === previousStreet) {
+            searchInput.value = streetAddress;
+          }
+          lastSavedStreet = streetAddress;
+          syncAddressInput(streetAddress);
+          setAddressMessage('Saved.', 'info');
+          createBubble('Address updated!');
+        } catch (err) {
+          setAddressMessage(err?.message || 'Failed to update address.', 'error');
+        } finally {
+          addressSaving = false;
+          updateSaveButton();
+        }
+      };
+
+      const saveAddressFromInput = () => {
+        const sanitized = sanitizeStreetInput(addressInput.value);
+        if (sanitized !== addressInput.value) {
+          addressSync = true;
+          addressInput.value = sanitized;
+          addressSync = false;
+        }
+        if (!sanitized) {
+          setAddressMessage('Street address required.', 'error');
+          updateSaveButton();
+          return;
+        }
+        if (!isStreetValid(sanitized)) {
+          setAddressMessage('Enter a valid street address.', 'error');
+          updateSaveButton();
+          return;
+        }
+        void applyAddressPatch(sanitized);
+      };
+
+      const shouldIgnoreOverlayBlur = (target) => {
+        if (!target || typeof target.closest !== 'function') return false;
+        return Boolean(
+          target.closest('[data-doobneek-address-input]') ||
+          target.closest('[data-doobneek-address-save]') ||
+          target.closest('[data-doobneek-modal-close]')
+        );
+      };
+
+      modal.addEventListener('mousedown', (event) => {
+        if (shouldIgnoreOverlayBlur(event.target)) {
+          addressBlurFromOverlay = false;
+          return;
+        }
+        addressBlurFromOverlay = true;
+      });
+
+      addressSaveButton.addEventListener('click', () => {
+        saveAddressFromInput();
+      });
+
+      addressInput.addEventListener('focus', () => {
+        addressBlurFromOverlay = false;
+      });
+
+      addressInput.addEventListener('input', () => {
+        if (addressSync) return;
+        const sanitized = sanitizeStreetInput(addressInput.value);
+        if (sanitized !== addressInput.value) {
+          addressSync = true;
+          addressInput.value = sanitized;
+          addressSync = false;
+        }
+        if (!sanitized) {
+          setAddressMessage('Street address required.', 'error');
+          updateSaveButton();
+          return;
+        }
+        if (!isStreetValid(sanitized)) {
+          setAddressMessage('Enter a valid street address.', 'error');
+          updateSaveButton();
+          return;
+        }
+        setAddressMessage('', 'info');
+        updateSaveButton();
+      });
+
+      addressInput.addEventListener('blur', (event) => {
+        if (addressSync) {
+          addressBlurFromOverlay = false;
+          return;
+        }
+        const relatedTarget = event.relatedTarget;
+        const hasRelatedClosest = relatedTarget && typeof relatedTarget.closest === 'function';
+        const focusStayedInModal = relatedTarget && modal.contains(relatedTarget);
+        const focusIsClose = hasRelatedClosest && relatedTarget.closest('[data-doobneek-modal-close]');
+        const focusIsSave = hasRelatedClosest && relatedTarget.closest('[data-doobneek-address-save]');
+        const shouldSave = addressBlurFromOverlay || (focusStayedInModal && !focusIsClose && !focusIsSave);
+        addressBlurFromOverlay = false;
+        if (!shouldSave) return;
+        saveAddressFromInput();
+      });
+
+      addressInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          saveAddressFromInput();
+          addressInput.blur();
+        }
+      });
+
+      syncAddressInput(addressData.street || '');
+    }
     modal.appendChild(searchContainer);
 
     // Map and Street View container
     const contentContainer = document.createElement('div');
     contentContainer.style.display = 'flex';
-    contentContainer.style.flexGrow = '1';
-    contentContainer.style.height = 'calc(100% - 120px)';
+    contentContainer.style.flex = '1 1 auto';
+    contentContainer.style.minHeight = '0';
 
     // Map div (left side)
     const mapDiv = document.createElement('div');
@@ -567,6 +1097,389 @@
     modal.appendChild(bottomBar);
 
     document.body.appendChild(modal);
+    setStreetViewReopenVisible(false);
+
+    let showRelocateOverlay = () => {};
+    let updateRelocateOverlay = () => {};
+    let hideRelocateOverlay = () => {};
+
+    if (canEditLocation) {
+      const relocateOverlay = document.createElement('div');
+      relocateOverlay.setAttribute('data-doobneek-relocate-overlay', 'true');
+      Object.assign(relocateOverlay.style, {
+        position: 'absolute',
+        inset: '0',
+        background: 'rgba(0, 0, 0, 0.35)',
+        display: 'none',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100003
+      });
+
+      const relocatePanel = document.createElement('div');
+      Object.assign(relocatePanel.style, {
+        background: '#fff',
+        borderRadius: '8px',
+        padding: '16px',
+        width: '320px',
+        maxWidth: '92%',
+        boxShadow: '0 8px 20px rgba(0,0,0,0.25)',
+        fontSize: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px'
+      });
+
+      const relocateTitle = document.createElement('div');
+      relocateTitle.textContent = 'Relocate this location?';
+      relocateTitle.style.fontWeight = '600';
+      relocateTitle.style.fontSize = '14px';
+
+      const relocateMessage = document.createElement('div');
+      relocateMessage.style.color = '#333';
+      relocateMessage.style.lineHeight = '1.4';
+
+      const relocateInputs = document.createElement('div');
+      relocateInputs.style.display = 'grid';
+      relocateInputs.style.gridTemplateColumns = '1fr 1fr';
+      relocateInputs.style.gap = '8px';
+
+      const relocateLatInput = document.createElement('input');
+      relocateLatInput.type = 'text';
+      relocateLatInput.placeholder = 'Latitude';
+      Object.assign(relocateLatInput.style, {
+        padding: '6px 8px',
+        border: '1px solid #ccc',
+        borderRadius: '4px',
+        fontSize: '12px'
+      });
+
+      const relocateLngInput = document.createElement('input');
+      relocateLngInput.type = 'text';
+      relocateLngInput.placeholder = 'Longitude';
+      Object.assign(relocateLngInput.style, {
+        padding: '6px 8px',
+        border: '1px solid #ccc',
+        borderRadius: '4px',
+        fontSize: '12px'
+      });
+
+      relocateInputs.appendChild(relocateLatInput);
+      relocateInputs.appendChild(relocateLngInput);
+
+      const relocateStatus = document.createElement('div');
+      relocateStatus.style.fontSize = '11px';
+      relocateStatus.style.minHeight = '14px';
+      relocateStatus.style.color = '#666';
+
+      const relocateActions = document.createElement('div');
+      Object.assign(relocateActions.style, {
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '8px'
+      });
+
+      const relocateKeepButton = document.createElement('button');
+      relocateKeepButton.type = 'button';
+      relocateKeepButton.textContent = 'Keep current';
+      Object.assign(relocateKeepButton.style, {
+        border: '1px solid #d0d0d0',
+        background: '#fff',
+        color: '#333',
+        borderRadius: '6px',
+        padding: '6px 10px',
+        fontSize: '12px',
+        cursor: 'pointer'
+      });
+
+      const relocateConfirmButton = document.createElement('button');
+      relocateConfirmButton.type = 'button';
+      relocateConfirmButton.textContent = 'Relocate';
+      Object.assign(relocateConfirmButton.style, {
+        border: 'none',
+        background: '#2563eb',
+        color: '#fff',
+        borderRadius: '6px',
+        padding: '6px 12px',
+        fontSize: '12px',
+        cursor: 'pointer'
+      });
+
+      relocateActions.appendChild(relocateKeepButton);
+      relocateActions.appendChild(relocateConfirmButton);
+
+      relocatePanel.appendChild(relocateTitle);
+      relocatePanel.appendChild(relocateMessage);
+      relocatePanel.appendChild(relocateInputs);
+      relocatePanel.appendChild(relocateStatus);
+      relocatePanel.appendChild(relocateActions);
+      relocateOverlay.appendChild(relocatePanel);
+      modal.appendChild(relocateOverlay);
+
+      let relocateInputSync = false;
+      let relocateInputsDirty = false;
+      let relocateSaving = false;
+
+      const setRelocateStatus = (text, tone) => {
+        relocateStatus.textContent = text || '';
+        relocateStatus.style.color = tone === 'error'
+          ? '#b42318'
+          : tone === 'warning'
+            ? '#b45309'
+            : '#666';
+      };
+
+      const setRelocateInputs = (candidate) => {
+        const literal = toLatLngLiteral(candidate);
+        if (!literal) return;
+        relocateInputSync = true;
+        relocateLatInput.value = literal.lat.toFixed(6);
+        relocateLngInput.value = literal.lng.toFixed(6);
+        relocateInputSync = false;
+      };
+
+      const extractNumbers = (text) => {
+        const matches = String(text || '').match(/-?\d+(?:\.\d+)?/g);
+        if (!matches) return [];
+        return matches.map(value => Number(value)).filter(value => Number.isFinite(value));
+      };
+
+      const pickLatLngFromNumbers = (numbers) => {
+        if (!Array.isArray(numbers) || numbers.length < 2) return null;
+        const n0 = numbers[0];
+        const n1 = numbers[1];
+        if (!Number.isFinite(n0) || !Number.isFinite(n1)) return null;
+        if (Math.abs(n0) > 180 || Math.abs(n1) > 180) return null;
+        const candidates = [];
+        if (Math.abs(n0) <= 90 && Math.abs(n1) <= 180) {
+          candidates.push({ lat: n0, lng: n1, swapped: false });
+        }
+        if (Math.abs(n1) <= 90 && Math.abs(n0) <= 180) {
+          candidates.push({ lat: n1, lng: n0, swapped: true });
+        }
+        if (!candidates.length) return null;
+        if (candidates.length === 1) return candidates[0];
+        const distanceA = computeDistanceMeters(MIDTOWN_CENTER, candidates[0]);
+        const distanceB = computeDistanceMeters(MIDTOWN_CENTER, candidates[1]);
+        if (!Number.isFinite(distanceA) || !Number.isFinite(distanceB)) return candidates[0];
+        return distanceB < distanceA ? candidates[1] : candidates[0];
+      };
+
+      const formatRelocateMessage = (candidate) => {
+        const literal = toLatLngLiteral(candidate);
+        const distance = relocateState.original
+          ? computeDistanceMeters(relocateState.original, candidate)
+          : null;
+        const coordText = literal
+          ? `${literal.lat.toFixed(6)}, ${literal.lng.toFixed(6)}`
+          : 'the new spot';
+        const distanceText = Number.isFinite(distance)
+          ? ` (~${Math.round(distance)}m from saved)`
+          : '';
+        relocateMessage.textContent = `Pin moved to ${coordText}${distanceText}. Update the saved location position?`;
+      };
+
+      const updateRelocateConfirmState = (enabled) => {
+        if (relocateSaving) return;
+        relocateConfirmButton.disabled = !enabled;
+        relocateConfirmButton.style.opacity = enabled ? '1' : '0.5';
+      };
+
+      const evaluateRelocateInputs = ({ allowSync = true } = {}) => {
+        if (relocateInputSync) return;
+        const latText = relocateLatInput.value.trim();
+        const lngText = relocateLngInput.value.trim();
+        const combined = `${latText} ${lngText}`.trim();
+
+        if (combined && /\d+[a-zA-Z]+\d+/.test(combined)) {
+          setRelocateStatus('Remove letters inside numbers.', 'error');
+          updateRelocateConfirmState(false);
+          return;
+        }
+
+        const latNums = extractNumbers(latText);
+        const lngNums = extractNumbers(lngText);
+
+        let candidate = null;
+        let swapped = false;
+        let inferenceNote = '';
+
+        if (latNums.length >= 2 || lngNums.length >= 2) {
+          const source = latNums.length >= 2 ? latNums : lngNums;
+          const parsed = pickLatLngFromNumbers(source);
+          if (!parsed) {
+            setRelocateStatus('Coordinates look invalid.', 'error');
+            updateRelocateConfirmState(false);
+            return;
+          }
+          candidate = { lat: parsed.lat, lng: parsed.lng };
+          swapped = parsed.swapped;
+          if (allowSync) setRelocateInputs(candidate);
+        } else if (latNums.length >= 1 && lngNums.length >= 1) {
+          const parsed = pickLatLngFromNumbers([latNums[0], lngNums[0]]);
+          if (!parsed) {
+            setRelocateStatus('Coordinates look invalid.', 'error');
+            updateRelocateConfirmState(false);
+            return;
+          }
+          candidate = { lat: parsed.lat, lng: parsed.lng };
+          swapped = parsed.swapped;
+          if (allowSync && swapped) setRelocateInputs(candidate);
+        } else if (latNums.length >= 1 || lngNums.length >= 1) {
+          const base = toLatLngLiteral(relocateState.pending || relocateState.original);
+          if (!base) {
+            setRelocateStatus('Drag the pin or enter both coordinates.', 'error');
+            updateRelocateConfirmState(false);
+            return;
+          }
+          const value = latNums.length ? latNums[0] : lngNums[0];
+          const candidates = [];
+          if (Math.abs(value) <= 90 && Math.abs(base.lng) <= 180) {
+            candidates.push({ candidate: { lat: value, lng: base.lng }, label: 'latitude' });
+          }
+          if (Math.abs(value) <= 180 && Math.abs(base.lat) <= 90) {
+            candidates.push({ candidate: { lat: base.lat, lng: value }, label: 'longitude' });
+          }
+          if (!candidates.length) {
+            setRelocateStatus('Coordinates look invalid.', 'error');
+            updateRelocateConfirmState(false);
+            return;
+          }
+          if (candidates.length === 1) {
+            candidate = candidates[0].candidate;
+            inferenceNote = `Interpreted as ${candidates[0].label}.`;
+          } else {
+            const distanceA = computeDistanceMeters(MIDTOWN_CENTER, candidates[0].candidate);
+            const distanceB = computeDistanceMeters(MIDTOWN_CENTER, candidates[1].candidate);
+            const pickFirst = !Number.isFinite(distanceA)
+              || (Number.isFinite(distanceB) && distanceA <= distanceB);
+            const chosen = pickFirst ? candidates[0] : candidates[1];
+            candidate = chosen.candidate;
+            inferenceNote = `Interpreted as ${chosen.label}.`;
+          }
+          if (allowSync) setRelocateInputs(candidate);
+        } else {
+          const fallback = toLatLngLiteral(relocateState.pending || relocateState.original);
+          if (fallback) {
+            relocateState.pending = fallback;
+            if (allowSync) setRelocateInputs(fallback);
+            formatRelocateMessage(fallback);
+            setRelocateStatus('', 'info');
+            updateRelocateConfirmState(true);
+            return;
+          }
+          setRelocateStatus('Enter coordinates to relocate.', 'error');
+          updateRelocateConfirmState(false);
+          return;
+        }
+
+        if (Math.abs(candidate.lat) > 90 || Math.abs(candidate.lng) > 180) {
+          setRelocateStatus('Coordinates are outside valid ranges.', 'error');
+          updateRelocateConfirmState(false);
+          return;
+        }
+
+        relocateState.pending = { ...candidate };
+        formatRelocateMessage(candidate);
+
+        const distance = computeDistanceMeters(MIDTOWN_CENTER, candidate);
+        const warningText = Number.isFinite(distance) && distance > MIDTOWN_RADIUS_METERS
+          ? `Outside NYC radius (~${(distance / 1609.34).toFixed(1)} mi from Midtown).`
+          : '';
+        const swapText = swapped ? 'Interpreted as [lng, lat].' : '';
+        const combinedWarning = [swapText, inferenceNote, warningText].filter(Boolean).join(' ');
+
+        setRelocateStatus(combinedWarning, combinedWarning ? 'warning' : 'info');
+        updateRelocateConfirmState(true);
+      };
+
+      showRelocateOverlay = (candidate) => {
+        relocateState.promptOpen = true;
+        relocateState.pending = toLatLngLiteral(candidate) || candidate;
+        relocateInputsDirty = false;
+        setRelocateInputs(relocateState.pending);
+        formatRelocateMessage(relocateState.pending);
+        setRelocateStatus('', 'info');
+        evaluateRelocateInputs({ allowSync: false });
+        relocateOverlay.style.display = 'flex';
+      };
+
+      updateRelocateOverlay = (candidate) => {
+        if (!relocateInputsDirty) {
+          setRelocateInputs(relocateState.pending || candidate);
+          evaluateRelocateInputs({ allowSync: false });
+        } else {
+          formatRelocateMessage(relocateState.pending || candidate);
+        }
+      };
+
+      hideRelocateOverlay = () => {
+        relocateOverlay.style.display = 'none';
+        relocateState.promptOpen = false;
+        relocateInputsDirty = false;
+        setRelocateStatus('', 'info');
+      };
+
+      relocateLatInput.addEventListener('input', () => {
+        relocateInputsDirty = true;
+        evaluateRelocateInputs();
+      });
+      relocateLngInput.addEventListener('input', () => {
+        relocateInputsDirty = true;
+        evaluateRelocateInputs();
+      });
+
+      relocateOverlay.addEventListener('click', (event) => {
+        if (event.target === relocateOverlay) {
+          relocateKeepButton.click();
+        }
+      });
+
+      relocateKeepButton.addEventListener('click', () => {
+        relocateState.dismissed = relocateState.pending;
+        relocateState.pending = null;
+        hideRelocateOverlay();
+      });
+
+      relocateConfirmButton.addEventListener('click', async () => {
+        const literal = toLatLngLiteral(relocateState.pending);
+        if (!literal) {
+          hideRelocateOverlay();
+          return;
+        }
+        relocateSaving = true;
+        relocateConfirmButton.disabled = true;
+        relocateKeepButton.disabled = true;
+        setRelocateStatus('Saving location...', 'info');
+        try {
+          const payload = {
+            latitude: literal.lat,
+            longitude: literal.lng,
+            position: { type: 'Point', coordinates: [literal.lng, literal.lat] }
+          };
+          await patchLocationRecord(locationId, payload);
+          relocateState.original = { ...literal };
+          relocateState.pending = null;
+          relocateState.dismissed = null;
+          if (locationData) {
+            locationData.position = { type: 'Point', coordinates: [literal.lng, literal.lat] };
+            locationData.latitude = literal.lat;
+            locationData.longitude = literal.lng;
+          }
+          createBubble('Location relocated!');
+          hideRelocateOverlay();
+        } catch (err) {
+          setRelocateStatus(err?.message || 'Failed to relocate location.', 'error');
+        } finally {
+          relocateSaving = false;
+          relocateConfirmButton.disabled = false;
+          relocateKeepButton.disabled = false;
+          if (relocateOverlay.style.display !== 'none') {
+            evaluateRelocateInputs({ allowSync: false });
+          }
+        }
+      });
+    }
 
     // Helper function to truncate URL for display
     const truncateUrl = (url) => {
@@ -622,6 +1535,13 @@
       } else if (locationData.position?.coordinates) {
         // Use position data if no street view URL is provided
         defaultCenter = { lat: locationData.position.coordinates[1], lng: locationData.position.coordinates[0] };
+      }
+
+      if (!relocateState.original && locationData?.streetview_url) {
+        const fallbackOrigin = toLatLngLiteral(defaultCenter);
+        if (fallbackOrigin) {
+          relocateState.original = { ...fallbackOrigin };
+        }
       }
 
       map = new google.maps.Map(mapDiv, {
@@ -710,6 +1630,37 @@
       });
 
       const streetViewService = new google.maps.StreetViewService();
+      const shouldPromptRelocate = () => {
+        if (!locationId || !isYourPeerRedirectEnabled()) return false;
+        if (!relocateState.original) return false;
+        return true;
+      };
+
+      const isDismissedCandidate = (candidate) => {
+        if (!relocateState.dismissed) return false;
+        const distance = computeDistanceMeters(relocateState.dismissed, candidate);
+        return Number.isFinite(distance) && distance < RELOCATE_PROMPT_DISTANCE_METERS;
+      };
+
+      const maybePromptRelocate = (candidate, { allowPrompt = true } = {}) => {
+        if (!allowPrompt) return;
+        const literal = toLatLngLiteral(candidate);
+        if (!literal) return;
+        if (!shouldPromptRelocate()) return;
+        const distance = computeDistanceMeters(relocateState.original, literal);
+        if (!Number.isFinite(distance) || distance < RELOCATE_PROMPT_DISTANCE_METERS) return;
+        if (relocateState.promptOpen) {
+          relocateState.pending = literal;
+          updateRelocateOverlay(literal);
+          return;
+        }
+        if (isDismissedCandidate(literal)) return;
+        const now = Date.now();
+        if (now - relocateState.lastPromptAt < 800) return;
+        relocateState.lastPromptAt = now;
+        relocateState.pending = literal;
+        showRelocateOverlay(literal);
+      };
 
       const requestPanorama = (targetLatLng, referenceLatLng = targetLatLng) => {
         if (!targetLatLng) return;
@@ -745,7 +1696,7 @@
         });
       };
 
-      const updateStreetViewForLocation = (referenceLatLng, { draggable = false } = {}) => {
+      const updateStreetViewForLocation = (referenceLatLng, { draggable = false, promptRelocate = true } = {}) => {
         if (!referenceLatLng) return;
 
         if (marker) {
@@ -760,16 +1711,18 @@
         });
 
         requestPanorama(referenceLatLng);
+        maybePromptRelocate(referenceLatLng, { allowPrompt: promptRelocate });
 
         if (draggable) {
           marker.addListener('dragend', () => {
             const newPosition = marker.getPosition();
             requestPanorama(newPosition);
+            maybePromptRelocate(newPosition);
           });
         }
       };
 
-      const handlePlaceSelection = (place) => {
+      const handlePlaceSelection = (place, options = {}) => {
         if (!place || !place.geometry) return;
 
         if (place.geometry.viewport) {
@@ -780,7 +1733,8 @@
         }
 
         if (place.geometry.location) {
-          updateStreetViewForLocation(place.geometry.location, { draggable: true });
+          const promptRelocate = options.promptRelocate !== false;
+          updateStreetViewForLocation(place.geometry.location, { draggable: true, promptRelocate });
         }
       };
 
@@ -804,7 +1758,7 @@
             if (!isPlacesStatusOk(detailStatus) || !place) {
               return;
             }
-            handlePlaceSelection(place);
+            handlePlaceSelection(place, { promptRelocate: false });
           });
         });
       };
@@ -964,11 +1918,7 @@
 
             // Close the modal after successful paste
             setTimeout(() => {
-              cleanupModalMaps(modal);
-              modal.remove();
-              // Remove from tracking array
-              const index = activeModals.indexOf(modal);
-              if (index > -1) activeModals.splice(index, 1);
+              closeModal();
               console.log('Street View modal closed after successful paste');
             }, 1000);
           } else {
@@ -983,11 +1933,7 @@
 
             // Close the modal even in fallback case
             setTimeout(() => {
-              cleanupModalMaps(modal);
-              modal.remove();
-              // Remove from tracking array
-              const index = activeModals.indexOf(modal);
-              if (index > -1) activeModals.splice(index, 1);
+              closeModal();
               console.log('Street View modal closed after clipboard copy');
             }, 1500);
           }
@@ -1079,11 +2025,7 @@
             document.addEventListener('click', globalClickHandler);
           }
 
-          cleanupModalMaps(modal);
-          modal.remove();
-          // Remove from tracking array
-          const index = activeModals.indexOf(modal);
-          if (index > -1) activeModals.splice(index, 1);
+          closeModal();
         }
       };
 
@@ -1160,6 +2102,8 @@
     document.querySelectorAll('[data-doobneek-modal]').forEach(el => el.remove());
     document.querySelectorAll('[data-doobneek-script]').forEach(el => el.remove());
     document.querySelectorAll('#doobneek-loading-banner').forEach(el => el.remove());
+    document.querySelectorAll('[data-doobneek-streetview-reopen]').forEach(el => el.remove());
+    streetViewReopenButton = null;
   }
 
   // Cleanup function to prevent memory leaks
@@ -1239,8 +2183,7 @@
   // Add cleanup on page visibility change (helps with back/forward navigation)
   visibilityHandler = () => {
     if (document.hidden) {
-      console.log('[streetview.js] Page hidden, cleaning up resources');
-      cleanupMapsAndModals();
+      console.log('[streetview.js] Page hidden, preserving Street View overlay');
     }
   };
   document.addEventListener('visibilitychange', visibilityHandler);
@@ -1273,7 +2216,11 @@
   });
 
   // Initial execution
-  init();
+  if (isBackForwardNavigation) {
+    setTimeout(init, 1000);
+  } else {
+    init();
+  }
 
   window.createStreetViewPicker = createStreetViewPicker;
 })();

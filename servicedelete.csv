@@ -1,0 +1,2 @@
+holiday_schedule_id,location_id,service_id,service_at_location_id,weekday,opens_at,closes_at,closed,created_at,updated_at,match_path
+fe9e9967-06a1-4b5a-a43a-2ff137574e66,,a43328d4-d101-4457-9732-9f59ed8d07b0,,,,,true,2026-01-02 22:46:08.37,2026-01-02 22:46:08.37,via service_id

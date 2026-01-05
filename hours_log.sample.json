@@ -1,0 +1,46 @@
+{
+  "timezone": "America/New_York",
+  "user": "doobneek",
+  "days": [
+    {
+      "date": "2025-01-06",
+      "hours_worked_total": 8
+    },
+    {
+      "date": "2025-01-07",
+      "hours_worked_total": 8
+    },
+    {
+      "date": "2025-01-08",
+      "hours_worked_total": 9
+    },
+    {
+      "date": "2025-01-09",
+      "hours_worked_total": 8
+    },
+    {
+      "date": "2025-01-10",
+      "hours_worked_total": 7
+    },
+    {
+      "date": "2025-01-13",
+      "hours_worked_total": 10
+    },
+    {
+      "date": "2025-01-14",
+      "hours_worked_total": 9
+    },
+    {
+      "date": "2025-01-15",
+      "hours_worked_total": 9
+    },
+    {
+      "date": "2025-01-16",
+      "hours_worked_total": 8
+    },
+    {
+      "date": "2025-01-17",
+      "hours_worked_total": 8
+    }
+  ]
+}

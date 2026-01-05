@@ -15,7 +15,13 @@
   const STORAGE_KEY_CALL_TS = 'doobneek:gvCallTs';
   const STORAGE_KEY_CALL_RETRY = 'doobneek:gvCallRetry';
   const STORAGE_KEY_CALL_CLICKED = 'doobneek:gvCallClicked';
-  const BUTTON_SELECTOR = 'button[gv-test-id="dialog-confirm-button"]';
+  const DIALOG_BUTTON_SELECTOR = 'button[gv-test-id="dialog-confirm-button"]';
+  const NEW_CALL_ROW_SELECTOR = 'div.input-row';
+  const NEW_CALL_INPUT_SELECTOR = 'div.input-row input[placeholder="Enter a name or number"], div.input-row input.input';
+  const NEW_CALL_BUTTON_SELECTOR = 'button[gv-test-id="new-call-button"]';
+  const NEW_CALL_TOUCH_TARGET_CLASS = '.mat-mdc-button-touch-target';
+  const NEW_CALL_CLICK_RETRY_MS = 150;
+  const NEW_CALL_CLICK_MAX_ATTEMPTS = 8;
 
   function getCallParam(url) {
     try {
@@ -41,6 +47,13 @@
 
   function isCallTargetUrl(url) {
     return Boolean(getCallParam(url));
+  }
+
+  function getDialTargetFromUrl(url) {
+    const callParam = getCallParam(url);
+    if (!callParam) return null;
+    const rawTarget = callParam.slice(CALL_PARAM_PREFIX.length).trim();
+    return rawTarget || null;
   }
 
   function storeCallSession(url) {
@@ -185,12 +198,80 @@
     return bannerRemovalPromise;
   }
 
+  function setInputValue(input, value) {
+    const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value');
+    if (descriptor && descriptor.set) {
+      descriptor.set.call(input, value);
+    } else {
+      input.value = value;
+    }
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function isButtonDisabled(button) {
+    return button.disabled || button.getAttribute('aria-disabled') === 'true';
+  }
+
+  function clickNewCallButtonWhenReady(button, attempt) {
+    if (!document.body.contains(button)) {
+      console.log('[voice-call] New call button removed before click.');
+      return;
+    }
+
+    if (!isButtonDisabled(button)) {
+      const touchTarget = button.querySelector(NEW_CALL_TOUCH_TARGET_CLASS) || button;
+      touchTarget.click();
+      console.log('[voice-call] Clicked the new call button.');
+      return;
+    }
+
+    if (attempt >= NEW_CALL_CLICK_MAX_ATTEMPTS) {
+      console.log('[voice-call] New call button remained disabled. Giving up.');
+      return;
+    }
+
+    setTimeout(() => {
+      clickNewCallButtonWhenReady(button, attempt + 1);
+    }, NEW_CALL_CLICK_RETRY_MS);
+  }
+
   function disconnectCallButtonObserver() {
     if (callButtonMutationObserver) {
       callButtonMutationObserver.disconnect();
       callButtonMutationObserver = null;
       console.log('[ℹ️] Disconnected call button observer.');
     }
+  }
+
+  function attemptNewCallFlow() {
+    const inputRow = document.querySelector(NEW_CALL_ROW_SELECTOR);
+    if (!inputRow) return false;
+
+    const input = inputRow.querySelector('input') || document.querySelector(NEW_CALL_INPUT_SELECTOR);
+    const button = inputRow.querySelector(NEW_CALL_BUTTON_SELECTOR) || document.querySelector(NEW_CALL_BUTTON_SELECTOR);
+
+    if (!input || !button) return false;
+
+    const dialTarget = getDialTargetFromUrl(callTargetUrl || location.href);
+    if (!dialTarget) {
+      console.log('[voice-call] No dial target found in deep-link.');
+      return false;
+    }
+
+    markCallClicked();
+    disconnectCallButtonObserver();
+
+    console.log('[voice-call] Found new call input. Injecting number and clicking.');
+    bannerRemovalPromise.then(() => {
+      input.focus();
+      setInputValue(input, dialTarget);
+      clickNewCallButtonWhenReady(button, 0);
+    }).catch(err => {
+      console.error('[voice-call] Error while preparing new call click:', err);
+    });
+
+    return true;
   }
 
   function observeForCallButton() {
@@ -201,7 +282,11 @@
 
     disconnectCallButtonObserver(); // Ensure any old observer is gone
 
-    console.log(`[voice-call] Starting observer for button: ${BUTTON_SELECTOR}`);
+    if (attemptNewCallFlow()) {
+      return;
+    }
+
+    console.log(`[voice-call] Starting observer for buttons: ${NEW_CALL_BUTTON_SELECTOR} or ${DIALOG_BUTTON_SELECTOR}`);
     callButtonMutationObserver = new MutationObserver((mutations, observer) => {
       if (!isCallSessionActive()) {
         console.log('[voice-call] Call session expired or missing. Disconnecting call button observer.');
@@ -215,7 +300,11 @@
         return;
       }
 
-      const button = document.querySelector(BUTTON_SELECTOR);
+      if (attemptNewCallFlow()) {
+        return;
+      }
+
+      const button = document.querySelector(DIALOG_BUTTON_SELECTOR);
       if (button) {
         markCallClicked(); // Set flag: we found it and will attempt to click.
         console.log('[voice-call] Found Call button. Waiting for banner removal if necessary, then clicking.');
@@ -227,11 +316,11 @@
           console.log('[voice-call] Banner removal promise resolved. Proceeding to click.');
           setTimeout(() => { // Grace period after banner removal
             if (document.body.contains(button) && !button.disabled) {
-              console.log(`[voice-call] Attempting click on button: ${BUTTON_SELECTOR}`);
+              console.log(`[voice-call] Attempting click on button: ${DIALOG_BUTTON_SELECTOR}`);
               button.click();
               console.log('[voice-call] Clicked the Call button.');
             } else {
-              console.log(`[voice-call] Button (${BUTTON_SELECTOR}) no longer valid or available for click.`);
+              console.log(`[voice-call] Button (${DIALOG_BUTTON_SELECTOR}) no longer valid or available for click.`);
               // Optionally reset callClicked = false; here if a retry is desired, but can lead to loops.
               // For now, assume failure means this attempt is over.
             }

@@ -31,44 +31,197 @@ function getCognitoTokens() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const FIREBASE_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes.json";
+  const REMINDERS_URL = "https://locationnote1-iygwucy2fa-uc.a.run.app?uuid=reminders";
+  const FIREBASE_REMINDERS_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes.json";
+  const REMINDERS_CACHE_KEY = "remindersCache";
+  const REMINDERS_FETCH_TIMEOUT_MS = 8000;
+  const REMINDERS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
   const allReminders = [];
+  let remindersEventSource = null;
+  let remindersStreamLastEtag = null;
+  const pauseBtn = document.getElementById("pauseExtensionBtn");
+
+  function setPauseButton(paused) {
+    if (!pauseBtn) return;
+    pauseBtn.textContent = paused ? "Resume Extension" : "Pause Extension";
+    pauseBtn.dataset.paused = paused ? "true" : "false";
+  }
+
+  const { extensionPaused } = await chrome.storage.local.get("extensionPaused");
+  setPauseButton(!!extensionPaused);
+
+  if (pauseBtn) {
+    pauseBtn.addEventListener("click", async () => {
+      const isPaused = pauseBtn.dataset.paused === "true";
+      const nextPaused = !isPaused;
+      pauseBtn.disabled = true;
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: "SET_EXTENSION_PAUSED",
+          paused: nextPaused
+        });
+        if (response && response.ok === false) {
+          console.warn("[popup] Failed to update pause state:", response.error);
+        }
+      } catch (error) {
+        console.warn("[popup] Failed to update pause state:", error);
+      } finally {
+        setPauseButton(nextPaused);
+        pauseBtn.disabled = false;
+      }
+    });
+  }
 
   // 👇 helper to detect "done by <letters>" at end of note
   function isDoneBy(note = "") {
     return /\bDone by [a-zA-Z]+$/.test(note.trim());
   }
 
-  async function fetchAndRenderReminders() {
-    const res = await fetch(FIREBASE_URL);
-    const data = await res.json();
+  function buildRemindersUrl(extraParams = {}) {
+    const url = new URL(REMINDERS_URL);
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value == null) return;
+      url.searchParams.set(key, String(value));
+    });
+    return url.toString();
+  }
 
-    allReminders.length = 0; // Clear if rerunning
+  async function fetchJsonWithTimeout(url, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        throw new Error(`Fetch timeout after ${timeoutMs}ms`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function fetchRemindersFromApi() {
+    return fetchJsonWithTimeout(buildRemindersUrl(), REMINDERS_FETCH_TIMEOUT_MS);
+  }
+
+  async function fetchRemindersFromFirebase() {
+    return fetchJsonWithTimeout(FIREBASE_REMINDERS_URL, REMINDERS_FETCH_TIMEOUT_MS);
+  }
+
+  async function readRemindersCache() {
+    try {
+      const payload = await chrome.storage.local.get(REMINDERS_CACHE_KEY);
+      const cached = payload[REMINDERS_CACHE_KEY];
+      if (!cached || !Array.isArray(cached.reminders)) return null;
+      if (cached.ts && (Date.now() - cached.ts) > REMINDERS_CACHE_TTL_MS) return null;
+      return cached.reminders;
+    } catch (err) {
+      console.warn("[popup] Failed to read reminders cache:", err);
+      return null;
+    }
+  }
+
+  async function writeRemindersCache(reminders) {
+    try {
+      await chrome.storage.local.set({
+        [REMINDERS_CACHE_KEY]: { ts: Date.now(), reminders }
+      });
+    } catch (err) {
+      console.warn("[popup] Failed to store reminders cache:", err);
+    }
+  }
+
+  function buildReminderList(data) {
+    const reminders = [];
+    if (!data || typeof data !== "object") return reminders;
     for (const uuid in data) {
       const locationData = data[uuid];
-      if (locationData.reminder) {
+      if (locationData && typeof locationData === "object" && locationData.reminder) {
         for (const date in locationData.reminder) {
           const note = locationData.reminder[date];
-          // 🚫 skip if matches "done by username"
           if (isDoneBy(note)) continue;
-
-          allReminders.push({
-            uuid,
-            date,
-            note
-          });
+          reminders.push({ uuid, date, note });
         }
       }
     }
+    reminders.sort((a, b) => a.date.localeCompare(b.date));
+    return reminders;
+  }
 
-    allReminders.sort((a, b) => a.date.localeCompare(b.date));
-
+  function applyReminderList(reminders, { shouldCache = false } = {}) {
+    allReminders.length = 0;
+    allReminders.push(...reminders);
     renderReminderList(allReminders);
     updateExtensionBadge(allReminders);
+    if (shouldCache) {
+      void writeRemindersCache(allReminders);
+    }
+  }
 
-    // ✅ NOW attach the clear button
-    const clearBtn = document.getElementById("clearReminderFilter");
-    clearBtn?.addEventListener("click", () => renderReminderList(allReminders));
+  function applyReminderData(data, { shouldCache = true } = {}) {
+    const reminders = buildReminderList(data);
+    applyReminderList(reminders, { shouldCache });
+  }
+
+  async function fetchAndRenderReminders() {
+    const cachedReminders = await readRemindersCache();
+    if (cachedReminders) {
+      applyReminderList(cachedReminders, { shouldCache: false });
+      return;
+    }
+
+    let data = null;
+    try {
+      data = await fetchRemindersFromApi();
+    } catch (err) {
+      const errMessage = err?.message || String(err || "unknown error");
+      console.warn("[popup] Reminders API failed:", errMessage);
+      try {
+        data = await fetchRemindersFromFirebase();
+      } catch (fbErr) {
+        const fbMessage = fbErr?.message || String(fbErr || "unknown error");
+        console.warn("[popup] Failed to fetch reminders:", fbMessage);
+        renderReminderList([]);
+        updateExtensionBadge([]);
+        return;
+      }
+    }
+
+    if (data) {
+      applyReminderData(data, { shouldCache: true });
+    }
+  }
+
+  function subscribeToReminderStream() {
+    if (remindersEventSource || typeof EventSource === "undefined") return;
+    const streamUrl = buildRemindersUrl({ stream: "true" });
+    const source = new EventSource(streamUrl);
+    remindersEventSource = source;
+
+    source.addEventListener("reminders", (event) => {
+      if (!event?.data) return;
+      try {
+        const payload = JSON.parse(event.data);
+        const etag = payload?.etag || event.lastEventId;
+        if (etag && etag === remindersStreamLastEtag) return;
+        if (etag) remindersStreamLastEtag = etag;
+        const data = payload?.reminders || payload?.data || payload;
+        applyReminderData(data, { shouldCache: true });
+      } catch (err) {
+        console.warn("[popup] Failed to parse reminders stream:", err);
+      }
+    });
+
+    source.onerror = (err) => {
+      if (source.readyState === EventSource.CLOSED) {
+        remindersEventSource = null;
+      } else {
+        console.warn("[popup] Reminders stream error:", err);
+      }
+    };
   }
 
 function renderReminderList(remindersToShow, filtered = false) {
@@ -79,6 +232,7 @@ function renderReminderList(remindersToShow, filtered = false) {
   const today = new Date().toISOString().split("T")[0];
   const upcoming = remindersToShow.filter(r => r.date >= today);
   const past = remindersToShow.filter(r => r.date < today).reverse();
+  let firstUpcomingItem = null;
 
   // --- 🕒 Past Reminder Fold Section ---
   if (past.length) {
@@ -114,10 +268,26 @@ function renderReminderList(remindersToShow, filtered = false) {
     const li = document.createElement("li");
     li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${dateText}</a>: ${r.note}`;
     list.appendChild(li);
+    if (!firstUpcomingItem) {
+      firstUpcomingItem = li;
+    }
   }
 
   // Toggle "Show All" button
   clearBtn.style.display = filtered ? "block" : "none";
+
+  const section = document.getElementById("reminderSection");
+  if (section) {
+    if (past.length && firstUpcomingItem) {
+      const sectionRect = section.getBoundingClientRect();
+      const itemRect = firstUpcomingItem.getBoundingClientRect();
+      const maxScroll = section.scrollHeight - section.clientHeight;
+      const targetScrollTop = section.scrollTop + (itemRect.top - sectionRect.top);
+      section.scrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
+    } else {
+      section.scrollTop = 0;
+    }
+  }
 }
 
 
@@ -137,8 +307,9 @@ function updateExtensionBadge(reminders) {
   const greenMode = document.getElementById("greenModeToggle");
   const gayMode = document.getElementById("gayModeToggle");
   const recolorOptions = document.getElementById("recolorOptions");
-  const { redirectEnabled, greenMode: gm, gayMode: ym } = await chrome.storage.local.get([
-    "redirectEnabled", "greenMode", "gayMode"
+  const hideNotesToggle = document.getElementById("hideNotesToggle");
+  const { redirectEnabled, greenMode: gm, gayMode: ym, hideNotes } = await chrome.storage.local.get([
+    "redirectEnabled", "greenMode", "gayMode", "hideNotes"
   ]);
   redirect.checked = redirectEnabled || false;
   const isAnyRecolor = gm || ym;
@@ -146,8 +317,14 @@ function updateExtensionBadge(reminders) {
   recolorOptions.style.display = isAnyRecolor ? "flex" : "none";
   greenMode.checked = !!gm;
   gayMode.checked = !!ym;
+  if (hideNotesToggle) {
+    hideNotesToggle.checked = !!hideNotes;
+  }
   redirect.addEventListener("change", () => {
     chrome.storage.local.set({ redirectEnabled: redirect.checked });
+  });
+  hideNotesToggle?.addEventListener("change", () => {
+    chrome.storage.local.set({ hideNotes: hideNotesToggle.checked });
   });
   recolorToggle.addEventListener("change", () => {
     if (!recolorToggle.checked) {
@@ -302,7 +479,11 @@ chrome.windows.onRemoved.addListener((id) => {
       console.log('Could not get tokens from content script:', error);
     }
   });
-await fetchAndRenderReminders(); // ⬅️ Call the function!
+  await fetchAndRenderReminders(); // ⬅️ Call the function!
+  subscribeToReminderStream();
+  window.addEventListener("beforeunload", () => {
+    remindersEventSource?.close();
+  });
 
 
 });

@@ -1,0 +1,63 @@
+{
+  "timezone": "America/New_York",
+  "overtime": {
+    "threshold_hours_per_week": 40,
+    "multiplier": 1.5
+  },
+  "rates": [
+    {
+      "start_date": "2024-01-01",
+      "hourly_rate": 20
+    },
+    {
+      "start_date": "2025-01-01",
+      "hourly_rate": 22
+    }
+  ],
+  "user_rates": {
+    "doobneek": [
+      {
+        "start_date": "2024-01-01",
+        "hourly_rate": 22
+      }
+    ]
+  },
+  "breaks": {
+    "lunch": {
+      "eligibility": {
+        "min_work_minutes_same_day": 360
+      },
+      "default_paid_lunch_minutes_per_eligible_day": 30,
+      "weekly_cap_paid_lunch_minutes": 120
+    }
+  },
+  "standing_meetings": {
+    "weekly_checkin": {
+      "duration_minutes": 45,
+      "frequency": "weekly",
+      "counts_as_paid_work_time": true
+    },
+    "team_meeting": {
+      "duration_minutes": 90,
+      "frequency": "biweekly",
+      "counts_as_paid_work_time": true
+    }
+  },
+  "calendar_meetings": [
+    {
+      "name": "weekly_checkin",
+      "weekday": "tue",
+      "time": "12:00",
+      "duration_minutes": 45,
+      "frequency": "weekly"
+    },
+    {
+      "name": "team_meeting",
+      "weekday": "fri",
+      "time": "13:45",
+      "duration_minutes": 90,
+      "frequency": "biweekly",
+      "anchor_date": "2025-01-03"
+    }
+  ]
+}

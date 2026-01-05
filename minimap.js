@@ -27,6 +27,91 @@ function onUrlChange(callback) {
 
 let container = null;
 let observer = null;
+let focusAckTimer = null;
+let visibilityHandler = null;
+let visibilityRaf = null;
+
+const orgSearchInputSelector =
+  '.input-group input.form-control[placeholder*="Type the organization name"]';
+const orgSearchResultSelector = 'li.Dropdown-item.list-group-item[role="menuitem"]';
+const orgSearchResultsContainerSelector = '[data-gghost-search-ui="true"][role="menu"]';
+
+function isOrgSearchActive() {
+  const input = document.querySelector(orgSearchInputSelector);
+  if (!input) return false;
+  if (document.activeElement === input) return true;
+  const group = input.closest('.input-group');
+  return !!group && group.classList.contains('active');
+}
+
+function isElementVisible(element) {
+  if (!element || !element.isConnected) return false;
+  const style = window.getComputedStyle(element);
+  if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+    return false;
+  }
+  return element.getClientRects().length > 0;
+}
+
+function hasVisibleOrgSearchResults() {
+  const customContainer = document.querySelector(orgSearchResultsContainerSelector);
+  if (customContainer && isElementVisible(customContainer)) return true;
+  const items = document.querySelectorAll(orgSearchResultSelector);
+  for (const item of items) {
+    if (isElementVisible(item)) return true;
+  }
+  return false;
+}
+
+function updateMinimapVisibility() {
+  if (!container) return;
+  const shouldHide = isOrgSearchActive() || hasVisibleOrgSearchResults();
+  container.style.display = shouldHide ? 'none' : '';
+}
+
+function scheduleMinimapVisibilityUpdate() {
+  if (visibilityRaf) return;
+  visibilityRaf = requestAnimationFrame(() => {
+    visibilityRaf = null;
+    updateMinimapVisibility();
+  });
+}
+
+function attachOrgSearchVisibilityHandlers() {
+  if (visibilityHandler) return;
+  visibilityHandler = () => scheduleMinimapVisibilityUpdate();
+  document.addEventListener('focusin', visibilityHandler, true);
+  document.addEventListener('focusout', visibilityHandler, true);
+  document.addEventListener('click', visibilityHandler, true);
+  document.addEventListener('input', visibilityHandler, true);
+  observer = new MutationObserver(() => scheduleMinimapVisibilityUpdate());
+  if (document.body) {
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
+  }
+  scheduleMinimapVisibilityUpdate();
+}
+
+function detachOrgSearchVisibilityHandlers() {
+  if (!visibilityHandler) return;
+  document.removeEventListener('focusin', visibilityHandler, true);
+  document.removeEventListener('focusout', visibilityHandler, true);
+  document.removeEventListener('click', visibilityHandler, true);
+  document.removeEventListener('input', visibilityHandler, true);
+  visibilityHandler = null;
+  if (visibilityRaf) {
+    cancelAnimationFrame(visibilityRaf);
+    visibilityRaf = null;
+  }
+  if (observer) {
+    observer.disconnect();
+    observer = null;
+  }
+}
 
 function injectMapUI() {
     
@@ -62,7 +147,7 @@ function injectMapUI() {
   });
 
   const clearBtn = document.createElement('button');
-  clearBtn.textContent = '✕';
+  clearBtn.textContent = 'X';
   Object.assign(clearBtn.style, {
     padding: '0 10px',
     fontSize: '16px',
@@ -100,17 +185,7 @@ function injectMapUI() {
   container.appendChild(suggestions);
   container.appendChild(iframe);
   document.body.appendChild(container);
-  // ⬇ Dynamically show/hide based on presence of Dropdown item
-  const observer = new MutationObserver(() => {
-    const dropdownExists = document.querySelector('li.Dropdown-item.list-group-item');
-    if (dropdownExists) {
-      container.style.display = 'none';
-    } else {
-      container.style.display = 'block';
-    }
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
+  attachOrgSearchVisibilityHandlers();
 
   let debounce;
   input.addEventListener('input', () => {
@@ -178,7 +253,35 @@ function injectMapUI() {
     suggestions.innerHTML = '';
     suggestions.style.display = 'none';
     iframe.style.display = 'none';
+    window.dispatchEvent(new CustomEvent('gghost-minimap-clear'));
   });
+
+  function requestMapFocus(lat, lng, zoom = 16) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return Promise.resolve(false);
+    }
+    const requestId = `minimap-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return new Promise((resolve) => {
+      let settled = false;
+      const handleAck = (event) => {
+        const detail = event?.detail;
+        if (!detail || detail.requestId !== requestId) return;
+        settled = true;
+        window.removeEventListener('gghost-minimap-focus-ack', handleAck);
+        clearTimeout(focusAckTimer);
+        resolve(!!detail.success);
+      };
+      window.addEventListener('gghost-minimap-focus-ack', handleAck);
+      window.dispatchEvent(new CustomEvent('gghost-minimap-focus', {
+        detail: { lat, lng, zoom, requestId, triggerClick: true, dropPin: false }
+      }));
+      focusAckTimer = setTimeout(() => {
+        if (settled) return;
+        window.removeEventListener('gghost-minimap-focus-ack', handleAck);
+        resolve(false);
+      }, 700);
+    });
+  }
 
   function showPlaceById(placeId) {
     chrome.runtime.sendMessage(
@@ -186,8 +289,12 @@ function injectMapUI() {
       (res) => {
         const loc = res?.location;
         if (loc?.lat && loc?.lng) {
-          iframe.src = `https://www.google.com/maps?q=${loc.lat},${loc.lng}&z=16&output=embed`;
-          iframe.style.display = 'block';
+          const lat = Number(loc.lat);
+          const lng = Number(loc.lng);
+          requestMapFocus(lat, lng).then(() => {
+            iframe.src = `https://www.google.com/maps?q=${lat},${lng}&z=16&output=embed`;
+            iframe.style.display = 'block';
+          });
         } else {
           alert('Location not found');
         }
@@ -197,10 +304,7 @@ function injectMapUI() {
 }
 
 function removeMapUI() {
-  if (observer) {
-    observer.disconnect();
-    observer = null;
-  }
+  detachOrgSearchVisibilityHandlers();
   if (container) {
     container.remove();
     container = null;

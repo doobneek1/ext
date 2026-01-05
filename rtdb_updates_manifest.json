@@ -1,0 +1,21 @@
+{
+  "basePath": "/locationNotes",
+  "chunks": [
+    "rtdb_updates_manifest_chunks\\rtdb_updates_001.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_002.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_003.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_004.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_005.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_006.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_007.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_008.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_009.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_010.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_011.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_012.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_013.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_014.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_015.json",
+    "rtdb_updates_manifest_chunks\\rtdb_updates_016.json"
+  ]
+}

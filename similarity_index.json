@@ -1,0 +1,1473 @@
+{
+  "schemaVersion": "1.1",
+  "generatedAt": "2026-01-04T23:52:17.616704Z",
+  "fields": {
+    "services.description": {
+      "matches": {
+        "1588187175000|adamabard|services.description|d136ffc7-1d56-4e95-bc3e-65c66f5dcec3|0b5e25a6-398d-4808-ae96-38febef69c5c": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "29301fb5-020f-473d-9cff-70584edad23c",
+            "timestampMs": 1588185779000,
+            "user": "adamabard",
+            "fieldKey": "services.description",
+            "serviceId": "c9d739e8-af79-4cd1-9c5d-199f426a858b"
+          }
+        },
+        "1652113840000|ashenry|services.description|337c0f09-e0f9-4309-ba8e-bf4420e2cb8a|640880b7-4301-428b-abf4-dea782b1de55": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "66a5a438-2d59-4083-b7b3-4a485b9ae8bd",
+            "timestampMs": 1652113194000,
+            "user": "ashenry",
+            "fieldKey": "services.description",
+            "serviceId": "6764879a-4adf-495d-855b-01146ce9c4f9"
+          }
+        },
+        "1652114453000|ashenry|services.description|1ca2ca1b-5c5a-449f-bd8f-5f51c501ba6e|a865a261-2c49-43ba-b4a7-fecf6cb470a7": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "66a5a438-2d59-4083-b7b3-4a485b9ae8bd",
+            "timestampMs": 1652113194000,
+            "user": "ashenry",
+            "fieldKey": "services.description",
+            "serviceId": "6764879a-4adf-495d-855b-01146ce9c4f9"
+          }
+        },
+        "1652198296000|ashenry|services.description|e3788ddd-6c02-4c55-b447-8ce45192a83a|2f01d72b-7759-4885-81e4-a9bd9527e9b4": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "66a5a438-2d59-4083-b7b3-4a485b9ae8bd",
+            "timestampMs": 1652113194000,
+            "user": "ashenry",
+            "fieldKey": "services.description",
+            "serviceId": "6764879a-4adf-495d-855b-01146ce9c4f9"
+          }
+        },
+        "1652970227000|adamabard|services.description|99b7f4ee-03ad-49c3-940b-c7bdf9ac13d7|6a9ab97b-86d4-40cb-bf07-f886e5e3cad5": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "f74ea3f7-4322-432a-af07-cb89b275ca3a",
+            "timestampMs": 1652912324000,
+            "user": "adamabard",
+            "fieldKey": "services.description",
+            "serviceId": "c6164962-1f9b-4760-9c43-e50e92b2fcc6"
+          }
+        },
+        "1652970797000|adamabard|services.description|da2ab990-e4db-451c-ac04-fb9436924e98|e426ad7e-1f38-4e06-a2c5-2cd540c5710b": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "f74ea3f7-4322-432a-af07-cb89b275ca3a",
+            "timestampMs": 1652912324000,
+            "user": "adamabard",
+            "fieldKey": "services.description",
+            "serviceId": "c6164962-1f9b-4760-9c43-e50e92b2fcc6"
+          }
+        },
+        "1652971486000|adamabard|services.description|efa2eeba-bffe-4e51-afc4-8674ca5b2e1d|803d773a-3e4f-4d56-b98f-087f99e3078b": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "f74ea3f7-4322-432a-af07-cb89b275ca3a",
+            "timestampMs": 1652912324000,
+            "user": "adamabard",
+            "fieldKey": "services.description",
+            "serviceId": "c6164962-1f9b-4760-9c43-e50e92b2fcc6"
+          }
+        },
+        "1652972473000|adamabard|services.description|dda25a8f-f4d6-4844-bfc8-91a843f13d70|1bc6df4e-75ba-4355-8b05-510f7993c762": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "f74ea3f7-4322-432a-af07-cb89b275ca3a",
+            "timestampMs": 1652912324000,
+            "user": "adamabard",
+            "fieldKey": "services.description",
+            "serviceId": "c6164962-1f9b-4760-9c43-e50e92b2fcc6"
+          }
+        },
+        "1653332953000|doobneek|services.description|29301fb5-020f-473d-9cff-70584edad23c|c9d739e8-af79-4cd1-9c5d-199f426a858b": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "d136ffc7-1d56-4e95-bc3e-65c66f5dcec3",
+            "timestampMs": 1588187175000,
+            "user": "adamabard",
+            "fieldKey": "services.description",
+            "serviceId": "0b5e25a6-398d-4808-ae96-38febef69c5c"
+          }
+        },
+        "1653579786000|doobneek|services.description|05e67bd3-d6fe-400b-94e5-8979360083a5|2b4d9bea-cdc1-4682-b3ce-254e08bbca89": {
+          "matchType": "similar_to",
+          "confidence": 0.9091,
+          "confidenceBand": "medium",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "b0f6a2b7-4590-4dbf-aebf-de0b11c94207",
+            "timestampMs": 1653409056000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "3a1cecbb-7fcc-4073-8694-7633aa070a79"
+          }
+        },
+        "1653962409000|doobneek|services.description|713f4a51-a232-4bc3-a5d3-504fa00cf0cd|4663c132-5071-46a3-bf3a-2fad0289140e": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "e081a84e-d8e1-4216-9482-eb49103a1741",
+            "timestampMs": 1653962298000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "71521eb6-125d-4e23-b49e-02130210077a"
+          }
+        },
+        "1654795960000|ashenry|services.description|d6a72687-442f-4c6c-9354-13a0463dd8a6|9040be34-03db-4681-8b61-af397816f2be": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "66a5a438-2d59-4083-b7b3-4a485b9ae8bd",
+            "timestampMs": 1652113194000,
+            "user": "ashenry",
+            "fieldKey": "services.description",
+            "serviceId": "6764879a-4adf-495d-855b-01146ce9c4f9"
+          }
+        },
+        "1656416418000|doobneek|services.description|50a0d12d-4644-4040-8c8f-7cfef732af8c|6436c9db-d336-49e4-ac63-a51d2df5111c": {
+          "matchType": "similar_to",
+          "confidence": 0.9091,
+          "confidenceBand": "medium",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "4d70929c-e4d1-44be-9a03-a1816c73d387",
+            "timestampMs": 1654176598000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "ac83550c-2d07-46e7-94db-b6be8929ee31"
+          }
+        },
+        "1657279994000|doobneek|services.description|1ebd1a5d-c3a1-404d-aaf2-830552e4deea|ad32d05f-d0f0-40ce-b940-746a28a7e5ed": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "8b384df7-2124-4bbe-b193-bd7db30d416c",
+            "timestampMs": 1656615420000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "9048e507-7339-479e-97b0-9b4859e817e1"
+          }
+        },
+        "1657803635000|doobneek|services.description|7d7b9a72-a842-40c3-9b9c-4aa446b393a5|841fcb1d-13f5-40c6-b1dd-0cd19c99950d": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9787,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "1ebd1a5d-c3a1-404d-aaf2-830552e4deea",
+            "timestampMs": 1657281192000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "7dbba3b9-b483-45b7-8eb8-535f44d80a89"
+          }
+        },
+        "1658767777000|doobneek|services.description|01c41e86-3392-4513-85db-791b03a16bfe|d6bac9d0-d8ed-4690-9a12-1ce92e9d8747": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "a4e2f702-b7ce-4c11-8472-ac9966b0ec6c",
+            "timestampMs": 1656700000000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "81758c76-d168-4f8b-a9b7-3ee36dca6116"
+          }
+        },
+        "1661809647000|doobneek|services.description|1b3d3c8a-f9ac-4d09-a987-f75944f73810|65e66382-a4ec-4be1-8a81-d5dae15a997c": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "62789195-29ac-4a5b-9843-907fe7a267c2",
+            "timestampMs": 1661807024000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "9f2d4712-5bd9-4733-bf4e-a3797c32b91b"
+          }
+        },
+        "1668785554000|doobneek|services.description|8e91ac41-6a7c-4dfa-af1e-ff03b1082b15|fc088229-5f15-4fba-825e-dd35119f2398": {
+          "matchType": "review",
+          "confidence": 0.8861,
+          "confidenceBand": "review",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "45820373-eb17-4cc5-9076-66ea96487068",
+            "timestampMs": 1668782200000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "9ee7acb0-37d8-40e3-9092-fb0ca4f2158b"
+          }
+        },
+        "1669924585000|Kiesha|services.description|d65efbfd-6374-4723-a2c3-696934380299|a84a636c-f88e-497f-888e-76386a16d206": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "c6f1b357-5642-474d-bc79-ebcd35c0c191",
+            "timestampMs": 1669856015000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "8a79e5ac-70db-4d41-a510-b1f76a304156"
+          }
+        },
+        "1671482363000|Kiesha|services.description|ed817a5e-9490-435c-b97a-4acd5f3189cb|d26ccd06-81c4-455e-a2fa-d3e42239a215": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "104ce4e8-e77b-4ffb-aaa3-4e1bfebd03b2",
+            "timestampMs": 1671220989000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "037e2e73-29b7-44e1-99d8-9341dba78649"
+          }
+        },
+        "1671482374000|Kiesha|services.description|104ce4e8-e77b-4ffb-aaa3-4e1bfebd03b2|037e2e73-29b7-44e1-99d8-9341dba78649": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ed817a5e-9490-435c-b97a-4acd5f3189cb",
+            "timestampMs": 1671482363000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "d26ccd06-81c4-455e-a2fa-d3e42239a215"
+          }
+        },
+        "1671482837000|Kiesha|services.description|57a86bc0-2201-4953-96d3-408ece2b61dc|abeacecf-0afa-4d4a-a91f-1367a4011a07": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "104ce4e8-e77b-4ffb-aaa3-4e1bfebd03b2",
+            "timestampMs": 1671220989000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "037e2e73-29b7-44e1-99d8-9341dba78649"
+          }
+        },
+        "1672681880000|doobneek|services.description|65d64aec-ba97-496f-95d0-f1739b9bbe16|7bb03af9-6970-403c-9d49-5b22e65f3e58": {
+          "matchType": "similar_to",
+          "confidence": 0.9026,
+          "confidenceBand": "medium",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ee80a4f9-7cec-44b6-a0dc-5a7164da74b7",
+            "timestampMs": 1672680992000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "ccf9dfde-e008-4e49-890d-0b5c5d9a04a1"
+          }
+        },
+        "1673375348000|doobneek|services.description|1876f065-b5b6-4a17-8a55-c1a70314bbe9|2c7895b2-fe1e-481e-a819-eff31d71dcde": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9756,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "a0ceabdb-a43c-4fb1-8ced-b6338f115ad1",
+            "timestampMs": 1658419929000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "f7df4156-d852-497e-abff-e2d05af87e19"
+          }
+        },
+        "1675123135000|doobneek|services.description|34388965-5f1c-4229-a6ea-3cd27e6dc505|17e76d77-acd1-44d2-b0be-cf8cf3861fd3": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9821,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "fe8c90f1-1d9c-4f64-9274-b5384b8d27d1",
+            "timestampMs": 1672678500000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "e00da016-abb5-43d6-bce0-3211007842a1"
+          }
+        },
+        "1675185101000|doobneek|services.description|67b94f47-36b0-41f5-b56e-221b08f20e19|46ff950c-7ba2-4c74-b165-4bdccbcf3170": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9841,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "218347f5-6a31-42b2-b266-226228641460",
+            "timestampMs": 1675184553000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "6edd55ba-c9a3-4f2c-9418-e301aa95d86f"
+          }
+        },
+        "1675185271000|doobneek|services.description|2e12f561-34d2-48a6-8cd5-d03cc97664d2|aa3d0e89-30bf-4a4c-8e5b-48d7bb12b05e": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "67b94f47-36b0-41f5-b56e-221b08f20e19",
+            "timestampMs": 1675185101000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "46ff950c-7ba2-4c74-b165-4bdccbcf3170"
+          }
+        },
+        "1676311089000|doobneek|services.description|2f893130-cad8-4c16-a907-8eb6df358bb6|5a3afa12-6f3e-48c9-876a-d0a70838c286": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9839,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ff310f36-b476-4426-b238-6e0cf97828fa",
+            "timestampMs": 1676307076000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "e12e6896-a51c-4997-a00b-0e86451b1849"
+          }
+        },
+        "1676408816000|doobneek|services.description|1d968ea2-8422-4a07-9658-1c100325fc7d|d3555bac-cdcf-4ad8-b2b5-287eee64cb75": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9851,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ca9798df-f658-4188-aada-751931dafa72",
+            "timestampMs": 1676404579000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "4830b998-12e2-44b1-bffe-5175391195cc"
+          }
+        },
+        "1677096055000|Kiesha|services.description|a1067d64-2c3d-4fdf-a250-7a7da1dc7c8f|6f8139e6-05ca-40a6-a576-68d95937e9ee": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "0bf0af17-e1b7-4601-8cb0-86f5a1a51278",
+            "timestampMs": 1677092511000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "7b9e57ba-572c-43ef-8c9f-f58e981b1659"
+          }
+        },
+        "1677166694000|Kiesha|services.description|d65e6248-2637-4009-a5e9-933c155407c8|b2b7adc7-fdaf-4bf3-a504-bb7b977e93cd": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9939,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "0bf0af17-e1b7-4601-8cb0-86f5a1a51278",
+            "timestampMs": 1677092511000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "7b9e57ba-572c-43ef-8c9f-f58e981b1659"
+          }
+        },
+        "1677175206000|Kiesha|services.description|a5812581-6d5f-464e-a8b7-e74b0998cff2|87dd0922-7b60-4ab9-a17d-bb391d0ae5e9": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9939,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "d65e6248-2637-4009-a5e9-933c155407c8",
+            "timestampMs": 1677166694000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "b2b7adc7-fdaf-4bf3-a504-bb7b977e93cd"
+          }
+        },
+        "1677177598000|Kiesha|services.description|da13bdce-6def-473b-a0b2-8208d177eeee|8157e301-cc82-461b-893e-48c725cd9cf6": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "d65e6248-2637-4009-a5e9-933c155407c8",
+            "timestampMs": 1677166694000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "b2b7adc7-fdaf-4bf3-a504-bb7b977e93cd"
+          }
+        },
+        "1677263652000|Kiesha|services.description|994713ca-474b-4834-bf95-8076aa58e1c0|bf4c282e-6233-4a57-970e-a4001c68ca98": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "d65e6248-2637-4009-a5e9-933c155407c8",
+            "timestampMs": 1677166694000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "b2b7adc7-fdaf-4bf3-a504-bb7b977e93cd"
+          }
+        },
+        "1677269800000|Kiesha|services.description|cdf65bab-cd8d-4d79-b363-2558b570ca67|fbd2ad7d-6180-4b1c-9dd5-18c2cf03c8f1": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "d65e6248-2637-4009-a5e9-933c155407c8",
+            "timestampMs": 1677166694000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "b2b7adc7-fdaf-4bf3-a504-bb7b977e93cd"
+          }
+        },
+        "1677515053000|Kiesha|services.description|aa4e72b3-9e47-4e19-b7ee-61fdb79690d6|63330267-9389-4ff4-979b-7b7189392bbd": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9938,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "b80fb553-8948-4d50-8854-7aa2b4d72f01",
+            "timestampMs": 1677272313000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "9e3fb03c-0793-4c3a-9ba2-63fe979613c1"
+          }
+        },
+        "1677524033000|Kiesha|services.description|ede9e25d-be49-469b-8950-e6a1fd1519bd|fd8d36fd-e490-4a94-9f8d-99d03c757b5c": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "aa4e72b3-9e47-4e19-b7ee-61fdb79690d6",
+            "timestampMs": 1677515053000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "63330267-9389-4ff4-979b-7b7189392bbd"
+          }
+        },
+        "1677701999000|doobneek|services.description|dcda3fd8-c438-4b89-b5e8-c2e142be1adc|f58e2d70-21ec-4b56-8bc0-c718b835017f": {
+          "matchType": "similar_to",
+          "confidence": 0.9268,
+          "confidenceBand": "medium",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "fea9a01c-414a-4432-8026-36f69f8d464a",
+            "timestampMs": 1677701764000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "8b198dd5-16c0-44e3-98ee-8718227a6ffc"
+          }
+        },
+        "1678122366000|Kiesha|services.description|2e4f0dae-987a-4a16-ab4d-ae161927ac57|53d5a9e2-aff7-4a09-852f-b8688beab91a": {
+          "matchType": "similar_to",
+          "confidence": 0.9153,
+          "confidenceBand": "medium",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "c2e24ba7-6adf-4c87-8c7e-f11d0c44d476",
+            "timestampMs": 1677632948000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "f43cc1b4-a244-4399-be1d-6bbab8c67fb5"
+          }
+        },
+        "1678225633000|Kiesha|services.description|cb680c09-9b42-43c2-aa5f-c2b8a8cf725b|72925a1f-817c-42b7-a97b-7b254ffffcc2": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9924,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "28e0636f-4147-45d2-9c1c-b21f108583e7",
+            "timestampMs": 1677681879000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "e7f53802-4ee7-4efe-b12f-07f505140eaa"
+          }
+        },
+        "1678227244000|Kiesha|services.description|c987bfe0-746c-453c-9978-282a822f7c02|30bc1d43-4a28-4508-b715-0073ab1c5c5d": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "cb680c09-9b42-43c2-aa5f-c2b8a8cf725b",
+            "timestampMs": 1678225633000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "72925a1f-817c-42b7-a97b-7b254ffffcc2"
+          }
+        },
+        "1678304393000|Kiesha|services.description|51f67940-354a-4f25-b23f-e4c0b59a7d04|b31d8c00-09ec-49bc-be9f-89a22c1c7203": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "cb680c09-9b42-43c2-aa5f-c2b8a8cf725b",
+            "timestampMs": 1678225633000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "72925a1f-817c-42b7-a97b-7b254ffffcc2"
+          }
+        },
+        "1678380912000|Kiesha|services.description|902536a1-5adf-4b49-bb34-e96d315eebb6|99c2c20c-a163-48db-a89b-2b100df19ef7": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "cb680c09-9b42-43c2-aa5f-c2b8a8cf725b",
+            "timestampMs": 1678225633000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "72925a1f-817c-42b7-a97b-7b254ffffcc2"
+          }
+        },
+        "1678722440000|Kiesha|services.description|5733f8d7-dd68-4a5a-bbe6-1a1fd7f9a761|ec2b2a73-3777-49a5-87ef-f979598ba067": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "cb680c09-9b42-43c2-aa5f-c2b8a8cf725b",
+            "timestampMs": 1678225633000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "72925a1f-817c-42b7-a97b-7b254ffffcc2"
+          }
+        },
+        "1678727500000|Kiesha|services.description|4955d5ed-05c1-4ea0-867d-df00ccf9c4d2|7552ca31-0ce9-4a58-95ec-0a2df36125af": {
+          "matchType": "similar_to",
+          "confidence": 0.9329,
+          "confidenceBand": "medium",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "cb680c09-9b42-43c2-aa5f-c2b8a8cf725b",
+            "timestampMs": 1678225633000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "72925a1f-817c-42b7-a97b-7b254ffffcc2"
+          }
+        },
+        "1678728637000|Kiesha|services.description|8ea0f5f0-7097-42c2-93e8-fde1a674eb33|5f1317e7-bada-4b5c-87ec-1e8b5cf820ac": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "4955d5ed-05c1-4ea0-867d-df00ccf9c4d2",
+            "timestampMs": 1678727500000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "7552ca31-0ce9-4a58-95ec-0a2df36125af"
+          }
+        },
+        "1678811397000|Kiesha|services.description|cb6207e5-5911-4fce-b8d5-e8dd8e465ad6|bddc83ab-e3bd-45c6-b9ad-dc00884832f9": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9706,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "cb680c09-9b42-43c2-aa5f-c2b8a8cf725b",
+            "timestampMs": 1678225633000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "72925a1f-817c-42b7-a97b-7b254ffffcc2"
+          }
+        },
+        "1678989997000|Kiesha|services.description|1bbaae64-86b4-41c5-beed-ff1976971a45|836193df-f718-40b3-9926-96ba2676b55d": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "f8d52735-546b-41db-acd4-cc7d14e157fe",
+            "timestampMs": 1677025516000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "0b871cb4-e01b-44a7-970e-f66443913b52"
+          }
+        },
+        "1679946800000|Kiesha|services.description|6408d71d-6b43-4dbc-891b-e4f4902d84da|96dc59e4-4711-44e7-8dde-b418439e4d43": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "cb680c09-9b42-43c2-aa5f-c2b8a8cf725b",
+            "timestampMs": 1678225633000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "72925a1f-817c-42b7-a97b-7b254ffffcc2"
+          }
+        },
+        "1680018934000|doobneek|services.description|fc5edf0d-f2be-4151-814c-6e2b6608044c|b8520f93-cec8-4c36-8dc8-4dd1dbe5ecbd": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "2e4952df-aaca-4a4b-b472-905f84f9fa0e",
+            "timestampMs": 1680016811000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "03d36f39-8142-40ed-98ae-fc218da91679"
+          }
+        },
+        "1680281159000|Kiesha|services.description|19011b56-474b-4acf-983b-38c9c980dafd|af66cd3d-4a40-4404-bb5b-c7083ec79c99": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9976,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "04de8f32-b2c5-4206-9543-bcc6c8e4a1a5",
+            "timestampMs": 1680281128000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "bb9a35ad-c71a-41e8-adc5-685d6ef19fe0"
+          }
+        },
+        "1680281163000|Kiesha|services.description|04de8f32-b2c5-4206-9543-bcc6c8e4a1a5|bb9a35ad-c71a-41e8-adc5-685d6ef19fe0": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "19011b56-474b-4acf-983b-38c9c980dafd",
+            "timestampMs": 1680281159000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "af66cd3d-4a40-4404-bb5b-c7083ec79c99"
+          }
+        },
+        "1680283506000|Kiesha|services.description|95c668f1-8c59-430f-a1ae-e64d396a7f5d|e9c1bbb3-f21a-48a7-9148-65c155e65ece": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "e09db8c7-bbe9-4b3c-8b58-c83902b15a9a",
+            "timestampMs": 1679940210000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "aed49123-f6c1-4fae-88b6-668223d6e9a5"
+          }
+        },
+        "1680723455000|doobneek|services.description|83faf2ce-5a07-41a8-83e1-2085b6887f3b|4e8225aa-3ef1-4062-85dd-781573099a6d": {
+          "matchType": "borrowed_from",
+          "confidence": 0.973,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "d0486845-8d68-483b-81a1-2da93a957526",
+            "timestampMs": 1680723313000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "d6fc437e-2ede-453b-a6d1-3c2316abbe9d"
+          }
+        },
+        "1680723658000|doobneek|services.description|fb7c0b56-3872-48af-8f38-8fd83f2f56c2|0e2bd5cd-37aa-4233-bbd4-6f85e5bad326": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "83faf2ce-5a07-41a8-83e1-2085b6887f3b",
+            "timestampMs": 1680723455000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "4e8225aa-3ef1-4062-85dd-781573099a6d"
+          }
+        },
+        "1681258067000|doobneek|services.description|70f3ebe9-aab7-4294-86a4-d5f6d53d0555|d595e58b-38bb-4dcf-bb5c-0570943ee963": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9898,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "8593c948-69ec-4ed7-9cdc-30ab36648420",
+            "timestampMs": 1681239206000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "88837654-3bf3-4316-90c3-a6b17237f239"
+          }
+        },
+        "1681258678000|doobneek|services.description|eaeb9bb7-d030-40aa-a0cd-9e51e708da00|a12de616-fcdb-4be7-8124-8d806125cb1a": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "70f3ebe9-aab7-4294-86a4-d5f6d53d0555",
+            "timestampMs": 1681258067000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "d595e58b-38bb-4dcf-bb5c-0570943ee963"
+          }
+        },
+        "1681837028000|doobneek|services.description|d428c9b2-9fa9-47ff-8827-9dd8cc49f2f4|f6e14897-cbd9-4b98-a145-3f56cd9cd8c3": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9697,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "d62ca641-07cf-406e-82f4-b7801d21da8a",
+            "timestampMs": 1681222171000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "7117ca4a-9f4c-4e4a-8cb7-84fee8e1c5e9"
+          }
+        },
+        "1681842520000|doobneek|services.description|6f262eb1-ff7b-4711-bb9e-e6ddee3ffe93|5d227329-a6d9-4a00-9af2-5afc4a9fa0b0": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "eab4cd5e-4b4d-4f1e-a9e8-dcd10ca4537f",
+            "timestampMs": 1681842120000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "61245aa5-4e3d-494d-bb7e-016c0d11316a"
+          }
+        },
+        "1681937309000|Kiesha|services.description|ad1e09ed-b53b-416c-9519-9359c511f293|ee152777-c97f-423f-91d9-777e56f75766": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9905,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ad067b1f-085a-456d-a9c2-4c442d9a0014",
+            "timestampMs": 1673369861000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "64d97889-6163-4c56-a906-6f325856596a"
+          }
+        },
+        "1682099572000|Kiesha|services.description|437c1ae0-b892-4a00-8680-06dfd918d798|d7a3f526-54dd-496b-a804-6cbcfb0c5bc8": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9967,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "f7e434c0-ef6b-425e-9886-317d4f83ae7a",
+            "timestampMs": 1679513533000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "258c186d-d699-4343-a2c9-31a8cd873ace"
+          }
+        },
+        "1682454140000|Kiesha|services.description|61160913-9093-4f0e-a92e-04abfdbdf272|23edd095-be3e-4f86-bae3-4b5f02dc4633": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "17bd886f-22b1-40a6-841d-f1d79fc44b51",
+            "timestampMs": 1682452241000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "2bce20f1-71d7-4547-b111-52376fa2eb02"
+          }
+        },
+        "1683827068000|Kiesha|services.description|29301fb5-020f-473d-9cff-70584edad23c|1aacefdb-0102-4f11-8118-95495c08efb9": {
+          "matchType": "similar_to",
+          "confidence": 0.9189,
+          "confidenceBand": "medium",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "1edfab8e-0d7c-437e-a14c-6b9ca0eb5d93",
+            "timestampMs": 1530023267000,
+            "user": "9db80f76-510e-43f4-be68-aa09a36a97bf",
+            "fieldKey": "services.description",
+            "serviceId": "299640ce-48a4-4e55-8608-b889ed3160a7"
+          }
+        },
+        "1684355022000|Kiesha|services.description|1e03e854-8e5d-4655-8408-a602579f0927|695e9538-986d-4524-bf9f-9d4f9e4e1faf": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "17bd886f-22b1-40a6-841d-f1d79fc44b51",
+            "timestampMs": 1682452241000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "2bce20f1-71d7-4547-b111-52376fa2eb02"
+          }
+        },
+        "1684443313000|doobneek|services.description|c0f35a80-5950-4618-a733-5704f7d99872|c615a4b5-38a6-4a5b-9ff6-7a1378cb182c": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "7e2fc0d8-d5f7-480f-9dcd-8d366115e8e7",
+            "timestampMs": 1684442818000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "530ef8ce-97b0-4907-8307-3c8ddb63b9fe"
+          }
+        },
+        "1685109688000|Kiesha|services.description|48cf916d-214d-4aa1-8d40-bbbe84e18384|7517f04b-27f0-4d95-a1dd-b59800bc742a": {
+          "matchType": "review",
+          "confidence": 0.8929,
+          "confidenceBand": "review",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ce70795b-9bdd-4f8f-b95c-976c1919d672",
+            "timestampMs": 1678480517000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "1b171dfe-fa2c-4eb8-aaa2-276d1fad54c0"
+          }
+        },
+        "1685719670000|Kiesha|services.description|34ac3d9d-b79e-4f41-8d93-ef81192a52c4|63d571ae-04db-47e3-874b-1c2e9e70cab6": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9927,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "82fc28d6-54f3-494e-83f0-1e40ee7a7754",
+            "timestampMs": 1685468219000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "db72e083-ead5-47f2-8403-813a5989e8c8"
+          }
+        },
+        "1686071366000|doobneek|services.description|628f6461-5867-497a-b278-6f59f378c5f9|4dc10678-b59f-4231-b3da-039084f70b4f": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9922,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "a0dfa931-e5da-42e9-b709-12828615b341",
+            "timestampMs": 1686069472000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "6ea6c0a4-3d93-4d25-b0b0-a4f30d19d057"
+          }
+        },
+        "1686242752000|Kiesha|services.description|534af3d7-3f6e-427f-8eb3-d2d15ad76657|85e59b7d-6776-43f4-99e0-523938fb8e35": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "cb680c09-9b42-43c2-aa5f-c2b8a8cf725b",
+            "timestampMs": 1678225633000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "72925a1f-817c-42b7-a97b-7b254ffffcc2"
+          }
+        },
+        "1686676818000|Kiesha|services.description|3046cdb2-042a-416e-ba31-b229cc94fc54|77753216-e358-49ec-ac7a-84683f761a5d": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9862,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "7427a973-7801-4b28-bdcc-6112ea923961",
+            "timestampMs": 1686672406000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "5af7aa40-fe3a-4f17-9c72-d33078dc3393"
+          }
+        },
+        "1686851773000|Kiesha|services.description|f87b7094-2a23-4634-98f2-cd4a67cd23d8|2711f96b-4ea1-43e3-af2c-bfffe613bb16": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "437c1ae0-b892-4a00-8680-06dfd918d798",
+            "timestampMs": 1682099572000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "d7a3f526-54dd-496b-a804-6cbcfb0c5bc8"
+          }
+        },
+        "1687473720000|doobneek|services.description|f8a37ef2-eb29-4002-aec1-324c77b88f53|7f7705cb-5fe1-4c4a-9dfa-b9c6990edee2": {
+          "matchType": "similar_to",
+          "confidence": 0.9286,
+          "confidenceBand": "medium",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "12eb3d00-10bb-47aa-ad3f-688f9117ddd9",
+            "timestampMs": 1682441706000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "7d23891d-bc0e-475a-9ef4-a14a80573349"
+          }
+        },
+        "1687535081000|Gavilan|services.description|a00030b5-9225-4517-97ab-918104e24627|4085ddf6-769e-4286-9fb1-2ef41279c010": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "f8a37ef2-eb29-4002-aec1-324c77b88f53",
+            "timestampMs": 1687473720000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "7f7705cb-5fe1-4c4a-9dfa-b9c6990edee2"
+          }
+        },
+        "1687817277000|doobneek|services.description|cb308a32-7a53-43b3-853c-a7df79b173d4|ee2d6c39-cb11-44a2-8232-e5b3f65ec59e": {
+          "matchType": "borrowed_from",
+          "confidence": 0.995,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "4a9395be-687a-4328-a65b-66fda390e4cb",
+            "timestampMs": 1687816747000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "c3ff798c-e801-41d7-9f20-9d8ef6dd014a"
+          }
+        },
+        "1688064212000|Kiesha|services.description|724eac26-16cb-4c7a-8f04-dea0e58584d9|2a12ebc6-a388-43c0-962a-85463dd469bb": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9631,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "e9b9e4e5-eb30-4671-ac9a-ab59d76e07a3",
+            "timestampMs": 1685643645000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "ce30f082-ba04-4c60-917a-5ec7db91511d"
+          }
+        },
+        "1688579296000|doobneek|services.description|058a39a5-c0d0-4ea0-b331-10b85fefe8d5|6ad94d41-c0af-4609-beb5-9a3523bd4baa": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9821,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "0cf6c682-44b5-47cb-aac0-ca24056a9898",
+            "timestampMs": 1688579137000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "efaf126f-4d9a-4658-826c-f33e2e078bc8"
+          }
+        },
+        "1688584782000|doobneek|services.description|28e28c54-1d73-4de0-b330-dbf786ce4164|3ffc9a08-b9af-49d9-8eef-8a35a18e5411": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9505,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "e3c1c9dd-5da2-4f42-be63-cd03338de320",
+            "timestampMs": 1688584252000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "f77d9f47-2b78-4b6d-97c8-9234182ac7eb"
+          }
+        },
+        "1689186613000|doobneek|services.description|51be3217-749f-440a-bd71-d6515ecc0686|939637d1-866a-4f10-91ff-2fdb4d0f1ed7": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9857,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "12ef58c7-c1c8-4f50-9a2c-716be4f25fc0",
+            "timestampMs": 1689186299000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "cca81505-d8a4-4b7a-9ce6-3f6b9d0165dd"
+          }
+        },
+        "1689186620000|doobneek|services.description|12ef58c7-c1c8-4f50-9a2c-716be4f25fc0|cca81505-d8a4-4b7a-9ce6-3f6b9d0165dd": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9857,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "51be3217-749f-440a-bd71-d6515ecc0686",
+            "timestampMs": 1689186613000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "939637d1-866a-4f10-91ff-2fdb4d0f1ed7"
+          }
+        },
+        "1689695729000|Kiesha|services.description|b176e873-d7f3-4909-85b6-7ac19178d72c|95dc49aa-941c-42d3-b8b5-cbf78a3631a4": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9956,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "cbfe4d8b-cbfd-4f93-9b08-efe6b7a956b1",
+            "timestampMs": 1682446955000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "bfaf233c-bf8c-44b4-85f1-9d47a0774ca9"
+          }
+        },
+        "1689784924000|doobneek|services.description|b8844c82-75b1-4d9c-889d-a5c15739cc46|1bb08065-e1bc-4555-b81f-586f044a0ed0": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9922,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ce18a686-57a7-46aa-a54d-5368c1ba45ee",
+            "timestampMs": 1689784764000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "e60b1c84-4a51-4fc3-bc6f-d899c3b04ad1"
+          }
+        },
+        "1690224030000|doobneek|services.description|f530aa8e-3c8c-4954-bc63-c009d38deedf|1d384a74-d1af-4d07-a8c5-2658fc3cd0c3": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9933,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "96ce8dfb-7666-40bb-a926-2b30ffd30371",
+            "timestampMs": 1690223992000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "a408629b-f900-4e17-8b52-6e8420463ecf"
+          }
+        },
+        "1690237495000|adamabard|services.description|c2e24ba7-6adf-4c87-8c7e-f11d0c44d476|f43cc1b4-a244-4399-be1d-6bbab8c67fb5": {
+          "matchType": "similar_to",
+          "confidence": 0.927,
+          "confidenceBand": "medium",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "2e4f0dae-987a-4a16-ab4d-ae161927ac57",
+            "timestampMs": 1678122366000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "53d5a9e2-aff7-4a09-852f-b8688beab91a"
+          }
+        },
+        "1690471966000|Gavilan|services.description|b6f21a51-42f2-48f9-89d8-1952d4993e67|12111243-f2be-4ccf-abc8-dd6aead08962": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "1426cba4-c76c-4b93-9307-5bcd3cb01cda",
+            "timestampMs": 1690468584000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "1cb6ccfd-3e3b-4114-ba1f-7212c4a09f1e"
+          }
+        },
+        "1691189280000|adamabard|services.description|ad067b1f-085a-456d-a9c2-4c442d9a0014|64d97889-6163-4c56-a906-6f325856596a": {
+          "matchType": "similar_to",
+          "confidence": 0.9227,
+          "confidenceBand": "medium",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ee60d902-bb2a-4345-9d0d-eb3aedb44f15",
+            "timestampMs": 1686074212000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "60b958fe-3a8c-4682-8bf2-c39ede362f82"
+          }
+        },
+        "1691189611000|adamabard|services.description|ee60d902-bb2a-4345-9d0d-eb3aedb44f15|60b958fe-3a8c-4682-8bf2-c39ede362f82": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ad067b1f-085a-456d-a9c2-4c442d9a0014",
+            "timestampMs": 1691189280000,
+            "user": "adamabard",
+            "fieldKey": "services.description",
+            "serviceId": "64d97889-6163-4c56-a906-6f325856596a"
+          }
+        },
+        "1691686018000|Gavilan|services.description|16b235a3-ad3d-4f6d-96df-28d1e49faab3|1c6c8c1f-c51d-405a-8e37-8b7d07780079": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "38867464-ba7f-4a13-948d-986f588d4a04",
+            "timestampMs": 1690297533000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "aa785207-f42d-4e5f-87f6-bb46cd41e42b"
+          }
+        },
+        "1691688860000|Gavilan|services.description|128ab342-28e6-43c6-a590-cccbb92e3a16|610545cd-8218-4307-8fcf-ae19be46de86": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "38867464-ba7f-4a13-948d-986f588d4a04",
+            "timestampMs": 1690297533000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "aa785207-f42d-4e5f-87f6-bb46cd41e42b"
+          }
+        },
+        "1691690229000|Gavilan|services.description|8b29b797-dde3-4b19-90a0-d4730b3c1dbb|9f362c73-9939-4d44-9a1d-a00d9679a5ed": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "38867464-ba7f-4a13-948d-986f588d4a04",
+            "timestampMs": 1690297533000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "aa785207-f42d-4e5f-87f6-bb46cd41e42b"
+          }
+        },
+        "1691692397000|Gavilan|services.description|c3bfe14c-59c5-4800-954f-e250cfa41811|96d7a9ce-cac5-4251-90ab-b09357630329": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "38867464-ba7f-4a13-948d-986f588d4a04",
+            "timestampMs": 1690297533000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "aa785207-f42d-4e5f-87f6-bb46cd41e42b"
+          }
+        },
+        "1691694244000|Gavilan|services.description|bd7a9ee5-d639-4212-b853-714b067fb445|b0d465c8-4d99-47bd-a300-07bb4b27c991": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "38867464-ba7f-4a13-948d-986f588d4a04",
+            "timestampMs": 1690297533000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "aa785207-f42d-4e5f-87f6-bb46cd41e42b"
+          }
+        },
+        "1692111729000|Gavilan|services.description|f52d6067-9bdb-4b72-be3a-b7358b799424|d47dd03d-4e1a-4c5e-be8e-ebd6c1a7684d": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "16b235a3-ad3d-4f6d-96df-28d1e49faab3",
+            "timestampMs": 1691783443000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "1c6c8c1f-c51d-405a-8e37-8b7d07780079"
+          }
+        },
+        "1692113841000|Gavilan|services.description|43c6d99f-4280-4010-85cb-8d7339d045dd|ef270870-54b7-4e92-a14e-d34412417aa9": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "16b235a3-ad3d-4f6d-96df-28d1e49faab3",
+            "timestampMs": 1691783443000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "1c6c8c1f-c51d-405a-8e37-8b7d07780079"
+          }
+        },
+        "1692201036000|Gavilan|services.description|fec41bea-3d5a-4048-aeb2-dea6bb699efe|28caf77c-de51-41ea-b70f-aa074cd84c1c": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "16b235a3-ad3d-4f6d-96df-28d1e49faab3",
+            "timestampMs": 1691783443000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "1c6c8c1f-c51d-405a-8e37-8b7d07780079"
+          }
+        },
+        "1692805961000|doobneek|services.description|cab24732-03a4-47fb-a052-fd9235fb1665|687dbf2c-8ee8-40b1-ae08-81e094a33d73": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9737,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "394e2430-e328-49b6-8d4e-03479afa2fb6",
+            "timestampMs": 1692804711000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "48cccb41-5d1c-4856-ae64-7530de0ee031"
+          }
+        },
+        "1692980301000|Kiesha|services.description|89df0afd-f75a-483d-a308-394e554103dd|1a263a4b-db52-4274-888d-717159841fd9": {
+          "matchType": "review",
+          "confidence": 0.8846,
+          "confidenceBand": "review",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "29301fb5-020f-473d-9cff-70584edad23c",
+            "timestampMs": 1683826717000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "c9d739e8-af79-4cd1-9c5d-199f426a858b"
+          }
+        },
+        "1693264644000|doobneek|services.description|a3cd6847-8344-4df6-924c-54934ea73553|77c61b71-d943-4eb0-ad62-db992b2344f5": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9831,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "05e67bd3-d6fe-400b-94e5-8979360083a5",
+            "timestampMs": 1653579786000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "2b4d9bea-cdc1-4682-b3ce-254e08bbca89"
+          }
+        },
+        "1693431268000|doobneek|services.description|31dc0ce1-6a9b-401c-97f3-f8fcdddbe37e|9fb9f6e0-1279-409f-be54-0edf102a7b55": {
+          "matchType": "borrowed_from",
+          "confidence": 0.995,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "b7ddf8be-cd43-4c91-87e2-ca05f12e763e",
+            "timestampMs": 1693431137000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "1519de9e-e22d-4653-b9c5-530565430ef4"
+          }
+        },
+        "1693583289000|Gavilan|services.description|d6b41325-d939-4241-ba64-499b3093239e|6b6169ba-7961-4b5e-b2b0-ee0938205df1": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9816,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "cc4ae119-e96d-461b-9747-84903b6743b1",
+            "timestampMs": 1693578715000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "e4293a95-41c2-46eb-a40b-24c3c58080b1"
+          }
+        },
+        "1693844011000|Gavilan|services.description|da313ac3-44d7-4fd2-86ad-890f2d914a62|a22825df-2eb1-4d94-9f59-6b6835462ca2": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "d6b41325-d939-4241-ba64-499b3093239e",
+            "timestampMs": 1693583289000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "6b6169ba-7961-4b5e-b2b0-ee0938205df1"
+          }
+        },
+        "1694220099000|doobneek|services.description|ed039e04-40ed-4b84-902a-9f37c6ebe109|feb58436-f09e-4c84-ba1f-b403ab53c0dd": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "6f849403-476d-43ee-9b5c-2138903dee4f",
+            "timestampMs": 1694210280000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "f5556e79-483f-4ec4-9d51-8d5fe2b1d990"
+          }
+        },
+        "1694220899000|doobneek|services.description|968cfda2-b508-44dd-9305-2573e4370ae6|ee2a2604-c0b3-4683-8865-395ef36130fd": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ed039e04-40ed-4b84-902a-9f37c6ebe109",
+            "timestampMs": 1694220363000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "feb58436-f09e-4c84-ba1f-b403ab53c0dd"
+          }
+        },
+        "1694221217000|doobneek|services.description|e401ffbd-c522-4e8e-9e27-8b28e79f0730|225e8b65-1ec2-4ae2-954d-eeb7031bb63e": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ed039e04-40ed-4b84-902a-9f37c6ebe109",
+            "timestampMs": 1694220363000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "feb58436-f09e-4c84-ba1f-b403ab53c0dd"
+          }
+        },
+        "1694222852000|doobneek|services.description|f741568d-d118-4870-a18c-277cb8dd16b4|736217d0-3525-492f-bec8-18abe77e0120": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ed039e04-40ed-4b84-902a-9f37c6ebe109",
+            "timestampMs": 1694220363000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "feb58436-f09e-4c84-ba1f-b403ab53c0dd"
+          }
+        },
+        "1694223550000|doobneek|services.description|f20fe57b-9292-4be3-8e2e-298ace928bb2|56fed0bb-2e36-4ba6-81c2-e95a733d06f7": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "ed039e04-40ed-4b84-902a-9f37c6ebe109",
+            "timestampMs": 1694220363000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "feb58436-f09e-4c84-ba1f-b403ab53c0dd"
+          }
+        },
+        "1694621945000|Gavilan|services.description|2daa4316-8eac-4743-b935-fc0af28ead49|1796fc64-8ff3-479c-bc9f-2b00f45a3ee1": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "a6a042e1-4954-455f-9576-b8b344034bf4",
+            "timestampMs": 1694621937000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "30bfd1b6-4afd-416b-ae05-b0ed9768040e"
+          }
+        },
+        "1694638981000|Kiesha|services.description|28c47a84-ff6c-4695-899a-b52de6ada8de|c4aa4b9e-81cb-42bb-82aa-6e66da41ee9b": {
+          "matchType": "borrowed_from",
+          "confidence": 0.975,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "e2627807-d5cb-48e0-931e-f495ac84b239",
+            "timestampMs": 1693424272000,
+            "user": "Kiesha",
+            "fieldKey": "services.description",
+            "serviceId": "c8461782-85ec-4ba2-8a89-95b2942d0208"
+          }
+        },
+        "1694792212000|Gavilan|services.description|0ec6bd5f-30b6-473e-b297-af8ac64f481f|3b0f4357-79c5-49e8-a9ab-a3c7e98da499": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "2e4f0dae-987a-4a16-ab4d-ae161927ac57",
+            "timestampMs": 1694712069000,
+            "user": "Gavilan",
+            "fieldKey": "services.description",
+            "serviceId": "53d5a9e2-aff7-4a09-852f-b8688beab91a"
+          }
+        },
+        "1695155176000|doobneek|services.description|02c16d40-4c3f-46aa-a87d-6ab95bffab5e|04458cc5-bd09-4919-8681-dc24e2759ac5": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9848,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "e155bbbd-4859-4be3-96c8-077f4c326a97",
+            "timestampMs": 1695153458000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "4f26a154-9f6e-4bba-9f4c-58e26c7840d5"
+          }
+        }
+      }
+    },
+    "event_related_info.information": {
+      "matches": {
+        "1598702863000|tomty|event_related_info.information|b293f4ea-8e18-4455-be27-75e20774928c": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "1b69fb5b-00bc-48d9-8fba-157b8baa3293",
+            "timestampMs": 1593543344126,
+            "user": "tomty",
+            "fieldKey": "event_related_info.information"
+          }
+        },
+        "1660669846000|doobneek|event_related_info.information|a42af35e-7010-4680-a303-aafb46e25901": {
+          "matchType": "borrowed_from",
+          "confidence": 0.9796,
+          "confidenceBand": "high",
+          "matchScope": "cross-field",
+          "source": {
+            "locationId": "8b384df7-2124-4bbe-b193-bd7db30d416c",
+            "timestampMs": 1656615420000,
+            "user": "doobneek",
+            "fieldKey": "services.description",
+            "serviceId": "9048e507-7339-479e-97b0-9b4859e817e1"
+          }
+        },
+        "1694108386121|Kiesha|event_related_info.information|29301fb5-020f-473d-9cff-70584edad23c": {
+          "matchType": "borrowed_from",
+          "confidence": 1.0,
+          "confidenceBand": "high",
+          "matchScope": "same-field",
+          "source": {
+            "locationId": "0192dbee-df11-494a-b460-4bf56d12e0e1",
+            "timestampMs": 1687802750000,
+            "user": "Kiesha",
+            "fieldKey": "event_related_info.information"
+          }
+        }
+      }
+    }
+  },
+  "thresholds": {
+    "minSimilarity": 0.88,
+    "matchThreshold": 0.9,
+    "autoThreshold": 0.95
+  }
+}

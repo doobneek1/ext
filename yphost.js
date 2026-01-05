@@ -117,7 +117,13 @@ document.querySelectorAll('div[id]').forEach(section => {
   const pTag = section.querySelector('p.text-dark.text-sm span');
  const alreadyInjected = section.querySelector('[data-holiday-link]');
 if (pTag && !alreadyInjected) {
-  const dash = document.createTextNode(' – ');
+  const dash = document.createElement('span');
+  dash.textContent = ' - ';
+  Object.assign(dash.style, {
+    fontSize: 'inherit',
+    lineHeight: 'inherit',
+    fontWeight: 'normal'
+  });
   const element = skipLinks ? document.createElement('span') : document.createElement('a');
   if (!skipLinks) {
     element.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/opening-hours`;
@@ -132,6 +138,8 @@ if (pTag && !alreadyInjected) {
     pointerEvents: skipLinks ? 'none' : 'auto',
     display: 'inline',
     position: 'relative',
+    fontSize: 'inherit',
+    lineHeight: 'inherit',
   });
   pTag.after(dash, element);
 }
@@ -151,7 +159,13 @@ document.querySelectorAll('div[id]').forEach(section => {
   const color = getValidationColor(firstValid);
  const alreadyInjected = section.querySelector('[data-otherinfo-link]');
 if (infoBlock && !alreadyInjected) {
-  const dashText = document.createTextNode(' – ');
+  const dashText = document.createElement('span');
+  dashText.textContent = ' - ';
+  Object.assign(dashText.style, {
+    fontSize: 'inherit',
+    lineHeight: 'inherit',
+    fontWeight: 'normal'
+  });
   const element = skipLinks ? document.createElement('span') : document.createElement('a');
   if (!skipLinks) {
     element.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/other-info`;
@@ -166,8 +180,10 @@ if (infoBlock && !alreadyInjected) {
     pointerEvents: skipLinks ? 'none' : 'auto',
     display: 'inline',
     position: 'relative',
+    fontSize: 'inherit',
+    lineHeight: 'inherit',
   });
-  infoBlock.after(dashText, element);
+  infoBlock.append(dashText, element);
 }
 });
 document.querySelectorAll('div[id]').forEach(async section => {
@@ -208,7 +224,13 @@ document.querySelectorAll('div[id]').forEach(async section => {
   if (!alreadyInjected) {
     const statusText = formatTimeAgo(lastDescriptionUpdate);
     const color = getValidationColor(lastDescriptionUpdate);
-    const dash = document.createTextNode(' ??" ');
+    const dash = document.createElement('span');
+    dash.textContent = ' - ';
+    Object.assign(dash.style, {
+      fontSize: 'inherit',
+      lineHeight: 'inherit',
+      fontWeight: 'normal'
+    });
     const element = skipLinks ? document.createElement('span') : document.createElement('a');
     if (!skipLinks) {
       element.href = `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}/description`;
@@ -223,8 +245,10 @@ document.querySelectorAll('div[id]').forEach(async section => {
       pointerEvents: skipLinks ? 'none' : 'auto',
       display: 'inline',
       position: 'relative',
+      fontSize: 'inherit',
+      lineHeight: 'inherit',
     });
-    pTag.after(dash, element);
+    pTag.append(dash, element);
   }
 });
 
@@ -368,8 +392,12 @@ document.querySelectorAll('div[id]').forEach(async section => {
       }
       // 🔹 Show draggable read-only note overlay
 try {
-  const NOTE_API = "https://locationnote1-iygwucy2fa-uc.a.run.app";
-  const noteRes = await fetch(`${NOTE_API}?uuid=${uuid}`);
+  const NOTE_API = window.gghost?.NOTE_API || "https://locationnote1-iygwucy2fa-uc.a.run.app";
+  const noteHeaders = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
+  const noteRes = await fetch(`${NOTE_API}?uuid=${uuid}`, {
+    headers: noteHeaders,
+    credentials: 'include'
+  });
   const noteData = await noteRes.json(); // noteData is expected to be { user1: { "YYYY-MM-DD": "note" }, ... }
 
   let allNotesContent = "";
