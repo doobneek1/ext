@@ -537,6 +537,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === 'FETCH_LOCATIONS_BY_RADIUS') {
+    const query = msg?.query || {};
+    const url = new URL('https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations');
+    if (query.latitude != null) {
+      url.searchParams.set('latitude', query.latitude);
+    }
+    if (query.longitude != null) {
+      url.searchParams.set('longitude', query.longitude);
+    }
+    if (query.radius != null) {
+      url.searchParams.set('radius', query.radius);
+    }
+
+    fetch(url.toString())
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        sendResponse({ ok: true, data });
+      })
+      .catch((err) => {
+        sendResponse({ ok: false, error: err?.message || String(err) });
+      });
+    return true;
+  }
+
   if (msg.type === 'BACKGROUND_FETCH') {
     const url = msg?.url;
     if (!url) {

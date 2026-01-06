@@ -111,6 +111,15 @@
 
   const collectProofsOverride = () => {
     if (!isProofsRequiredPage()) return null;
+    const overrideRaw = document.documentElement?.getAttribute('data-dnk-proofs-override');
+    if (overrideRaw) {
+      try {
+        const parsed = JSON.parse(overrideRaw);
+        document.documentElement.removeAttribute('data-dnk-proofs-override');
+        document.documentElement.removeAttribute('data-dnk-proofs-override-at');
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
     const options = Array.from(document.querySelectorAll(PROOFS_OPTION_SELECTOR));
     let sawNone = false;
     const labels = [];

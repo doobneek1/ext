@@ -1,79 +1,209 @@
 // content-script.js
-const APP_ORIGIN = "http://localhost:3210"; // your domain
+const PROD_SHEETS_ORIGIN = "https://sheets.doobneek.org";
+const LOCAL_SHEETS_ORIGINS = [
+  "http://sheets.localhost:3210",
+  "https://sheets.localhost:3210"
+];
+const LOCAL_SHEETS_TEST_PATH = "/favicon.ico";
+const EMBED_ORIGIN_OVERRIDE_KEY = "doobneekSheetsEmbedOrigin";
+const COGNITO_TOKEN_CACHE_KEY = "doobneekCognitoTokens";
 
-function ensureAppOverlay(urlPath = "/embed") {
+const persistCognitoTokens = (tokens = {}) => {
+  if (typeof chrome === "undefined" || !chrome.storage?.local) return;
+  const { accessToken, idToken, refreshToken, username } = tokens;
+  if (!accessToken && !idToken && !refreshToken) return;
+  try {
+    chrome.storage.local.set({
+      [COGNITO_TOKEN_CACHE_KEY]: {
+        accessToken,
+        idToken,
+        refreshToken,
+        username,
+        updatedAt: Date.now()
+      }
+    });
+  } catch (error) {
+    console.warn("[SheetsEmbed] Failed to persist tokens:", error);
+  }
+};
+
+const readStoredCognitoTokens = () => {
+  try {
+    const storage = localStorage;
+    let accessToken = null;
+    let idToken = null;
+    let refreshToken = null;
+    let username = null;
+
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (!key || !key.startsWith("CognitoIdentityServiceProvider.")) continue;
+      if (key.includes(".accessToken")) {
+        accessToken = storage.getItem(key);
+      } else if (key.includes(".idToken")) {
+        idToken = storage.getItem(key);
+      } else if (key.includes(".refreshToken")) {
+        refreshToken = storage.getItem(key);
+      } else if (key.includes(".LastAuthUser")) {
+        username = storage.getItem(key);
+      }
+    }
+
+    return { accessToken, idToken, refreshToken, username };
+  } catch (error) {
+    console.warn("[SheetsEmbed] Unable to read Cognito tokens from storage:", error);
+    return { accessToken: null, idToken: null, refreshToken: null, username: null };
+  }
+};
+
+const readEmbedOriginOverride = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const manualOverride =
+    typeof window.__SHEETS_EMBED_ORIGIN === "string" && window.__SHEETS_EMBED_ORIGIN.trim();
+  if (manualOverride) {
+    return manualOverride.trim();
+  }
+  try {
+    const stored = localStorage.getItem(EMBED_ORIGIN_OVERRIDE_KEY);
+    if (stored?.trim()) {
+      return stored.trim();
+    }
+  } catch (error) {
+    console.warn("[SheetsEmbed] Unable to read embed origin override:", error);
+  }
+  return null;
+};
+
+const isOriginReachable = async (origin) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 900);
+  const normalized = origin.replace(/\/+$/, "");
+  const url = `${normalized}${LOCAL_SHEETS_TEST_PATH}`;
+  try {
+    await fetch(url, {
+      mode: "no-cors",
+      cache: "no-store",
+      credentials: "omit",
+      signal: controller.signal
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const resolveEmbedOrigin = (() => {
+  let promise = null;
+  return () => {
+    if (promise) {
+      return promise;
+    }
+    promise = (async () => {
+      const override = readEmbedOriginOverride();
+      if (override) {
+        return override;
+      }
+      for (const origin of LOCAL_SHEETS_ORIGINS) {
+        if (await isOriginReachable(origin)) {
+          return origin;
+        }
+      }
+      return PROD_SHEETS_ORIGIN;
+    })();
+    return promise;
+  };
+})();
+
+async function ensureAppOverlay(urlPath = "/embed") {
   if (document.getElementById("dnk-embed-overlay")) return;
 
   const overlay = document.createElement("div");
   overlay.id = "dnk-embed-overlay";
   Object.assign(overlay.style, {
-    position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-    zIndex: 2147483647, display: "flex", alignItems: "center", justifyContent: "center"
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100vw",
+    height: "100vh",
+    background: "rgba(0,0,0,0.85)",
+    zIndex: 2147483647,
+    display: "flex",
+    alignItems: "stretch",
+    justifyContent: "stretch",
+    padding: 0
   });
 
   const frame = document.createElement("iframe");
-  frame.src = `${APP_ORIGIN}${urlPath}`; // e.g. /embed?uuid=...&mode=sitevisit
+  const embedOrigin = await resolveEmbedOrigin();
+  const normalizedPath = urlPath.startsWith("/") ? urlPath : `/${urlPath}`;
+  frame.src = `${embedOrigin}${normalizedPath}`; // e.g. /embed?uuid=...&mode=sitevisit
   Object.assign(frame.style, {
-    width: "860px", height: "70vh", background: "#fff",
-    border: "2px solid #000", borderRadius: "8px"
+    width: "100%",
+    height: "100%",
+    background: "#fff",
+    border: "0",
+    borderRadius: "0"
   });
-
-  // Close on backdrop click
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
 
   overlay.appendChild(frame);
   document.body.appendChild(overlay);
 
-  // Handshake: iframe -> "REQUEST_CREDS" ; content-script -> "CREDS"
+  const nonce = crypto?.getRandomValues
+    ? Array.from(crypto.getRandomValues(new Uint32Array(2))).map((n) => n.toString(36)).join("")
+    : String(Date.now());
+
+  const requestTokens = () => {
+    frame?.contentWindow?.postMessage(
+      { type: "REQUEST_TOKENS", payload: { nonce } },
+      embedOrigin
+    );
+  };
+
+  frame?.addEventListener("load", () => {
+    requestTokens();
+  });
+
+  const tokenInterval = setInterval(requestTokens, 5000);
+
+  const cleanupOverlay = () => {
+    clearInterval(tokenInterval);
+    window.removeEventListener("message", onMessage);
+  };
+
+  const closeOverlay = () => {
+    cleanupOverlay();
+    overlay.remove();
+  };
+
   const onMessage = async (ev) => {
-    if (ev.origin !== APP_ORIGIN) return; // only accept messages from your iframe
-    const { type } = ev.data || {};
+    const validOrigin = await resolveEmbedOrigin();
+    if (ev.origin !== validOrigin) return; // only accept messages from your iframe
+    const { type, payload } = ev.data || {};
     if (type === "REQUEST_CREDS") {
-      // Get Cognito tokens from localStorage (same logic as gghost.js)
-      function getCognitoTokens() {
-        try {
-          const storage = localStorage;
-          let accessToken = null;
-          let idToken = null;
-          let refreshToken = null;
-          let username = null;
-
-          // Find Cognito tokens by scanning localStorage
-          for (let i = 0; i < storage.length; i++) {
-            const key = storage.key(i);
-            if (key && key.startsWith('CognitoIdentityServiceProvider.')) {
-              if (key.includes('.accessToken')) {
-                accessToken = storage.getItem(key);
-              } else if (key.includes('.idToken')) {
-                idToken = storage.getItem(key);
-              } else if (key.includes('.refreshToken')) {
-                refreshToken = storage.getItem(key);
-              } else if (key.includes('.LastAuthUser')) {
-                username = storage.getItem(key);
-              }
-            }
-          }
-
-          return { accessToken, idToken, refreshToken, username };
-        } catch (error) {
-          console.warn('[getCognitoTokens] Error accessing localStorage:', error);
-          return { accessToken: null, idToken: null, refreshToken: null, username: null };
-        }
-      }
-
-      const { accessToken, idToken, refreshToken, username } = getCognitoTokens();
+      const creds = readStoredCognitoTokens();
       frame.contentWindow.postMessage(
-        { type: "CREDS", payload: { username, accessToken, idToken, refreshToken } },
-        APP_ORIGIN
+        {
+          type: "CREDS",
+          payload: { ...creds, nonce: ev.data?.payload?.nonce }
+        },
+        validOrigin
       );
-    }
-    if (type === "CLOSE_EMBED") {
-      overlay.remove();
-      window.removeEventListener("message", onMessage);
+    } else if (type === "TOKENS") {
+      persistCognitoTokens(payload);
+    } else if (type === "CLOSE_EMBED") {
+      closeOverlay();
     }
   };
 
   window.addEventListener("message", onMessage);
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeOverlay();
+  });
 }
 
 // Example usage from your existing button code:
@@ -81,3 +211,10 @@ function ensureAppOverlay(urlPath = "/embed") {
 
 // ⛔ Remove the extra poster below; not needed for the handshake flow
 // (async () => { ... window.postMessage({type:"CREDENTIALS", ...}, "http://localhost:3210"); })();
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "SHOW_TABLE_OVERLAY") {
+    ensureAppOverlay(message.urlPath || "/embed?mode=table");
+    sendResponse({ ok: true });
+  }
+});

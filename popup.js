@@ -40,7 +40,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   let remindersEventSource = null;
   let remindersStreamLastEtag = null;
   const pauseBtn = document.getElementById("pauseExtensionBtn");
+  const TABLE_EMBED_ORIGIN_KEY = "sheetsEmbedOrigin";
+  const TABLE_DEFAULT_ORIGIN = "https://sheets.doobneek.org";
+  const TABLE_LOCAL_ORIGINS = [
+    "http://sheets.localhost:3210",
+    "https://sheets.localhost:3210"
+  ];
+  const TABLE_TEST_PATH = "/favicon.ico";
+  const TABLE_FETCH_TIMEOUT_MS = 900;
 
+  const isTableOriginReachable = async (origin) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TABLE_FETCH_TIMEOUT_MS);
+    const normalized = origin.replace(/\/+$/, "");
+    try {
+      await fetch(`${normalized}${TABLE_TEST_PATH}`, {
+        mode: "no-cors",
+        cache: "no-store",
+        credentials: "omit",
+        signal: controller.signal
+      });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
   function setPauseButton(paused) {
     if (!pauseBtn) return;
     pauseBtn.textContent = paused ? "Resume Extension" : "Pause Extension";
@@ -439,6 +465,111 @@ chrome.windows.onRemoved.addListener((id) => {
     buildBtn.style.display = ""; // show it back
   }
 });
+
+  const tableBtn = document.getElementById("tableOverlayBtn");
+  const stripTrailingSlash = (value = "") => (typeof value === "string" ? value.replace(/\/+$/, "") : "");
+
+  const resolveTableEmbedOrigin = async () => {
+    try {
+      const stored = await chrome.storage.local.get(TABLE_EMBED_ORIGIN_KEY);
+      const override = stripTrailingSlash(stored[TABLE_EMBED_ORIGIN_KEY]);
+      if (override) {
+        return override;
+      }
+    } catch (error) {
+      console.warn("[popup] Failed to read embed origin override:", error);
+    }
+
+    for (const origin of TABLE_LOCAL_ORIGINS) {
+      try {
+        if (await isTableOriginReachable(origin)) {
+          return origin;
+        }
+      } catch (err) {
+        console.warn("[popup] Table origin check failed:", origin, err);
+      }
+    }
+
+    return TABLE_DEFAULT_ORIGIN;
+  };
+
+  const buildTableEmbedUrl = async () => {
+    const origin = await resolveTableEmbedOrigin();
+    return `${origin}${origin.endsWith("/") ? "" : "/"}embed?mode=table&singleCircle=1`;
+  };
+
+  let tableWindowId = null;
+  const openTableFullscreenWindow = async (embedUrl) => {
+    if (!embedUrl) return;
+    const nonce = crypto?.getRandomValues
+      ? Array.from(crypto.getRandomValues(new Uint32Array(2))).map((n) => n.toString(36)).join("")
+      : String(Date.now());
+    const target = `chrome-extension://${chrome.runtime.id}/table.html?embedUrl=${encodeURIComponent(embedUrl)}&nonce=${encodeURIComponent(nonce)}`;
+
+    if (tableWindowId) {
+      try {
+        await chrome.windows.update(tableWindowId, { focused: true });
+        return;
+      } catch {
+        tableWindowId = null;
+      }
+    }
+
+    const width = screen?.availWidth || 1280;
+    const height = screen?.availHeight || 720;
+
+    try {
+      const newWin = await chrome.windows.create({
+        url: target,
+        type: "popup",
+        left: 0,
+        top: 0,
+        width,
+        height,
+        focused: true
+      });
+      tableWindowId = newWin?.id || null;
+      try {
+        if (tableWindowId) {
+          await chrome.windows.update(tableWindowId, { state: "fullscreen" });
+        }
+      } catch (_) {
+        // Some platforms disallow forcing fullscreen; ignore.
+      }
+    } catch (error) {
+      console.warn("[popup] Failed to open table window:", error);
+      alert("Unable to load Table view.");
+    }
+  };
+
+  chrome.windows.onRemoved.addListener((windowId) => {
+    if (windowId === tableWindowId) {
+      tableWindowId = null;
+    }
+  });
+
+  tableBtn?.addEventListener("click", async () => {
+    try {
+      const embedUrl = await buildTableEmbedUrl();
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tab = tabs[0];
+        if (tab?.id) {
+          const urlPath = embedUrl.replace(/^https?:\/\/[^/]+/, "");
+          chrome.tabs.sendMessage(tab.id, { type: "SHOW_TABLE_OVERLAY", urlPath }, () => {
+            if (chrome.runtime.lastError) {
+              console.warn("[popup] Table overlay message failed:", chrome.runtime.lastError.message);
+              void openTableFullscreenWindow(embedUrl);
+            }
+          });
+        } else {
+          void openTableFullscreenWindow(embedUrl);
+        }
+      });
+    } catch (error) {
+      console.error("[popup] Unable to open Table overlay:", error);
+      alert("Unable to load Table view.");
+    }
+  });
 
 
 

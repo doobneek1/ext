@@ -8,12 +8,11 @@
   const NONE_LABEL = 'none';
   const STYLE_ID = 'dnk-proofs-required-style';
   const LABEL_CLASS = 'dnk-proofs-label';
-  const ICONS_CLASS = 'dnk-proofs-icons';
-  const PEN_CLASS = 'dnk-proofs-pen';
   const TEXTAREA_CLASS = 'dnk-proofs-textarea';
   const EDITING_CLASS = 'dnk-proofs-editing';
   const NONE_CLEAR_ATTR = 'data-gghost-proofs-none-clear';
   const NONE_CLEARED_ATTR = 'data-dnk-none-cleared';
+  const CUSTOM_PROOF_INPUT_ID = 'proofs-required-custom-form';
 
   const textMeasureCanvas = document.createElement('canvas');
   const textMeasureContext = textMeasureCanvas.getContext('2d');
@@ -45,6 +44,15 @@
     return Boolean(button && button.querySelector(CHECK_ICON_SELECTOR));
   }
 
+  function isOptionChecked(button) {
+    if (!button) return false;
+    const ariaPressed = button.getAttribute('aria-pressed');
+    if (ariaPressed === 'true') return true;
+    if (ariaPressed === 'false') return false;
+    if (button.classList.contains('Option-active')) return true;
+    return hasCheckIcon(button);
+  }
+
   function isNoneButton(button) {
     return normalizeLabel(getOptionLabelRaw(button)) === NONE_LABEL;
   }
@@ -66,25 +74,6 @@
   min-width: 0;
   width: auto !important;
 }
-button.Option .${ICONS_CLASS} {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: 8px;
-  flex: 0 0 auto;
-}
-button.Option .${PEN_CLASS} {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-  opacity: 0.7;
-}
-button.Option .${PEN_CLASS}:hover {
-  opacity: 1;
-}
 button.Option .${TEXTAREA_CLASS} {
   font: inherit;
   color: inherit;
@@ -97,9 +86,6 @@ button.Option .${TEXTAREA_CLASS} {
   min-height: 1.6em;
   line-height: 1.2;
   max-width: 100%;
-}
-button.Option.${EDITING_CLASS} .${PEN_CLASS} {
-  display: none;
 }
 button.Option[${NONE_CLEARED_ATTR}="true"] svg.fa-check,
 button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
@@ -118,44 +104,9 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     return labelNode;
   }
 
-  function ensureIconContainer(button) {
-    if (!button) return null;
-    let container = button.querySelector(`.${ICONS_CLASS}`);
-    if (!container) {
-      container = document.createElement('div');
-      container.className = ICONS_CLASS;
-      button.appendChild(container);
-    }
-    return container;
-  }
-
-  function buildPenIcon() {
-    const wrapper = document.createElement('span');
-    wrapper.className = PEN_CLASS;
-    wrapper.setAttribute('aria-hidden', 'true');
-    wrapper.innerHTML = `
-<svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="pen" class="svg-inline--fa fa-pen Icon" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <path fill="currentColor" d="M373.1 32.9c-25.5-25.5-66.8-25.5-92.3 0L80 233.7V432h198.3L479.1 231.1c25.5-25.5 25.5-66.8 0-92.2L373.1 32.9zM112 400v-90.7L302.8 118.6l90.6 90.6L202.6 400H112z"></path>
-</svg>`;
-    return wrapper;
-  }
-
-  function ensurePenIcon(button, container) {
-    if (!button || !container) return;
-    if (isNoneButton(button) || isAddAnotherButton(button)) {
-      const existing = container.querySelector(`.${PEN_CLASS}`);
-      if (existing) existing.remove();
-      return;
-    }
-    if (container.querySelector(`.${PEN_CLASS}`)) return;
-    const pen = buildPenIcon();
-    pen.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      startEditing(button);
-    });
-    container.prepend(pen);
+  function removePenIcons() {
+    const pens = document.querySelectorAll('.dnk-proofs-pen');
+    pens.forEach((pen) => pen.remove());
   }
 
   function markNoneClear() {
@@ -221,12 +172,15 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     const nextValue = (textarea.value || '').replace(/\s+/g, ' ').trim();
     labelNode.textContent = nextValue || original;
     if (button) button.classList.remove(EDITING_CLASS);
+    queueProofsOverrideRefresh();
   }
 
   function startEditing(button) {
     if (!button || button.classList.contains(EDITING_CLASS)) return;
     if (!isProofsRequiredPage()) return;
     if (isNoneButton(button)) return;
+
+    commitAllEdits();
 
     const labelNode = ensureLabelClass(button);
     if (!labelNode) return;
@@ -239,6 +193,8 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     textarea.dataset.originalLabel = currentText;
 
     textarea.addEventListener('input', () => adjustTextareaSize(textarea, labelNode));
+    textarea.addEventListener('mousedown', (event) => event.stopPropagation());
+    textarea.addEventListener('click', (event) => event.stopPropagation());
     textarea.addEventListener('blur', () => finalizeEdit(button, labelNode, textarea));
     textarea.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
@@ -272,9 +228,70 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     }
   }
 
+  function writeProofsOverride(labels) {
+    const payload = Array.isArray(labels) ? labels : [];
+    try {
+      document.documentElement.setAttribute('data-dnk-proofs-override', JSON.stringify(payload));
+      document.documentElement.setAttribute('data-dnk-proofs-override-at', String(Date.now()));
+    } catch {}
+  }
+
+  let proofsOverrideQueued = false;
+
+  function updateProofsOverrideFromDom() {
+    const labels = collectCheckedLabels();
+    writeProofsOverride(labels ?? []);
+  }
+
+  function queueProofsOverrideRefresh() {
+    if (proofsOverrideQueued) return;
+    proofsOverrideQueued = true;
+    requestAnimationFrame(() => {
+      proofsOverrideQueued = false;
+      updateProofsOverrideFromDom();
+    });
+  }
+
+  function isElementVisible(element) {
+    if (!element) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  function collectCheckedLabels() {
+    const options = Array.from(document.querySelectorAll(OPTION_SELECTOR));
+    let sawNone = false;
+    const labels = [];
+
+    for (const option of options) {
+      if (!isElementVisible(option)) continue;
+      if (!hasCheckIcon(option)) continue;
+      const raw = getOptionLabelRaw(option);
+      const normalized = normalizeLabel(raw);
+      if (!normalized) continue;
+      if (normalized === NONE_LABEL) {
+        sawNone = true;
+        continue;
+      }
+      labels.push(raw);
+    }
+
+    const shouldClear = document.documentElement.hasAttribute(NONE_CLEAR_ATTR);
+    if (!labels.length && (sawNone || shouldClear)) {
+      if (shouldClear) document.documentElement.removeAttribute(NONE_CLEAR_ATTR);
+      return [null];
+    }
+    if (labels.length) {
+      if (shouldClear) document.documentElement.removeAttribute(NONE_CLEAR_ATTR);
+      return labels;
+    }
+    return null;
+  }
+
   function commitActiveEditsFromClick(event) {
     const editors = Array.from(document.querySelectorAll(`.${TEXTAREA_CLASS}`));
     if (!editors.length) return false;
+    if (event?.target?.closest?.(`.${TEXTAREA_CLASS}`)) return false;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
@@ -295,6 +312,24 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     if (event.button !== 0) return;
     const button = event.currentTarget;
     if (!button) return;
+    const editingButton = document.querySelector(`${OPTION_SELECTOR}.${EDITING_CLASS}`);
+    const clickedCheckIcon = event?.target?.closest?.(CHECK_ICON_SELECTOR);
+    const isChecked = isOptionChecked(button);
+    if (editingButton && !clickedCheckIcon && !isAddAnotherButton(button)) {
+      if (isChecked) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
+    }
+    if (isChecked && !clickedCheckIcon && !isAddAnotherButton(button)) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      return;
+    }
+    if (event?.target?.closest?.(`.${TEXTAREA_CLASS}`)) return;
     if (commitActiveEditsFromClick(event)) return;
 
     if (isNoneButton(button)) {
@@ -311,7 +346,20 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
       return;
     }
 
+    if (!isAddAnotherButton(button)) {
+      const label = getOptionLabelRaw(button);
+      const prompt = isChecked ? `Remove "${label}"?` : `Select "${label}"?`;
+      const ok = window.confirm(prompt);
+      if (!ok) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
+    }
+
     clearNoneClear();
+    queueProofsOverrideRefresh();
   }
 
   const observedButtons = new WeakSet();
@@ -319,8 +367,7 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
 
   function attachOption(button) {
     ensureLabelClass(button);
-    const container = ensureIconContainer(button);
-    ensurePenIcon(button, container);
+    removePenIcons();
     if (isNoneButton(button)) {
       if (document.documentElement.hasAttribute(NONE_CLEAR_ATTR)) {
         setNoneCleared(button, true);
@@ -331,6 +378,15 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     if (observedButtons.has(button)) return;
     observedButtons.add(button);
     button.addEventListener('click', onOptionClick, true);
+    button.addEventListener('dblclick', (event) => {
+      if (!isProofsRequiredPage()) return;
+      if (event.button !== 0) return;
+      if (isNoneButton(button) || isAddAnotherButton(button)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      startEditing(button);
+    }, true);
   }
 
   function attachOkButton() {
@@ -341,15 +397,37 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     observedOkButtons.add(okButton);
     okButton.addEventListener('click', () => {
       commitAllEdits();
+      updateProofsOverrideFromDom();
+    }, true);
+    okButton.addEventListener('pointerdown', () => {
+      commitAllEdits();
+      updateProofsOverrideFromDom();
+    }, true);
+  }
+
+  function attachCustomProofInput() {
+    if (!isProofsRequiredPage()) return;
+    const input = document.getElementById(CUSTOM_PROOF_INPUT_ID);
+    if (!input || input.dataset.dnkProofsBound) return;
+    input.dataset.dnkProofsBound = 'true';
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      const value = (input.value || '').trim();
+      if (value.length >= 3) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
     }, true);
   }
 
   function syncOptions() {
     if (!isProofsRequiredPage()) return;
     ensureStyles();
+    removePenIcons();
     const options = document.querySelectorAll(OPTION_SELECTOR);
     options.forEach(attachOption);
     attachOkButton();
+    attachCustomProofInput();
   }
 
   function startObserver() {

@@ -1623,7 +1623,25 @@ function fetchViaBackground(url, options = {}) {
 }
 
 
+async function fetchLocationsByRadiusViaExtension(query) {
+  if (!chrome?.runtime?.sendMessage) {
+    return null;
+  }
 
+  try {
+    const response = await sendBackgroundRequest({ type: 'FETCH_LOCATIONS_BY_RADIUS', query });
+    if (!response || !response.ok) {
+      throw new Error(response?.error || 'Extension failed to fetch locations');
+    }
+    return response.data;
+  } catch (err) {
+    console.warn('[gghost] Extension location fetch failed:', err);
+    return null;
+  }
+}
+
+window.gghost = window.gghost || {};
+window.gghost.fetchLocationsByRadius = fetchLocationsByRadiusViaExtension;
 
 
 async function postToNoteAPI(payload) {
@@ -71902,7 +71920,15 @@ function setupServiceLoadMonitor() {
 
 
 
-    location.reload();
+    if (state.active) {
+      location.reload(true);
+    } else {
+    if (state.active) {
+      location.reload(true);
+    } else {
+      location.reload();
+    }
+    }
 
 
 
@@ -77345,7 +77371,3 @@ document.addEventListener('visibilitychange', () => {
 
 
 })();
-
-
-
-
