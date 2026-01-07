@@ -2,8 +2,6 @@ import argparse
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Audit hours logs against schedule rules.",
@@ -31,21 +29,13 @@ def parse_args() -> argparse.Namespace:
         help="Optional path to write the JSON report (stdout if omitted).",
     )
     return parser.parse_args()
-
-
 def load_json(path: Path) -> object:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
-
-
 def parse_date(value: str) -> datetime.date:
     return datetime.strptime(value, "%Y-%m-%d").date()
-
-
 def week_start_for(day: datetime.date) -> datetime.date:
     return day - timedelta(days=day.weekday())
-
-
 def resolve_rate(day: datetime.date, rates: list[dict]) -> float:
     chosen = None
     for rate in rates:
@@ -56,8 +46,6 @@ def resolve_rate(day: datetime.date, rates: list[dict]) -> float:
     if chosen is None or chosen["hourly_rate"] is None:
         raise ValueError(f"No hourly_rate applies for {day.isoformat()}")
     return float(chosen["hourly_rate"])
-
-
 def resolve_lunch_policy(schedule: dict) -> tuple[int, int]:
     lunch = schedule.get("breaks", {}).get("lunch", {})
     eligibility = lunch.get("eligibility", {})
@@ -65,8 +53,6 @@ def resolve_lunch_policy(schedule: dict) -> tuple[int, int]:
     daily_minutes = int(lunch.get("default_paid_lunch_minutes_per_eligible_day", 60))
     weekly_cap = int(lunch.get("weekly_cap_paid_lunch_minutes", 180))
     return min_minutes, daily_minutes, weekly_cap
-
-
 def build_meeting_allocations(
     schedule: dict, week_starts: list[datetime.date]
 ) -> tuple[list[dict], list[str]]:
@@ -74,7 +60,6 @@ def build_meeting_allocations(
     meetings = schedule.get("standing_meetings", {})
     if not isinstance(meetings, dict) or not meetings:
         return [{} for _ in week_starts], meeting_notes
-
     meeting_notes.append(
         "Biweekly meetings are applied to every other week starting from the first week in data."
     )
@@ -95,26 +80,21 @@ def build_meeting_allocations(
                     week_alloc[name] = duration
         allocations.append(week_alloc)
     return allocations, meeting_notes
-
-
 def main() -> int:
     args = parse_args()
     hours_path = Path(args.hours_log)
     schedule_path = Path(args.schedule)
-
     if not hours_path.exists():
         print(f"Hours log not found: {hours_path}")
         return 1
     if not schedule_path.exists():
         print(f"Schedule not found: {schedule_path}")
         return 1
-
     hours_log = load_json(hours_path)
     schedule = load_json(schedule_path)
     if not isinstance(hours_log, dict) or not isinstance(schedule, dict):
         print("Invalid JSON input.")
         return 1
-
     overtime_cfg = schedule.get("overtime", {})
     if not isinstance(overtime_cfg, dict):
         print("Missing overtime config in schedule JSON.")
@@ -125,21 +105,17 @@ def main() -> int:
         return 1
     threshold = float(threshold)
     multiplier = float(overtime_cfg.get("multiplier", 1.5))
-
     rates = schedule.get("rates")
     if not isinstance(rates, list) or not rates:
         print("Missing schedule rates list.")
         return 1
-
     min_lunch_minutes, daily_lunch_minutes, weekly_lunch_cap = resolve_lunch_policy(
         schedule
     )
-
     days = hours_log.get("days")
     if not isinstance(days, list):
         print("Hours log missing days list.")
         return 1
-
     weekly: dict[datetime.date, dict] = {}
     for day_entry in days:
         if not isinstance(day_entry, dict):
@@ -174,12 +150,10 @@ def main() -> int:
                 "paidLunchMinutes": day_lunch,
             }
         )
-
     week_starts = sorted(weekly.keys())
     meeting_allocations, meeting_notes = build_meeting_allocations(
         schedule, week_starts
     )
-
     weeks_output: list[dict] = []
     for idx, week_start in enumerate(week_starts):
         week = weekly[week_start]
@@ -198,7 +172,6 @@ def main() -> int:
                 "days": week["days"],
             }
         )
-
     report = {
         "schemaVersion": "1.0",
         "timezone": schedule.get("timezone") or hours_log.get("timezone"),
@@ -206,14 +179,11 @@ def main() -> int:
         "weeks": weeks_output,
         "meetingNotes": meeting_notes,
     }
-
     output_text = json.dumps(report, ensure_ascii=True, indent=2) + "\n"
     if args.output:
         Path(args.output).write_text(output_text, encoding="utf-8")
     else:
         print(output_text, end="")
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

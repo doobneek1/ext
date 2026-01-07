@@ -5,11 +5,9 @@
   const path = location.pathname;
   const url = new URL(window.location.href);
   const sortBy = url.searchParams.get("sortBy");
-
   // ✅ YP Buttons (only on yourpeer.nyc/locations?sortBy=recentlyUpdated)
   if (isYourPeer && path === "/locations" && sortBy === "recentlyUpdated") {
     const currentPage = parseInt(url.searchParams.get("page") || "1", 10);
-
     const createButton = (id, text, onClick, topOffset) => {
       if (document.getElementById(id)) return;
       const btn = document.createElement("button");
@@ -32,12 +30,10 @@
       btn.onclick = onClick;
       document.body.appendChild(btn);
     };
-
     createButton("more-outdated", "More outdated", () => {
       url.searchParams.set("page", (currentPage + 1).toString());
       window.location.href = url.toString();
     }, 10);
-
     if (currentPage > 1) {
       createButton("less-outdated", "Less outdated", () => {
         if (currentPage === 2) {
@@ -49,5 +45,4 @@
       }, 50);
     }
   }
-
 })();

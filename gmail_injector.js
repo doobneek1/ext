@@ -5,21 +5,17 @@
       console.log('[Formatter] Forcing Gmail UI injection...');
       injectGmailComposerUI(); // ← Always inject, no conditions
     };
-
     // Inject immediately
     ensureInjected();
-
     // Also reinject on DOM changes in case Gmail mutates layout
     const gmailObserver = new MutationObserver(() => {
       clearTimeout(window._gmailInjectTimeout);
       window._gmailInjectTimeout = setTimeout(ensureInjected, 300);
     });
-
     gmailObserver.observe(document.body, {
       childList: true,
       subtree: true
     });
-
     // Optional: retry every few seconds in case Gmail resets DOM (defensive)
     const periodicRetry = setInterval(ensureInjected, 5000);
   }
@@ -29,12 +25,10 @@ function findActiveGmailBodyField() {
     .find(d => d.offsetParent !== null)
     ?.querySelector('[aria-label="Message Body"][contenteditable="true"]');
   if (dialogCompose) return dialogCompose;
-
   // 2. Fallback: generic visible editable field with correct aria-label
   const fallbackCompose = [...document.querySelectorAll('div[contenteditable="true"][aria-label="Message Body"]')]
     .find(el => el.offsetParent !== null);
   if (fallbackCompose) return fallbackCompose;
-
   // 3. Try any editable div that might be a compose area (broader search)
   const broadSearch = [...document.querySelectorAll('div[contenteditable="true"]')]
     .find(el => el.offsetParent !== null && 
@@ -43,26 +37,19 @@ function findActiveGmailBodyField() {
                 el.className?.includes('compose') ||
                 el.closest('[role="main"]')));
   if (broadSearch) return broadSearch;
-
   // 4. Last resort: hardcoded pattern like `id=":sb"` with class `editable`
   return document.querySelector('div[contenteditable="true"][aria-label="Message Body"].editable');
 }
-
-
   function injectGmailComposerUI() {
     const existingForm = document.getElementById('gmailEmailComposerForm');
     // If form already exists, do nothing further in this function call.
     // This allows repeated calls by observers/timers without re-creating the form.
     if (existingForm) return;
-
     // The form itself is injected regardless of whether a compose window is open.
     // Interaction with compose window elements happens later, e.g., when "Generate Email" is clicked.
-
     const savedPosition = JSON.parse(localStorage.getItem('gmailComposerPosition'));
-
     const form = document.createElement('div');
     form.id = 'gmailEmailComposerForm';
-
     if (savedPosition) {
       form.style.top = savedPosition.top;
       form.style.left = savedPosition.left;
@@ -71,7 +58,6 @@ function findActiveGmailBodyField() {
       form.style.top = '80px';
       form.style.left = '10px';
     }
-
     form.style.position = 'fixed';
     form.style.width = '320px';
     form.style.padding = '10px';
@@ -79,7 +65,6 @@ function findActiveGmailBodyField() {
     form.style.border = '2px solid black';
     form.style.zIndex = '9999';
     form.style.cursor = 'move';
-
     form.innerHTML = `
       <h3 id="dragHandle" style="margin-top:0;cursor:move;">Generate Email</h3>
       <label>Your Name:<br>
@@ -110,10 +95,8 @@ function findActiveGmailBodyField() {
       <button id="gmailGenerateBtn" style="margin-top: 10px; background:black; color:white; padding: 8px;">Generate Email</button>
       <button id="gmailResetBtn" style="margin-top: 5px; background: #ccc; padding: 6px;">Reset Fields</button>
     `;
-
     document.body.appendChild(form);
     const generateBtn = document.getElementById('gmailGenerateBtn');
-
     generateBtn.style.background = 'linear-gradient(270deg, red, orange, yellow, green, blue, indigo, violet)';
     generateBtn.style.backgroundSize = '1400% 1400%';
     generateBtn.style.animation = 'rainbow 6s ease infinite';
@@ -121,7 +104,6 @@ function findActiveGmailBodyField() {
     generateBtn.style.border = 'none';
     generateBtn.style.fontWeight = 'bold';
     generateBtn.style.borderRadius = '4px';
-
     const styleElement = document.createElement('style');
     styleElement.textContent = `
       @keyframes rainbow {
@@ -130,13 +112,11 @@ function findActiveGmailBodyField() {
         100% { background-position: 0% 50%; }
       }`;
     document.head.appendChild(styleElement);
-
     const resetBtn = document.getElementById('gmailResetBtn');
     const notOnYPCheckbox = document.getElementById('gmailNotOnYP');
     const addLinkBtn = document.getElementById('gmailAddLinkBtn');
     const nameInput = document.getElementById('gmailYourName');
     const phoneInput = document.getElementById('gmailPhone');
-    
     // This function needs to be defined before it's used in resetBtn listener
     // And also before it's used in the (async () => { ... })(); block for tag input
     const tags = new Set(); 
@@ -146,31 +126,24 @@ function findActiveGmailBodyField() {
             hiddenInput.value = [...tags].join(' ');
         }
     };
-
-
     const gmailLinkInputs = () => [...document.querySelectorAll('.gmailOrgLink')]; // Renamed to avoid conflict
-    
     function updateGmailLinkInputsState() { // Renamed to avoid conflict
         const disabled = notOnYPCheckbox.checked;
         gmailLinkInputs().forEach(input => input.disabled = disabled);
         addLinkBtn.disabled = disabled;
     }
-
     resetBtn.addEventListener('click', () => {
       document.getElementById('gmailOrgName').value = '';
       document.getElementById('gmailRecipientNames').value = '';
       const tagInputElement = document.getElementById('tagInput'); // Renamed
       if (tagInputElement) tagInputElement.value = '';
-      
       const tagWrapper = tagInputElement?.parentElement;
       const tagElements = tagWrapper?.querySelectorAll('.tag') || [];
       tagElements.forEach(tag => tag.remove());
       tags.clear(); 
       updateHiddenField();
-
       document.getElementById('gmailNotOnYP').checked = false;
       document.getElementById('gmailFollowUp').checked = false;
-
       const currentGmailLinkInputs = gmailLinkInputs(); // Renamed
       currentGmailLinkInputs.forEach((input, index) => {
         if (index === 0) {
@@ -181,10 +154,8 @@ function findActiveGmailBodyField() {
       });
       updateGmailLinkInputsState(); // Renamed
     });
-
     notOnYPCheckbox.addEventListener('change', updateGmailLinkInputsState); // Renamed
     updateGmailLinkInputsState(); // Renamed initially
-
     fetch(chrome.runtime.getURL('org_names.txt'))
       .then(res => res.text())
       .then(text => {
@@ -197,23 +168,19 @@ function findActiveGmailBodyField() {
         });
       })
       .catch(err => console.error('[Formatter] Failed to load org names:', err));
-
     let isDragging = false;
     let offsetX, offsetY;
     const dragHandle = document.getElementById('dragHandle');
-
     dragHandle.addEventListener('mousedown', (e) => {
       const rect = form.getBoundingClientRect();
       form.style.left = `${rect.left}px`;
       form.style.top = `${rect.top}px`;
       form.style.right = 'auto';
-
       isDragging = true;
       offsetX = e.clientX - rect.left;
       offsetY = e.clientY - rect.top;
       document.body.style.userSelect = 'none';
     });
-
     document.addEventListener('mousemove', (e) => {
       if (isDragging) {
         const peek = 300;
@@ -226,7 +193,6 @@ function findActiveGmailBodyField() {
         form.style.right = 'auto';
       }
     });
-
     document.addEventListener('mouseup', () => {
       if (isDragging) {
         isDragging = false;
@@ -235,12 +201,10 @@ function findActiveGmailBodyField() {
         localStorage.setItem('gmailComposerPosition', JSON.stringify(position));
       }
     });
-
     nameInput.value = localStorage.getItem('userName') || '';
     phoneInput.value = localStorage.getItem('userPhone') || '';
     nameInput.addEventListener('input', e => localStorage.setItem('userName', e.target.value));
     phoneInput.addEventListener('input', e => localStorage.setItem('userPhone', e.target.value));
-
     document.getElementById('gmailAddLinkBtn').addEventListener('click', () => {
       const newInput = document.createElement('input');
       newInput.type = 'text';
@@ -257,85 +221,69 @@ function findActiveGmailBodyField() {
       });
       document.getElementById('gmailLinksContainer').appendChild(newInput);
     });
-
     let activeBodyField = null;
 document.body.addEventListener('mousedown', (e) => {
   // First try to find a proper Gmail compose body
   let clickedBody = e.target.closest?.('[aria-label="Message Body"][contenteditable="true"]');
-  
   // If not found, try any editable area that could be a compose body
   if (!clickedBody && e.target.isContentEditable) {
     clickedBody = e.target;
   }
-  
   // Also check if the clicked element is within a compose dialog or main area
   if (!clickedBody) {
     clickedBody = e.target.closest?.('div[contenteditable="true"]');
   }
-
   // Accept any reasonable editable area for email composition
   if (clickedBody && clickedBody.isContentEditable && clickedBody.offsetParent !== null) {
     activeBodyField = clickedBody;
   }
 });
-
-
     function capitalize(str) { // Moved capitalize here, it's used below
         if (!str) return '';
         return str.charAt(0).toUpperCase() + str.slice(1);
     }
-
     document.getElementById('gmailGenerateBtn').addEventListener('click', () => {
       let targetBody = activeBodyField;
-      
       // If no active body field or it's no longer valid, try to find one
       if (!targetBody || !document.body.contains(targetBody)) {
         targetBody = findActiveGmailBodyField();
       }
-      
       if (!targetBody) {
         alert("Please click inside the email body you want to generate content for before clicking the Generate button, or ensure a compose window is open.");
         return;
       }
  // Try finding subject input near the active body
 let currentSubjectField = targetBody.closest('[role="dialog"]')?.querySelector('input[name="subjectbox"]');
-
 // Fallback: fullscreen or non-dialog subject box
 if (!currentSubjectField) {
   currentSubjectField = document.querySelector('input[name="subjectbox"]') ||
                         document.querySelector('input#\\:oh'); // Escape Gmail colon ID
 }
-
 // If no subject field is found but it's a reply box, that's OK
 const isFollowUpChecked = document.getElementById('gmailFollowUp').checked;
 if (!currentSubjectField && !isFollowUpChecked) {
   alert("No subject field found. If you're starting a new email, please ensure the subject is visible.");
   return;
 }
-
       const editableBody = targetBody;
       const name = nameInput.value.trim();
       const phone = phoneInput.value.trim();
       const org = document.getElementById('gmailOrgName').value.trim();
       const isNotOnYP = document.getElementById('gmailNotOnYP').checked; // Renamed
       const links = [...document.querySelectorAll('.gmailOrgLink')].map(i => i.value.trim()).filter(Boolean);
-
       if (!name || !org || !phone || (!isNotOnYP && links.length === 0)) {
         alert("Fill in all fields.");
         return;
       }
-
       const phoneDigits = phone.replace(/\D/g, '');
       const formattedPhone = phoneDigits.length === 10
         ? `(${phoneDigits.slice(0, 3)}) ${phoneDigits.slice(3, 6)}-${phoneDigits.slice(6)}`
         : phone;
-
       const subjectValue = `Question about services at ${org}`; // Renamed
       let bodyValue; // Renamed
       const isGavilan = ['doobneek'].includes(name.toLowerCase());
       const tagInputField = document.getElementById('tagInput');
       const leftoverName = tagInputField.value.trim().replace(/[^a-zA-Z\s]/g, '');
-
       if (leftoverName) {
         const hiddenField = document.getElementById('gmailRecipientNames');
         const currentNames = hiddenField.value.trim();
@@ -345,12 +293,10 @@ if (!currentSubjectField && !isFollowUpChecked) {
       }
       const currentTags = [...document.querySelectorAll('#tagInputWrapper .tag')].map(tag => tag.textContent.trim().toLowerCase());
       document.getElementById('gmailRecipientNames').value = currentTags.join(' ');
-
       const rawNamesEl = document.getElementById('gmailRecipientNames');
       const rawNames = rawNamesEl ? rawNamesEl.value.trim() : '';
       const recipientNames = rawNames ? rawNames.split(/\s+/) : []; // Renamed
       let greeting;
-
       if (recipientNames.length === 1) {
         greeting = `Hello ${capitalize(recipientNames[0])},`;
       } else if (recipientNames.length === 2) {
@@ -372,14 +318,11 @@ if (!currentSubjectField && !isFollowUpChecked) {
         flyerHTML += `<div style="flex: 1 1 calc(33.333% - 10px); box-sizing: border-box; text-align: center;"><a href="${flyer.url}" target="_blank" rel="noopener noreferrer"><img src="${flyer.url}" alt="${flyer.label}" style="width: 100%; border: 1px solid #ccc; border-radius: 4px;" /></a><div style="font-size: 12px; color: #555; margin-top: 4px;">${flyer.label}</div></div>`;
       });
       flyerHTML += `</div>`;
-
       const linksFormatted = links.map(link => {
         if (!/^https?:\/\//i.test(link)) link = 'https://' + link;
         const display = link.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
         return `<a href="${link}" target="_blank" rel="noopener noreferrer">${display}</a>`;
       }).join(', ');
-      
-
       if (isGavilan && isFollowUpChecked && isNotOnYP) {
         bodyValue = `${greeting}<br>Just following up on my earlier message — I’m ${name} from <a href="https://streetlives.nyc">Streetlives</a>, where we publish <a href="https://yourpeer.nyc">YourPeer</a>, a peer-powered, walk-in-friendly resource map for NYC social services.<br>We’d love to include <strong>${org}</strong> to help more folks find your services. We highlight programs that welcome walk-ins or accept direct enrollment without referrals.<br>Let me know if you’d be open to a call or a quick visit. My number is <a href="tel:${phoneDigits}">${formattedPhone}</a>. I’ve also attached a flyer you’re welcome to print or share.`;
       } else if (isGavilan && isFollowUpChecked && !isNotOnYP) {
@@ -397,7 +340,6 @@ if (!currentSubjectField && !isFollowUpChecked) {
       } else if (!isGavilan && !isFollowUpChecked && !isNotOnYP) {
         bodyValue = `${greeting}<br>I'm ${name}, a Community Information Specialist at <a href="https://streetlives.nyc">Streetlives</a>, a technology nonprofit publishing <a href="https://yourpeer.nyc">YourPeer</a>, a peer-validated resource guide and interactive map of social services for NYC.<br>Our international team of lived experts and community researchers—representing diverse genders, races, and sexual orientations—builds and maintains YourPeer to ensure it’s both relatable and reliable.<br>I’d like to confirm that the information we’re sharing about <strong>${org}</strong> is accurate and up to date. Please take a moment to review this page: ${linksFormatted}<br>We highlight services that allow direct access—such as walk-ins, in-person inquiry, or enrollment without a referral. Your location is included based on these criteria.<br>We currently feature over 2,700 services at more than 1,500 locations across the NYC Metro Area. Listings are peer-reviewed, and translated by native speakers where possible.<br>I’ve attached a printable flyer for your team to share with participants if desired.<br>Would you be open to a quick call? You can reach me at <a href="tel:${phoneDigits}">${formattedPhone}</a>. I’m also happy to visit in person if helpful.`;
       }
-
 if (currentSubjectField) {
   currentSubjectField.value = subjectValue;
 }
@@ -425,11 +367,9 @@ if (currentSubjectField) {
       selection.removeAllRanges();
       selection.addRange(range);
     });
-
     (async () => {
       const raw = await fetch(chrome.runtime.getURL('people_names.txt')).then(r => r.text());
       const nameList = raw.split('\n').map(n => n.trim().toLowerCase()).filter(Boolean);
-
       const wrapper = document.getElementById('tagInputWrapper');
       const input = document.getElementById('tagInput');
       // const hiddenInput = document.getElementById('gmailRecipientNames'); // Already defined
@@ -440,26 +380,20 @@ if (currentSubjectField) {
       suggestionsInline.style.gap = '4px';
       suggestionsInline.style.marginTop = '4px';
       wrapper.appendChild(suggestionsInline);
-
       // const tags = new Set(); // Already defined above
       let activeIndex = 0;
-
       // const updateHiddenField = () => { // Already defined above
       //   hiddenInput.value = [...tags].join(' ');
       // };
-
       const clearSuggestions = () => {
         suggestionsInline.innerHTML = '';
         activeIndex = 0;
       };
-
       // const capitalize = str => str.charAt(0).toUpperCase() + str.slice(1); // Already defined above
-
       const createTag = (name) => {
         const lowerName = name.toLowerCase(); // Use lowercase for Set and comparison
         if (!name || tags.has(lowerName)) return;
         tags.add(lowerName);
-
         const span = document.createElement('span');
         span.className = 'tag';
         span.textContent = capitalize(name); // Display capitalized
@@ -468,18 +402,15 @@ if (currentSubjectField) {
         span.style.background = '#eee';
         span.style.borderRadius = '4px';
         span.style.display = 'inline-block';
-
         wrapper.insertBefore(span, input);
         input.value = '';
         clearSuggestions();
         updateHiddenField();
       };
-
       input.addEventListener('input', () => {
         const query = input.value.trim().toLowerCase();
         clearSuggestions();
         if (!query) return;
-
         const matches = nameList.filter(n => n.startsWith(query) && !tags.has(n)).slice(0, 5);
         matches.forEach((name, idx) => {
           const suggestion = document.createElement('div');
@@ -493,16 +424,13 @@ if (currentSubjectField) {
           suggestionsInline.appendChild(suggestion);
         });
       });
-
       input.addEventListener('keydown', (e) => {
         const suggestions = [...suggestionsInline.children];
-
         if (e.key === 'Tab' && suggestions.length > 0 && suggestions[activeIndex]) {
           e.preventDefault();
           createTag(suggestions[activeIndex].textContent.trim()); // Use textContent which is capitalized
           return;
         }
-
         if (e.key === 'ArrowDown') {
           e.preventDefault();
           activeIndex = (activeIndex + 1) % (suggestions.length || 1); // Avoid modulo by zero
@@ -510,11 +438,9 @@ if (currentSubjectField) {
           e.preventDefault();
           activeIndex = (activeIndex - 1 + (suggestions.length || 1)) % (suggestions.length || 1); // Avoid modulo by zero
         }
-
         suggestions.forEach((el, idx) => {
           el.style.background = idx === activeIndex ? '#e0e0e0' : '#f9f9f9';
         });
-
         if ((e.key === 'Enter' || e.key === ' ') && input.value.trim()) {
           e.preventDefault();
            if (suggestions.length > 0 && suggestions[activeIndex] && suggestions[activeIndex].textContent.toLowerCase().startsWith(input.value.trim().toLowerCase())) {
@@ -532,11 +458,9 @@ if (currentSubjectField) {
           }
         }
       });
-
       document.addEventListener('click', (e) => {
         if (!wrapper.contains(e.target)) clearSuggestions();
       });
-
       const initialGmailLinkInput = document.querySelector('.gmailOrgLink'); // Renamed
       if (initialGmailLinkInput) {
         ['contextmenu', 'dblclick'].forEach(evt => {

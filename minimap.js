@@ -1,4 +1,3 @@
-
 function onUrlChange(callback) {
   let lastUrl = location.href;
   const check = () => {
@@ -8,34 +7,28 @@ function onUrlChange(callback) {
       callback(currentUrl);
     }
   };
-
   const pushState = history.pushState;
   history.pushState = function (...args) {
     pushState.apply(history, args);
     check();
   };
-
   const replaceState = history.replaceState;
   history.replaceState = function (...args) {
     replaceState.apply(history, args);
     check();
   };
-
   window.addEventListener('popstate', check);
   setInterval(check, 500); // fallback check
 }
-
 let container = null;
 let observer = null;
 let focusAckTimer = null;
 let visibilityHandler = null;
 let visibilityRaf = null;
-
 const orgSearchInputSelector =
   '.input-group input.form-control[placeholder*="Type the organization name"]';
 const orgSearchResultSelector = 'li.Dropdown-item.list-group-item[role="menuitem"]';
 const orgSearchResultsContainerSelector = '[data-gghost-search-ui="true"][role="menu"]';
-
 function isOrgSearchActive() {
   const input = document.querySelector(orgSearchInputSelector);
   if (!input) return false;
@@ -43,7 +36,6 @@ function isOrgSearchActive() {
   const group = input.closest('.input-group');
   return !!group && group.classList.contains('active');
 }
-
 function isElementVisible(element) {
   if (!element || !element.isConnected) return false;
   const style = window.getComputedStyle(element);
@@ -52,7 +44,6 @@ function isElementVisible(element) {
   }
   return element.getClientRects().length > 0;
 }
-
 function hasVisibleOrgSearchResults() {
   const customContainer = document.querySelector(orgSearchResultsContainerSelector);
   if (customContainer && isElementVisible(customContainer)) return true;
@@ -62,13 +53,11 @@ function hasVisibleOrgSearchResults() {
   }
   return false;
 }
-
 function updateMinimapVisibility() {
   if (!container) return;
   const shouldHide = isOrgSearchActive() || hasVisibleOrgSearchResults();
   container.style.display = shouldHide ? 'none' : '';
 }
-
 function scheduleMinimapVisibilityUpdate() {
   if (visibilityRaf) return;
   visibilityRaf = requestAnimationFrame(() => {
@@ -76,7 +65,6 @@ function scheduleMinimapVisibilityUpdate() {
     updateMinimapVisibility();
   });
 }
-
 function attachOrgSearchVisibilityHandlers() {
   if (visibilityHandler) return;
   visibilityHandler = () => scheduleMinimapVisibilityUpdate();
@@ -95,7 +83,6 @@ function attachOrgSearchVisibilityHandlers() {
   }
   scheduleMinimapVisibilityUpdate();
 }
-
 function detachOrgSearchVisibilityHandlers() {
   if (!visibilityHandler) return;
   document.removeEventListener('focusin', visibilityHandler, true);
@@ -112,11 +99,8 @@ function detachOrgSearchVisibilityHandlers() {
     observer = null;
   }
 }
-
 function injectMapUI() {
-    
   if (container) return; // prevent duplicate injection
-
   container = document.createElement('div');
   Object.assign(container.style, {
     position: 'fixed',
@@ -130,10 +114,8 @@ function injectMapUI() {
     width: '320px',
     fontFamily: 'sans-serif'
   });
-
   const inputWrapper = document.createElement('div');
   inputWrapper.style.display = 'flex';
-
   const input = document.createElement('input');
   input.type = 'text';
   input.placeholder = 'Search place or address...';
@@ -145,7 +127,6 @@ function injectMapUI() {
     border: '1px solid #ccc',
     borderRadius: '4px 0 0 4px'
   });
-
   const clearBtn = document.createElement('button');
   clearBtn.textContent = 'X';
   Object.assign(clearBtn.style, {
@@ -157,10 +138,8 @@ function injectMapUI() {
     background: '#eee',
     cursor: 'pointer'
   });
-
   inputWrapper.appendChild(input);
   inputWrapper.appendChild(clearBtn);
-
   const suggestions = document.createElement('div');
   Object.assign(suggestions.style, {
     maxHeight: '120px',
@@ -171,7 +150,6 @@ function injectMapUI() {
     background: '#fff',
     fontSize: '13px'
   });
-
   const iframe = document.createElement('iframe');
   Object.assign(iframe.style, {
     width: '100%',
@@ -180,13 +158,11 @@ function injectMapUI() {
     border: '1px solid #ccc',
     display: 'none'
   });
-
   container.appendChild(inputWrapper);
   container.appendChild(suggestions);
   container.appendChild(iframe);
   document.body.appendChild(container);
   attachOrgSearchVisibilityHandlers();
-
   let debounce;
   input.addEventListener('input', () => {
     clearTimeout(debounce);
@@ -196,7 +172,6 @@ function injectMapUI() {
       suggestions.style.display = 'none';
       return;
     }
-
     debounce = setTimeout(() => {
       chrome.runtime.sendMessage(
         { type: 'getAddressSuggestions', input: query },
@@ -224,17 +199,14 @@ function injectMapUI() {
       );
     }, 300);
   });
-
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       const query = input.value.trim();
       if (!query) return;
-
       chrome.runtime.sendMessage(
         { type: 'getAddressSuggestions', input: query },
         (res) => {
           const placeId = res?.predictions?.[0]?.place_id;
-
           if (placeId) {
             suggestions.innerHTML = '';
             suggestions.style.display = 'none';
@@ -247,7 +219,6 @@ function injectMapUI() {
       );
     }
   });
-
   clearBtn.addEventListener('click', () => {
     input.value = '';
     suggestions.innerHTML = '';
@@ -255,7 +226,6 @@ function injectMapUI() {
     iframe.style.display = 'none';
     window.dispatchEvent(new CustomEvent('gghost-minimap-clear'));
   });
-
   function requestMapFocus(lat, lng, zoom = 16) {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return Promise.resolve(false);
@@ -282,7 +252,6 @@ function injectMapUI() {
       }, 700);
     });
   }
-
   function showPlaceById(placeId) {
     chrome.runtime.sendMessage(
       { type: 'getPlaceDetails', placeId },
@@ -302,7 +271,6 @@ function injectMapUI() {
     );
   }
 }
-
 function removeMapUI() {
   detachOrgSearchVisibilityHandlers();
   if (container) {
@@ -310,17 +278,13 @@ function removeMapUI() {
     container = null;
   }
 }
-
-
 // === 🚀 Initial check + SPA listener ===
 function isTeamRootPage(url) {
   return /^https:\/\/gogetta\.nyc\/team\/?$/.test(url);
 }
-
 if (isTeamRootPage(location.href)) {
   injectMapUI();
 }
-
 onUrlChange((url) => {
   if (isTeamRootPage(url)) {
     injectMapUI();

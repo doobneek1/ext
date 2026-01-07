@@ -6,7 +6,6 @@ function getCognitoTokens() {
     let idToken = null;
     let refreshToken = null;
     let username = null;
-
     // Find Cognito tokens by scanning localStorage
     for (let i = 0; i < storage.length; i++) {
       const key = storage.key(i);
@@ -22,14 +21,12 @@ function getCognitoTokens() {
         }
       }
     }
-
     return { accessToken, idToken, refreshToken, username };
   } catch (error) {
     console.warn('[getCognitoTokens] Error accessing localStorage:', error);
     return { accessToken: null, idToken: null, refreshToken: null, username: null };
   }
 }
-
 document.addEventListener("DOMContentLoaded", async () => {
   const REMINDERS_URL = "https://locationnote1-iygwucy2fa-uc.a.run.app?uuid=reminders";
   const FIREBASE_REMINDERS_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes.json";
@@ -41,14 +38,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   let remindersStreamLastEtag = null;
   const pauseBtn = document.getElementById("pauseExtensionBtn");
   const TABLE_EMBED_ORIGIN_KEY = "sheetsEmbedOrigin";
-  const TABLE_DEFAULT_ORIGIN = "https://sheets.doobneek.org";
+  const TABLE_DEFAULT_ORIGIN = "http://sheets.localhost:3210";
   const TABLE_LOCAL_ORIGINS = [
     "http://sheets.localhost:3210",
     "https://sheets.localhost:3210"
   ];
   const TABLE_TEST_PATH = "/favicon.ico";
   const TABLE_FETCH_TIMEOUT_MS = 900;
-
   const isTableOriginReachable = async (origin) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TABLE_FETCH_TIMEOUT_MS);
@@ -72,10 +68,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     pauseBtn.textContent = paused ? "Resume Extension" : "Pause Extension";
     pauseBtn.dataset.paused = paused ? "true" : "false";
   }
-
   const { extensionPaused } = await chrome.storage.local.get("extensionPaused");
   setPauseButton(!!extensionPaused);
-
   if (pauseBtn) {
     pauseBtn.addEventListener("click", async () => {
       const isPaused = pauseBtn.dataset.paused === "true";
@@ -97,12 +91,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
-
   // 👇 helper to detect "done by <letters>" at end of note
   function isDoneBy(note = "") {
     return /\bDone by [a-zA-Z]+$/.test(note.trim());
   }
-
   function buildRemindersUrl(extraParams = {}) {
     const url = new URL(REMINDERS_URL);
     Object.entries(extraParams).forEach(([key, value]) => {
@@ -111,7 +103,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     return url.toString();
   }
-
   async function fetchJsonWithTimeout(url, timeoutMs) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -128,15 +119,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       clearTimeout(timer);
     }
   }
-
   async function fetchRemindersFromApi() {
     return fetchJsonWithTimeout(buildRemindersUrl(), REMINDERS_FETCH_TIMEOUT_MS);
   }
-
   async function fetchRemindersFromFirebase() {
     return fetchJsonWithTimeout(FIREBASE_REMINDERS_URL, REMINDERS_FETCH_TIMEOUT_MS);
   }
-
   async function readRemindersCache() {
     try {
       const payload = await chrome.storage.local.get(REMINDERS_CACHE_KEY);
@@ -149,7 +137,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       return null;
     }
   }
-
   async function writeRemindersCache(reminders) {
     try {
       await chrome.storage.local.set({
@@ -159,7 +146,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.warn("[popup] Failed to store reminders cache:", err);
     }
   }
-
   function buildReminderList(data) {
     const reminders = [];
     if (!data || typeof data !== "object") return reminders;
@@ -176,7 +162,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     reminders.sort((a, b) => a.date.localeCompare(b.date));
     return reminders;
   }
-
   function applyReminderList(reminders, { shouldCache = false } = {}) {
     allReminders.length = 0;
     allReminders.push(...reminders);
@@ -186,19 +171,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       void writeRemindersCache(allReminders);
     }
   }
-
   function applyReminderData(data, { shouldCache = true } = {}) {
     const reminders = buildReminderList(data);
     applyReminderList(reminders, { shouldCache });
   }
-
   async function fetchAndRenderReminders() {
     const cachedReminders = await readRemindersCache();
     if (cachedReminders) {
       applyReminderList(cachedReminders, { shouldCache: false });
       return;
     }
-
     let data = null;
     try {
       data = await fetchRemindersFromApi();
@@ -215,18 +197,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
     }
-
     if (data) {
       applyReminderData(data, { shouldCache: true });
     }
   }
-
   function subscribeToReminderStream() {
     if (remindersEventSource || typeof EventSource === "undefined") return;
     const streamUrl = buildRemindersUrl({ stream: "true" });
     const source = new EventSource(streamUrl);
     remindersEventSource = source;
-
     source.addEventListener("reminders", (event) => {
       if (!event?.data) return;
       try {
@@ -240,7 +219,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.warn("[popup] Failed to parse reminders stream:", err);
       }
     });
-
     source.onerror = (err) => {
       if (source.readyState === EventSource.CLOSED) {
         remindersEventSource = null;
@@ -249,17 +227,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     };
   }
-
 function renderReminderList(remindersToShow, filtered = false) {
   const list = document.getElementById("reminderList");
   const clearBtn = document.getElementById("clearReminderFilter");
   list.innerHTML = "";
-
   const today = new Date().toISOString().split("T")[0];
   const upcoming = remindersToShow.filter(r => r.date >= today);
   const past = remindersToShow.filter(r => r.date < today).reverse();
   let firstUpcomingItem = null;
-
   // --- 🕒 Past Reminder Fold Section ---
   if (past.length) {
     const pastContainer = document.createElement("div");
@@ -267,13 +242,11 @@ function renderReminderList(remindersToShow, filtered = false) {
       opacity: 0.6;
       margin-bottom: 10px;
     `;
-
     for (const r of past) {
       const li = document.createElement("li");
       li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${r.date}</a>: ${r.note}`;
       pastContainer.appendChild(li);
     }
-
     const foldNotice = document.createElement("div");
     foldNotice.style = `
       text-align: center;
@@ -283,11 +256,9 @@ function renderReminderList(remindersToShow, filtered = false) {
       border-top: 1px dashed #ccc;
       margin-bottom: 10px;
     `;
-
     list.appendChild(pastContainer); // past on top
     list.appendChild(foldNotice);   // visual divider
   }
-
   // --- 📅 Upcoming Reminders ---
   for (const r of upcoming) {
     const dateText = r.date === today ? "Today" : r.date;
@@ -298,10 +269,8 @@ function renderReminderList(remindersToShow, filtered = false) {
       firstUpcomingItem = li;
     }
   }
-
   // Toggle "Show All" button
   clearBtn.style.display = filtered ? "block" : "none";
-
   const section = document.getElementById("reminderSection");
   if (section) {
     if (past.length && firstUpcomingItem) {
@@ -315,17 +284,13 @@ function renderReminderList(remindersToShow, filtered = false) {
     }
   }
 }
-
-
 document.getElementById("clearReminderFilter").addEventListener("click", () => {
   renderReminderList(allReminders);
 });
-
 function updateExtensionBadge(reminders) {
   const today = new Date().toISOString().split("T")[0];
   const upcoming = reminders.filter(r => r.date >= today);
   const count = upcoming.length;
-
   chrome.runtime.sendMessage({ type: "setBadge", count });
 }
   const redirect = document.getElementById("redirectToggle");
@@ -385,10 +350,8 @@ if (calendarInput) {
 //     const typedPw = (userPasswordInput?.value || "").trim();
 //     const { userName: storedUser } = await chrome.storage.local.get("userName");
 //     const { userPassword: storedPw } = await chrome.storage.local.get("userPassword");
-
 //     const userName = typedUser || storedUser || "";
 //     const userPassword = typedPw || storedPw || "";
-
 //     if (!userName) {
 //       alert("Please set a username first.");
 //       return;
@@ -398,7 +361,6 @@ if (calendarInput) {
 //       const ok = confirm("No password saved. Continue anyway?");
 //       if (!ok) return;
 //     }
-
 //     showSiteVisitLoopEmbed({ userName, userPassword, onClose: () => {
 //       // Optional: refresh reminders or UI after closing
 //       // fetchAndRenderReminders().catch(console.warn);
@@ -407,7 +369,6 @@ if (calendarInput) {
 // }
 // popup.js (only the relevant new bits)
 // Assumes you already have userNameInput/userPasswordInput and storage code.
-
 // document.getElementById("buildSiteVisitLoopBtn")?.addEventListener("click", async () => {
 //   // get creds same as you already do
 //   const typedUser = (document.getElementById("userNameInput")?.value || "").trim();
@@ -417,22 +378,16 @@ if (calendarInput) {
 //   const userName = typedUser || storedUser || "";
 //   const userPassword = typedPw || storedPw || "";
 //   if (!userName) { alert("Please set a username first."); return; }
-
 //   openEmbedInPopup({ userName, userPassword });
 // });
 let embedWindowId = null;
-
 const buildBtn = document.getElementById("buildSiteVisitLoopBtn");
-
 buildBtn?.addEventListener("click", async () => {
   // ... your existing credential checks & storage ...
-
   const nonce = crypto?.getRandomValues
     ? Array.from(crypto.getRandomValues(new Uint32Array(2))).map(n => n.toString(36)).join("")
     : String(Date.now());
-
   const url = `chrome-extension://${chrome.runtime.id}/embed.html?mode=loop&nonce=${encodeURIComponent(nonce)}`;
-
   if (embedWindowId) {
     try {
       const win = await chrome.windows.get(embedWindowId);
@@ -444,7 +399,6 @@ buildBtn?.addEventListener("click", async () => {
       embedWindowId = null;
     }
   }
-
   const newWin = await chrome.windows.create({
     url,
     type: "popup",
@@ -453,11 +407,9 @@ buildBtn?.addEventListener("click", async () => {
     focused: true,
   });
   embedWindowId = newWin.id;
-
   // ✅ Hide the button once opened
   buildBtn.style.display = "none";
 });
-
 // When the popup is closed, reset and show button again
 chrome.windows.onRemoved.addListener((id) => {
   if (id === embedWindowId) {
@@ -465,10 +417,8 @@ chrome.windows.onRemoved.addListener((id) => {
     buildBtn.style.display = ""; // show it back
   }
 });
-
   const tableBtn = document.getElementById("tableOverlayBtn");
   const stripTrailingSlash = (value = "") => (typeof value === "string" ? value.replace(/\/+$/, "") : "");
-
   const resolveTableEmbedOrigin = async () => {
     try {
       const stored = await chrome.storage.local.get(TABLE_EMBED_ORIGIN_KEY);
@@ -479,7 +429,6 @@ chrome.windows.onRemoved.addListener((id) => {
     } catch (error) {
       console.warn("[popup] Failed to read embed origin override:", error);
     }
-
     for (const origin of TABLE_LOCAL_ORIGINS) {
       try {
         if (await isTableOriginReachable(origin)) {
@@ -489,15 +438,25 @@ chrome.windows.onRemoved.addListener((id) => {
         console.warn("[popup] Table origin check failed:", origin, err);
       }
     }
-
     return TABLE_DEFAULT_ORIGIN;
   };
-
   const buildTableEmbedUrl = async () => {
     const origin = await resolveTableEmbedOrigin();
     return `${origin}${origin.endsWith("/") ? "" : "/"}embed?mode=table&singleCircle=1`;
   };
-
+  const isRestrictedPage = (url) => {
+    if (!url) return true;
+    return /^chrome:\/\//i.test(url) || /^chrome-extension:\/\//i.test(url) || /^about:/i.test(url);
+  };
+  const openTableTab = async (embedUrl) => {
+    if (!embedUrl) return;
+    try {
+      await chrome.tabs.create({ url: embedUrl, active: true });
+    } catch (error) {
+      console.warn("[popup] Failed to open table tab:", error);
+      alert("Unable to load Table view.");
+    }
+  };
   let tableWindowId = null;
   const openTableFullscreenWindow = async (embedUrl) => {
     if (!embedUrl) return;
@@ -505,7 +464,6 @@ chrome.windows.onRemoved.addListener((id) => {
       ? Array.from(crypto.getRandomValues(new Uint32Array(2))).map((n) => n.toString(36)).join("")
       : String(Date.now());
     const target = `chrome-extension://${chrome.runtime.id}/table.html?embedUrl=${encodeURIComponent(embedUrl)}&nonce=${encodeURIComponent(nonce)}`;
-
     if (tableWindowId) {
       try {
         await chrome.windows.update(tableWindowId, { focused: true });
@@ -514,10 +472,8 @@ chrome.windows.onRemoved.addListener((id) => {
         tableWindowId = null;
       }
     }
-
     const width = screen?.availWidth || 1280;
     const height = screen?.availHeight || 720;
-
     try {
       const newWin = await chrome.windows.create({
         url: target,
@@ -541,39 +497,38 @@ chrome.windows.onRemoved.addListener((id) => {
       alert("Unable to load Table view.");
     }
   };
-
   chrome.windows.onRemoved.addListener((windowId) => {
     if (windowId === tableWindowId) {
       tableWindowId = null;
     }
   });
-
   tableBtn?.addEventListener("click", async () => {
     try {
       const embedUrl = await buildTableEmbedUrl();
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const tab = tabs[0];
         if (tab?.id) {
+          if (isRestrictedPage(tab.url)) {
+            void openTableTab(embedUrl);
+            return;
+          }
           const urlPath = embedUrl.replace(/^https?:\/\/[^/]+/, "");
           chrome.tabs.sendMessage(tab.id, { type: "SHOW_TABLE_OVERLAY", urlPath }, () => {
             if (chrome.runtime.lastError) {
               console.warn("[popup] Table overlay message failed:", chrome.runtime.lastError.message);
-              void openTableFullscreenWindow(embedUrl);
+              void openTableTab(embedUrl);
             }
           });
         } else {
-          void openTableFullscreenWindow(embedUrl);
+          void openTableTab(embedUrl);
         }
       });
+      window.close();
     } catch (error) {
       console.error("[popup] Unable to open Table overlay:", error);
       alert("Unable to load Table view.");
     }
   });
-
-
-
-
   greenMode.addEventListener("change", () => {
     if (greenMode.checked) {
       gayMode.checked = false;
@@ -594,12 +549,10 @@ chrome.windows.onRemoved.addListener((id) => {
   chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     const tab = tabs[0];
     if (!tab || !tab.url || !tab.url.includes("gogetta.nyc/team")) return;
-    
     // Get Cognito tokens from the content script
     try {
       const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_COGNITO_TOKENS' });
       const { accessToken, idToken, username } = response || {};
-      
       if (accessToken && username) {
         console.log(`JWT authentication successful for user: ${username}`);
         // Authentication successful - reminders list will be shown by default
@@ -615,9 +568,4 @@ chrome.windows.onRemoved.addListener((id) => {
   window.addEventListener("beforeunload", () => {
     remindersEventSource?.close();
   });
-
-
 });
-
-
-

@@ -7,10 +7,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-
-
 DROP_FIELDS = {"ts", "userName", "pagePath", "locationId", "serviceId"}
-
 USER_MAP = {
     "b388b48e-e5c4-4618-b853-71972a21bdeb": "maddoxg",
     "433d1ddd-0f8d-4eab-a5c5-f803deb930e3": "kayjack",
@@ -32,16 +29,12 @@ USER_MAP = {
     "20d73400-51ea-41c8-be17-372c673c2813": "glongino",
     "b471674a-0d9f-4c32-96e5-dbc9249398d2": "emmab",
 }
-
 USER_MAP_LOWER = {key.lower(): value for key, value in USER_MAP.items()}
-
 UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     re.IGNORECASE,
 )
 ENCODED_SLASH_RE = re.compile(r"%2f", re.IGNORECASE)
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -141,50 +134,34 @@ def parse_args() -> argparse.Namespace:
         help="Sleep between live node updates (milliseconds).",
     )
     return parser.parse_args()
-
-
 def load_json(path: Path) -> object:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
-
-
 def dump_json(path: Path, data: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=True) + "\n", encoding="utf-8")
-
-
 def is_uuid(value: str) -> bool:
     if not value:
         return False
     return bool(UUID_RE.match(value.strip()))
-
-
 def is_encoded_key(value: str) -> bool:
     if not value:
         return False
     return bool(ENCODED_SLASH_RE.search(value))
-
-
 def normalize_base_path(value: str) -> str:
     if not value:
         return ""
     return f"/{value.strip('/')}"
-
-
 def resolve_token(arg_token: str) -> str:
     if arg_token:
         return arg_token
     return os.getenv("RTDB_TOKEN") or os.getenv("FIREBASE_TOKEN") or ""
-
-
 def encode_rtdb_path(path: str) -> str:
     cleaned = path.strip("/")
     if not cleaned:
         return ""
     segments = [urllib.parse.quote(segment, safe="") for segment in cleaned.split("/")]
     return "/".join(segment for segment in segments if segment)
-
-
 def build_rtdb_url(db_url: str, path: str, token: str, shallow: bool = False) -> str:
     base = db_url.rstrip("/")
     encoded = encode_rtdb_path(path)
@@ -200,8 +177,6 @@ def build_rtdb_url(db_url: str, path: str, token: str, shallow: bool = False) ->
     if params:
         url = f"{url}?{urllib.parse.urlencode(params)}"
     return url
-
-
 def http_get_json(url: str) -> tuple[int | None, object | None, str]:
     try:
         with urllib.request.urlopen(url, timeout=60) as resp:
@@ -214,8 +189,6 @@ def http_get_json(url: str) -> tuple[int | None, object | None, str]:
         return None, None, str(exc)
     except json.JSONDecodeError as exc:
         return None, None, f"Invalid JSON: {exc}"
-
-
 def patch_updates(url: str, updates: dict[str, object]) -> tuple[int | None, str]:
     payload = json.dumps(updates, ensure_ascii=True).encode("utf-8")
     req = urllib.request.Request(
@@ -233,8 +206,6 @@ def patch_updates(url: str, updates: dict[str, object]) -> tuple[int | None, str
         return exc.code, body
     except urllib.error.URLError as exc:
         return None, str(exc)
-
-
 def looks_like_updates_map(data: dict) -> bool:
     for key in data.keys():
         if not isinstance(key, str):
@@ -242,8 +213,6 @@ def looks_like_updates_map(data: dict) -> bool:
         if key.startswith("/locationNotes/") or key.startswith("locationNotes/"):
             return True
     return False
-
-
 def extract_locationnotes_root(data: object) -> dict | None:
     if not isinstance(data, dict):
         return None
@@ -260,8 +229,6 @@ def extract_locationnotes_root(data: object) -> dict | None:
             if isinstance(value, dict):
                 return data
     return None
-
-
 def map_user_in_key(key: str, drop_unknown_uuids: bool) -> tuple[str, bool, bool, bool]:
     parts = key.strip("/").split("/")
     if len(parts) < 4 or parts[0] != "locationNotes":
@@ -276,8 +243,6 @@ def map_user_in_key(key: str, drop_unknown_uuids: bool) -> tuple[str, bool, bool
         return key, False, False, unknown_uuid
     parts[2] = mapped
     return "/" + "/".join(parts), True, False, False
-
-
 def strip_note_fields(
     value: object, drop_fields: set[str], minify_json: bool
 ) -> tuple[object, int, bool]:
@@ -298,7 +263,6 @@ def strip_note_fields(
         if minify_json:
             return json.dumps(parsed, ensure_ascii=True, separators=(",", ":")), removed, True
         return json.dumps(parsed, ensure_ascii=True), removed, True
-
     if isinstance(value, dict):
         removed = 0
         for field in list(value.keys()):
@@ -306,10 +270,7 @@ def strip_note_fields(
                 value.pop(field, None)
                 removed += 1
         return value, removed, removed > 0
-
     return value, 0, False
-
-
 def clean_note_value(
     value: object, drop_fields: set[str], minify_json: bool
 ) -> tuple[str | None, bool]:
@@ -330,7 +291,6 @@ def clean_note_value(
         if minify_json:
             return json.dumps(parsed, ensure_ascii=True, separators=(",", ":")), True
         return json.dumps(parsed, ensure_ascii=True), True
-
     if isinstance(value, dict):
         parsed = dict(value)
         for field in list(parsed.keys()):
@@ -339,10 +299,7 @@ def clean_note_value(
         if minify_json:
             return json.dumps(parsed, ensure_ascii=True, separators=(",", ":")), True
         return json.dumps(parsed, ensure_ascii=True), True
-
     return None, True
-
-
 def flatten_locationnotes_export(
     root: dict, base_path: str
 ) -> tuple[dict[str, object], dict[str, int]]:
@@ -355,7 +312,6 @@ def flatten_locationnotes_export(
         "export_skipped_entries": 0,
     }
     base = normalize_base_path(base_path)
-
     for encoded_key, encoded_value in root.items():
         stats["export_roots"] += 1
         if not isinstance(encoded_key, str):
@@ -368,7 +324,6 @@ def flatten_locationnotes_export(
             stats["export_skipped_roots"] += 1
             continue
         stats["export_encoded_roots"] += 1
-
         for user_key, user_value in encoded_value.items():
             if not isinstance(user_key, str):
                 stats["export_skipped_entries"] += 1
@@ -389,10 +344,7 @@ def flatten_locationnotes_export(
                 )
                 updates[update_key] = note_value
                 stats["export_entries"] += 1
-
     return updates, stats
-
-
 def transform_updates_map(
     updates: dict,
     drop_unknown_uuids: bool,
@@ -415,7 +367,6 @@ def transform_updates_map(
     }
     new_updates: dict[str, object] = {}
     delete_updates: dict[str, object] = {}
-
     for key, value in updates.items():
         stats["entries"] += 1
         new_key, mapped, dropped, unknown_uuid = map_user_in_key(
@@ -433,23 +384,18 @@ def transform_updates_map(
         if dropped:
             stats["dropped_unknown_uuids"] += 1
             continue
-
         new_value, removed, changed = strip_note_fields(
             value, drop_fields, minify_json
         )
         if changed:
             stats["notes_changed"] += 1
         stats["fields_removed"] += removed
-
         if new_key in new_updates and new_key != key:
             stats["collisions"] += 1
             new_key = key
         new_updates[new_key] = new_value
-
     stats["uuid_deletes"] = len(delete_updates)
     return new_updates, stats, delete_updates
-
-
 def process_updates_file(
     input_path: Path,
     output_path: Path,
@@ -475,14 +421,10 @@ def process_updates_file(
     dump_json(target, new_updates)
     stats["file"] = str(target)
     return stats, delete_updates
-
-
 def resolve_output_path(input_path: Path, output_path: str) -> Path:
     if output_path:
         return Path(output_path)
     return input_path.with_name(f"{input_path.stem}_cleaned{input_path.suffix}")
-
-
 def process_manifest(
     manifest_path: Path,
     output_path: Path,
@@ -497,16 +439,13 @@ def process_manifest(
     manifest = load_json(manifest_path)
     if not isinstance(manifest, dict) or "chunks" not in manifest:
         raise ValueError(f"Manifest is missing chunks: {manifest_path}")
-
     chunks = manifest.get("chunks")
     if not isinstance(chunks, list):
         raise ValueError(f"Manifest chunks is not a list: {manifest_path}")
-
     base_dir = manifest_path.parent
     stats_list = []
     new_chunks = []
     delete_updates: dict[str, object] = {}
-
     for chunk in chunks:
         chunk_rel = Path(chunk)
         chunk_in = (base_dir / chunk_rel).resolve()
@@ -530,17 +469,13 @@ def process_manifest(
         if not in_place:
             rel = os.path.relpath(chunk_out, output_path.parent)
             new_chunks.append(str(Path(rel)))
-
     if not in_place:
         manifest_out = {
             "basePath": manifest.get("basePath", "/locationNotes"),
             "chunks": new_chunks,
         }
         dump_json(output_path, manifest_out)
-
     return stats_list, delete_updates
-
-
 def process_directory(
     input_dir: Path,
     output_dir: Path,
@@ -570,8 +505,6 @@ def process_directory(
         if deletes:
             delete_updates.update(deletes)
     return stats_list, delete_updates
-
-
 def process_locationnotes_export(
     root: dict,
     output_path: Path,
@@ -595,8 +528,6 @@ def process_locationnotes_export(
     stats["file"] = str(output_path)
     stats.update(export_stats)
     return stats, delete_updates
-
-
 def build_full_update_key(
     base_path: str, encoded_key: str, user_key: str | None = None, ts_key: str | None = None
 ) -> str:
@@ -610,8 +541,6 @@ def build_full_update_key(
     if base:
         return f"{base}/{suffix}"
     return f"/{suffix}"
-
-
 def to_relative_update_key(full_key: str, base_path: str) -> str:
     base = normalize_base_path(base_path)
     normalized = f"/{full_key.strip('/')}"
@@ -620,8 +549,6 @@ def to_relative_update_key(full_key: str, base_path: str) -> str:
     if base and normalized == base:
         return ""
     return normalized.lstrip("/")
-
-
 def build_live_updates_for_node(
     encoded_key: str,
     node_data: dict,
@@ -639,7 +566,6 @@ def build_live_updates_for_node(
         "node_unknown_uuid_users": 0,
         "node_non_dict_users": 0,
     }
-
     user_keys = [key for key in node_data.keys() if isinstance(key, str)]
     for user_key in sorted(user_keys):
         if user_key == "_meta":
@@ -649,7 +575,6 @@ def build_live_updates_for_node(
         user_lower = user_key.lower()
         mapped_user = USER_MAP.get(user_key) or USER_MAP_LOWER.get(user_lower)
         user_is_uuid = is_uuid(user_key)
-
         if user_is_uuid and mapped_user and mapped_user != user_key:
             stats["node_mapped_users"] += 1
             target_map = node_data.get(mapped_user)
@@ -677,26 +602,22 @@ def build_live_updates_for_node(
                         stats["node_updates"] += 1
             else:
                 stats["node_non_dict_users"] += 1
-
             delete_key = build_full_update_key(base_path, encoded_key, user_key, None)
             updates[delete_key] = None
             stats["node_deletes"] += 1
             continue
-
         if user_is_uuid and (not mapped_user or mapped_user == user_key):
             stats["node_unknown_uuid_users"] += 1
             delete_key = build_full_update_key(base_path, encoded_key, user_key, None)
             updates[delete_key] = None
             stats["node_deletes"] += 1
             continue
-
         if not isinstance(user_value, dict):
             stats["node_non_dict_users"] += 1
             delete_key = build_full_update_key(base_path, encoded_key, user_key, None)
             updates[delete_key] = None
             stats["node_deletes"] += 1
             continue
-
         ts_keys = [key for key in user_value.keys() if isinstance(key, str)]
         for ts_key in sorted(ts_keys):
             if ts_key == "_meta":
@@ -711,10 +632,7 @@ def build_live_updates_for_node(
             elif changed:
                 updates[full_key] = cleaned
                 stats["node_updates"] += 1
-
     return updates, stats
-
-
 def run_live_cleanup(
     db_url: str,
     token: str,
@@ -735,7 +653,6 @@ def run_live_cleanup(
         detail = err or f"HTTP {status}"
         print(f"Failed to read locationNotes keys: {detail}")
         return 2
-
     encoded_keys = []
     for key in data.keys():
         if not isinstance(key, str):
@@ -747,7 +664,6 @@ def run_live_cleanup(
         if not is_encoded_key(key):
             continue
         encoded_keys.append(key)
-
     total_nodes = 0
     total_updates = 0
     total_deletes = 0
@@ -758,7 +674,6 @@ def run_live_cleanup(
     total_skipped_nodes = 0
     review_updates: dict[str, object] = {}
     review_limit = max(0, int(review_first or 0))
-
     patch_url = build_rtdb_url(db_url, base, token, shallow=False)
     for encoded_key in sorted(encoded_keys):
         total_nodes += 1
@@ -776,20 +691,17 @@ def run_live_cleanup(
             print(f"[SKIP] {encoded_key}: non-object node")
             total_skipped_nodes += 1
             continue
-
         updates, stats = build_live_updates_for_node(
             encoded_key, node_data, base, drop_fields, minify_json
         )
         if not updates:
             continue
-
         total_updates += stats["node_updates"]
         total_deletes += stats["node_deletes"]
         total_invalid_notes += stats["node_invalid_notes"]
         total_mapped_users += stats["node_mapped_users"]
         total_unknown_uuid_users += stats["node_unknown_uuid_users"]
         total_non_dict_users += stats["node_non_dict_users"]
-
         if review_limit:
             for key, value in updates.items():
                 if len(review_updates) >= review_limit:
@@ -798,7 +710,6 @@ def run_live_cleanup(
             if len(review_updates) >= review_limit:
                 break
             continue
-
         relative_updates = {
             to_relative_update_key(key, base): value for key, value in updates.items()
         }
@@ -808,7 +719,6 @@ def run_live_cleanup(
             return 2
         if sleep_ms:
             time.sleep(max(0, sleep_ms) / 1000.0)
-
     if review_limit:
         output_path = Path(review_output)
         dump_json(output_path, review_updates)
@@ -817,7 +727,6 @@ def run_live_cleanup(
             f"nodes_scanned={total_nodes}"
         )
         return 0
-
     print(
         "Live cleanup done. "
         f"nodes_scanned={total_nodes} updates={total_updates} deletes={total_deletes} "
@@ -826,8 +735,6 @@ def run_live_cleanup(
         f"skipped_nodes={total_skipped_nodes}"
     )
     return 0
-
-
 def resolve_delete_output_path(
     input_path: Path,
     output_path: Path | None,
@@ -842,8 +749,6 @@ def resolve_delete_output_path(
         )
     base_dir = output_dir or input_path
     return base_dir / "uuid_user_deletes.json"
-
-
 def main() -> int:
     args = parse_args()
     if args.live:
@@ -867,32 +772,25 @@ def main() -> int:
             review_output=args.review_output,
             sleep_ms=args.sleep_ms,
         )
-
     if not args.input:
         print("Missing --input. Provide --input or use --live with --db-url.")
         return 1
-
     input_path = Path(args.input)
-
     if not input_path.exists():
         print(f"Input not found: {input_path}")
         return 1
-
     drop_unknown_uuids = bool(args.drop_unknown_uuids or args.emit_unknown_uuid_deletes)
     emit_unknown_uuid_deletes = bool(args.emit_unknown_uuid_deletes)
-
     drop_fields = set(DROP_FIELDS)
     if args.drop_note_keys:
         for field in args.drop_note_keys.split(","):
             field = field.strip()
             if field:
                 drop_fields.add(field)
-
     delete_updates: dict[str, object] = {}
     delete_output: Path | None = None
     output_path: Path | None = None
     output_dir: Path | None = None
-
     if input_path.is_dir():
         output_dir = input_path if args.in_place else Path(
             args.output_dir or f"{input_path}_cleaned"
@@ -955,13 +853,11 @@ def main() -> int:
                     emit_unknown_uuid_deletes,
                 )
             stats_list = [stats]
-
     if (args.emit_uuid_deletes or emit_unknown_uuid_deletes) and delete_updates:
         delete_output = resolve_delete_output_path(
             input_path, output_path, output_dir, args.delete_output
         )
         dump_json(delete_output, delete_updates)
-
     print("Done.")
     for stats in stats_list:
         line = (
@@ -988,7 +884,5 @@ def main() -> int:
     if delete_output:
         print(f"UUID delete updates: {delete_output} entries={len(delete_updates)}")
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

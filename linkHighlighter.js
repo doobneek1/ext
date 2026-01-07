@@ -5,44 +5,36 @@
                           hostname.includes('test.gogetta.nyc');
   const isYourPeerFrame = hostname.endsWith('yourpeer.nyc') ||
                           hostname.endsWith('yourpeer-staging.nyc');
-
   // Skip gogetta pages entirely
   if (isGoGettaDomain) {
     console.log('[LinkHighlighter] Skipping gogetta domain');
     return;
   }
-
   // Only run inside iframes when we're in the YP Mini iframe
   if (isIframe && !isYourPeerFrame) {
     console.log('[LinkHighlighter] Skipping non-YourPeer iframe');
     return;
   }
-
   // Check if redirectEnabled setting is true
   chrome.storage.local.get('redirectEnabled', (data) => {
     const redirectEnabled = !!data.redirectEnabled;
     console.log('[LinkHighlighter] redirectEnabled:', redirectEnabled);
-
     if (!redirectEnabled) {
       console.log('[LinkHighlighter] redirectEnabled is false, not initializing');
       return;
     }
-
     console.log('[LinkHighlighter] Initializing on', hostname);
     initializeLinkHighlighter();
   });
-
   function initializeLinkHighlighter() {
     const validationCache = new Map();
     const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
     const shouldRunPhoneOverlay = !isIframe && !isGoGettaDomain && !isYourPeerFrame;
-
     async function validateLink(url) {
       const cached = validationCache.get(url);
       if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
         return cached.status;
       }
-
       try {
         const result = await new Promise((resolve, reject) => {
           chrome.runtime.sendMessage(
@@ -56,31 +48,26 @@
             }
           );
         });
-
         validationCache.set(url, {
           status: result.status,
           timestamp: Date.now()
         });
-
         return result.status;
       } catch (error) {
         console.error('[LinkHighlighter] Error validating link:', error);
         return 'unknown';
       }
     }
-
     function applyHighlight(link, status) {
       if (!link.dataset.linkHighlightOriginalOutline) {
         link.dataset.linkHighlightOriginalOutline = link.style.outline || '';
         link.dataset.linkHighlightOriginalOutlineOffset = link.style.outlineOffset || '';
       }
-
       link.style.outline = link.dataset.linkHighlightOriginalOutline || '';
       link.style.outlineOffset = link.dataset.linkHighlightOriginalOutlineOffset || '';
       link.style.removeProperty('opacity');
       link.removeAttribute('title');
       link.setAttribute('data-link-status', status);
-
       if (status === 'checking') {
         link.style.outline = '2px dashed #6c757d';
         link.style.outlineOffset = '1px';
@@ -97,17 +84,13 @@
         link.title = '�?" Could not verify link';
       }
     }
-
     async function highlightWebsiteLinks() {
       const links = document.querySelectorAll('a[href]');
-
       for (const link of links) {
         const href = link.href;
-
         if (link.dataset.linkHighlightProcessed === 'true') {
           continue;
         }
-
         if (!href ||
             !/^https?:\/\//i.test(href) ||
             href.startsWith('tel:') ||
@@ -116,12 +99,9 @@
             href.includes('mail.google.com')) {
           continue;
         }
-
         link.dataset.linkHighlightProcessed = 'true';
         console.log('[LinkHighlighter] Processing:', href);
-
         applyHighlight(link, 'checking');
-
         validateLink(href).then(status => {
           if (link.isConnected) {
             applyHighlight(link, status);
@@ -133,13 +113,10 @@
         });
       }
     }
-
     // Run once on load
     highlightWebsiteLinks();
-
     const observer = new MutationObserver((mutations) => {
       let shouldProcess = false;
-
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
           if (node.nodeType === Node.ELEMENT_NODE) {
@@ -151,23 +128,18 @@
         }
         if (shouldProcess) break;
       }
-
       if (shouldProcess) {
         highlightWebsiteLinks();
       }
     });
-
     observer.observe(document.body, {
       childList: true,
       subtree: true
     });
-
     console.log('[LinkHighlighter] Loaded and observing');
-
     if (shouldRunPhoneOverlay) {
       initializePhoneOverlay();
     }
-
     function initializePhoneOverlay() {
       const PHONE_OVERLAY_ID = 'dnk-phone-overlay';
       const PHONE_HIGHLIGHT_ID = 'dnk-phone-highlight';
@@ -180,17 +152,13 @@
       const DRAG_HOLD_MS = 350;
       const DRAG_MOVE_TOLERANCE_PX = 6;
       const OVERLAY_PADDING_PX = 8;
-
       const digitsOnly = (value) => String(value || '').replace(/\D/g, '');
-
       const isOverlayMutation = (mutation) => {
         const target = mutation.target;
         const el = target?.nodeType === Node.TEXT_NODE ? target.parentElement : target;
         return !!el?.closest?.(`#${PHONE_OVERLAY_ID}`);
       };
-
       const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
       const attachLongPressDrag = (handle, container, onDragStart, onDragEnd) => {
         let holdTimer = null;
         let dragActive = false;
@@ -198,14 +166,12 @@
         let startY = 0;
         let originLeft = 0;
         let originTop = 0;
-
         const clearHold = () => {
           if (holdTimer) {
             clearTimeout(holdTimer);
             holdTimer = null;
           }
         };
-
         const endDrag = () => {
           clearHold();
           if (!dragActive) return;
@@ -214,7 +180,6 @@
           container.style.userSelect = '';
           onDragEnd?.();
         };
-
         handle.addEventListener('pointerdown', (e) => {
           if (e.button !== 0) return;
           startX = e.clientX;
@@ -230,7 +195,6 @@
           }, DRAG_HOLD_MS);
           handle.setPointerCapture?.(e.pointerId);
         });
-
         handle.addEventListener('pointermove', (e) => {
           if (!holdTimer && !dragActive) return;
           const dx = e.clientX - startX;
@@ -251,12 +215,10 @@
           container.style.left = `${nextLeft}px`;
           container.style.top = `${nextTop}px`;
         });
-
         handle.addEventListener('pointerup', () => endDrag());
         handle.addEventListener('pointercancel', () => endDrag());
         handle.addEventListener('lostpointercapture', () => endDrag());
       };
-
       const collectPhoneEntries = () => {
         const results = [];
         const index = new Map();
@@ -277,7 +239,6 @@
             }
           }
         );
-
         let count = 0;
         for (let node = walker.nextNode(); node; node = walker.nextNode()) {
           const text = node.nodeValue;
@@ -304,21 +265,17 @@
         }
         return results;
       };
-
       const removeOverlay = () => {
         document.getElementById(PHONE_OVERLAY_ID)?.remove();
       };
-
       const highlightMatch = (match) => {
         const existing = document.getElementById(PHONE_HIGHLIGHT_ID);
         if (existing) existing.remove();
-
         const range = document.createRange();
         range.setStart(match.node, match.start);
         range.setEnd(match.node, match.end);
         const rect = range.getBoundingClientRect();
         if (!rect || rect.width === 0 || rect.height === 0) return;
-
         const highlight = document.createElement('div');
         highlight.id = PHONE_HIGHLIGHT_ID;
         Object.assign(highlight.style, {
@@ -335,7 +292,6 @@
           boxSizing: 'border-box'
         });
         document.body.appendChild(highlight);
-
         highlight.animate(
           [
             { opacity: 0, transform: 'scale(0.98)' },
@@ -346,7 +302,6 @@
         );
         setTimeout(() => highlight.remove(), 1300);
       };
-
       const focusEntry = (entry) => {
         if (!entry?.matches?.length) return;
         const match = entry.matches.find(m => m.node?.isConnected) || entry.matches[0];
@@ -354,7 +309,6 @@
           scheduleScan();
           return;
         }
-
         const range = document.createRange();
         range.setStart(match.node, match.start);
         range.setEnd(match.node, match.end);
@@ -363,11 +317,9 @@
         window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
         setTimeout(() => highlightMatch(match), 350);
       };
-
       const renderOverlay = () => {
         removeOverlay();
         if (!entries.length) return;
-
         const container = document.createElement('div');
         container.id = PHONE_OVERLAY_ID;
         container.dataset.open = overlayOpen ? 'true' : 'false';
@@ -380,7 +332,6 @@
           color: '#1f1f1f'
         });
         let suppressToggleClick = false;
-
         const toggle = document.createElement('button');
         toggle.type = 'button';
         toggle.textContent = overlayOpen ? 'x' : '?';
@@ -395,7 +346,6 @@
           cursor: 'pointer',
           boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
         });
-
         const panel = document.createElement('div');
         Object.assign(panel.style, {
           marginTop: '8px',
@@ -409,7 +359,6 @@
           overflowY: 'auto',
           display: overlayOpen ? 'block' : 'none'
         });
-
         toggle.addEventListener('click', (e) => {
           if (suppressToggleClick) {
             suppressToggleClick = false;
@@ -421,11 +370,9 @@
           panel.style.display = overlayOpen ? 'block' : 'none';
           toggle.textContent = overlayOpen ? 'x' : '?';
         });
-
         entries.forEach(entry => {
           const row = document.createElement('div');
           row.style.marginBottom = '8px';
-
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.textContent = entry.display;
@@ -441,11 +388,9 @@
             width: '100%'
           });
           btn.addEventListener('click', () => focusEntry(entry));
-
           row.appendChild(btn);
           panel.appendChild(row);
         });
-
         container.appendChild(toggle);
         container.appendChild(panel);
         document.body.appendChild(container);
@@ -462,19 +407,15 @@
           }
         );
       };
-
       const scanAndRender = () => {
         entries = collectPhoneEntries();
         renderOverlay();
       };
-
       const scheduleScan = () => {
         clearTimeout(scanTimer);
         scanTimer = setTimeout(scanAndRender, 400);
       };
-
       scanAndRender();
-
       const phoneObserver = new MutationObserver((mutations) => {
         if (mutations.every(isOverlayMutation)) {
           return;

@@ -8,15 +8,11 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Generator, Tuple
-
-
 DEFAULT_LOG_EVERY = 100
 DEFAULT_MAX_RETRIES = 5
 DEFAULT_RETRY_BACKOFF_MS = 1000
 DEFAULT_RETRY_MAX_MS = 10000
 DEFAULT_RETRY_JITTER_MS = 250
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Apply RTDB updates with per-path requests to avoid overwriting nodes."
@@ -104,26 +100,18 @@ def parse_args() -> argparse.Namespace:
         help="Random jitter (ms) added to retry backoff.",
     )
     return parser.parse_args()
-
-
 def resolve_token(arg_token: str | None) -> str:
     if arg_token:
         return arg_token
     return os.getenv("RTDB_TOKEN") or os.getenv("FIREBASE_TOKEN") or ""
-
-
 def load_json(path: Path) -> object:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
-
-
 def iter_update_map(data: object) -> Generator[Tuple[str, object], None, None]:
     if not isinstance(data, dict):
         raise ValueError("Updates file is not an object.")
     for key, value in data.items():
         yield str(key), value
-
-
 def iter_updates_from_file(path: Path) -> Generator[Tuple[str, object], None, None]:
     data = load_json(path)
     if isinstance(data, dict) and "chunks" in data:
@@ -138,23 +126,17 @@ def iter_updates_from_file(path: Path) -> Generator[Tuple[str, object], None, No
             yield from iter_updates_from_file(chunk_path)
         return
     yield from iter_update_map(data)
-
-
 def iter_updates(input_path: Path) -> Generator[Tuple[str, object], None, None]:
     if input_path.is_dir():
         for file_path in sorted(input_path.glob("*.json")):
             yield from iter_updates_from_file(file_path)
         return
     yield from iter_updates_from_file(input_path)
-
-
 def iter_updates_from_inputs(
     input_paths: list[Path],
 ) -> Generator[Tuple[str, object], None, None]:
     for input_path in input_paths:
         yield from iter_updates(input_path)
-
-
 def build_key_url(db_url: str, key: str, token: str) -> str:
     base = db_url.rstrip("/")
     path = key if key.startswith("/") else f"/{key}"
@@ -163,8 +145,6 @@ def build_key_url(db_url: str, key: str, token: str) -> str:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}{urllib.parse.urlencode({'auth': token})}"
     return url
-
-
 def parse_retry_after(headers: object) -> float | None:
     if not headers:
         return None
@@ -178,8 +158,6 @@ def parse_retry_after(headers: object) -> float | None:
         return float(value)
     except ValueError:
         return None
-
-
 def send_update(
     url: str, value: object, method: str
 ) -> Tuple[int | None, str, float | None]:
@@ -201,22 +179,16 @@ def send_update(
         return exc.code, body, retry_after
     except urllib.error.URLError as exc:
         return None, str(exc), None
-
-
 def summarize_error(body: str, limit: int = 300) -> str:
     if len(body) <= limit:
         return body
     return body[:limit] + "..."
-
-
 def is_retryable_status(status: int | None) -> bool:
     if status is None:
         return True
     if status == 429:
         return True
     return 500 <= status < 600
-
-
 def compute_retry_sleep_ms(
     attempt: int,
     retry_after: float | None,
@@ -235,8 +207,6 @@ def compute_retry_sleep_ms(
     if jitter_ms:
         sleep_ms += random.randint(0, jitter_ms)
     return sleep_ms
-
-
 def apply_updates(
     updates: Generator[Tuple[str, object], None, None],
     db_url: str,
@@ -261,7 +231,6 @@ def apply_updates(
         "retried": 0,
         "rate_limited": 0,
     }
-
     for key, value in updates:
         stats["seen"] += 1
         if skip and stats["seen"] <= skip:
@@ -269,7 +238,6 @@ def apply_updates(
             continue
         if limit and stats["sent"] >= limit:
             break
-
         if dry_run:
             stats["sent"] += 1
         else:
@@ -298,7 +266,6 @@ def apply_updates(
                             )
                             time.sleep(sleep_for / 1000.0)
                         continue
-
                     stats["failed"] += 1
                     print(f"Error {status} for {key}: {summarize_error(body)}")
                     if stop_on_error:
@@ -306,15 +273,12 @@ def apply_updates(
                 else:
                     stats["sent"] += 1
                 break
-
             if sleep_ms:
                 time.sleep(sleep_ms / 1000.0)
-
         if log_every and stats["sent"] % log_every == 0:
             print(
                 f"Progress: sent={stats['sent']} failed={stats['failed']} seen={stats['seen']}"
             )
-
     print(
         "Done. "
         f"seen={stats['seen']} "
@@ -325,8 +289,6 @@ def apply_updates(
         f"rate_limited={stats['rate_limited']}"
     )
     return 0 if stats["failed"] == 0 else 2
-
-
 def main() -> int:
     args = parse_args()
     input_values = args.input or []
@@ -339,10 +301,8 @@ def main() -> int:
         for path in missing:
             print(f"Input not found: {path}")
         return 1
-
     token = resolve_token(args.token)
     updates = iter_updates_from_inputs(input_paths)
-
     return apply_updates(
         updates=updates,
         db_url=args.db_url,
@@ -359,7 +319,5 @@ def main() -> int:
         retry_max_ms=max(0, args.retry_max_ms or 0),
         retry_jitter_ms=max(0, args.retry_jitter_ms or 0),
     )
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

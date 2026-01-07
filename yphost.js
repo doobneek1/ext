@@ -55,7 +55,6 @@ function getValidationColor(dateStr) {
   // Detect if running in iframe
   const isInIframe = (window.top !== window.self);
   console.log('[YPHost] Running in iframe:', isInIframe);
-
   function normalize(str) {
     return str?.toLowerCase()?.replace(/[^a-z0-9]+/g, '').trim();
   }
@@ -191,35 +190,28 @@ document.querySelectorAll('div[id]').forEach(async section => {
   const normalized = normalize(rawId);
   const service = services.find(s => s.name && normalize(s.name) === normalized);
   if (!service) return;
-
   const locationId = service.ServiceAtLocation?.location_id;
   const serviceId = service.id;
   if (!locationId || !serviceId) return;
-
   const metadataByServiceId = await getFullLocationMetadata();
   if (!metadataByServiceId) return;
   const metadataList = metadataByServiceId[serviceId];
-
   if (!Array.isArray(metadataList)) {
     console.warn(`[?s??,? Missing metadata.service for] ${service.name}`);
     return;
   }
-
   const lastDescriptionUpdate = metadataList.find(f => f.field_name === 'description')?.last_action_date;
   if (!lastDescriptionUpdate) {
     console.warn(`[?s??,? Missing description update for] ${service.name}`);
     return;
   }
-
   const pTag = section.querySelector('p.text-sm.text-dark.mb-4.have-links');
   if (!pTag) return;
-
   // Remove duplicates (optional safety net)
   const existing = section.querySelectorAll('[data-description-link]');
   existing.forEach((el, i) => {
     if (i > 0) el.remove(); // remove all but the first
   });
-
   const alreadyInjected = existing.length > 0;
   if (!alreadyInjected) {
     const statusText = formatTimeAgo(lastDescriptionUpdate);
@@ -251,7 +243,6 @@ document.querySelectorAll('div[id]').forEach(async section => {
     pTag.append(dash, element);
   }
 });
-
 // Only add edit buttons if not skipping links (i.e., not in iframe)
     if (!skipLinks) {
     document.querySelectorAll('div[id]').forEach(section => {
@@ -289,10 +280,8 @@ document.querySelectorAll('div[id]').forEach(async section => {
     document.querySelectorAll('.yp-service-edit-btn').forEach(btn => btn.remove());
     const isYourPeer = host === 'yourpeer.nyc';
     const isGoGetta = host === 'gogetta.nyc' || host === 'gogetta.nyc';
-    
     if (!isYourPeer && !isGoGetta) return;
     if (isYourPeer && !path.startsWith('/locations')) return;
-
     if (!slug&& isYourPeer) {
       // Create hover button for YourPeer pages without location
       const hoverButton = document.createElement('button');
@@ -314,7 +303,6 @@ document.querySelectorAll('div[id]').forEach(async section => {
         cursor: 'pointer',
         transition: 'all 0.2s ease'
       });
-
       // Simple button for Go to Getta only
       const goToGettaBtn = document.createElement('button');
       goToGettaBtn.textContent = 'Go to Getta';
@@ -336,11 +324,9 @@ document.querySelectorAll('div[id]').forEach(async section => {
         transition: 'all 0.3s ease',
         pointerEvents: 'none'
       });
-
       goToGettaBtn.addEventListener('click', () => {
         window.location.href = 'https://gogetta.nyc/team';
       });
-
       // Hover functionality
       let hoverTimeout;
       const showButton = () => {
@@ -349,7 +335,6 @@ document.querySelectorAll('div[id]').forEach(async section => {
         goToGettaBtn.style.transform = 'translateY(0)';
         goToGettaBtn.style.pointerEvents = 'auto';
       };
-
       const hideButton = () => {
         hoverTimeout = setTimeout(() => {
           goToGettaBtn.style.opacity = '0';
@@ -357,12 +342,10 @@ document.querySelectorAll('div[id]').forEach(async section => {
           goToGettaBtn.style.pointerEvents = 'none';
         }, 300);
       };
-
       hoverButton.addEventListener('mouseenter', showButton);
       hoverButton.addEventListener('mouseleave', hideButton);
       goToGettaBtn.addEventListener('mouseenter', () => clearTimeout(hoverTimeout));
       goToGettaBtn.addEventListener('mouseleave', hideButton);
-
       document.body.appendChild(hoverButton);
       document.body.appendChild(goToGettaBtn);
       return;
@@ -377,7 +360,6 @@ document.querySelectorAll('div[id]').forEach(async section => {
       const json = await res.json();
       const uuid = json?.id;
       if (!uuid) return;
-
       // Store service information for site visits
       if (json.Services && Array.isArray(json.Services)) {
         window.gghost = window.gghost || {};
@@ -399,7 +381,6 @@ try {
     credentials: 'include'
   });
   const noteData = await noteRes.json(); // noteData is expected to be { user1: { "YYYY-MM-DD": "note" }, ... }
-
   let allNotesContent = "";
   if (noteData && typeof noteData === 'object' && Object.keys(noteData).length > 0) {
       const notesArray = [];
@@ -417,7 +398,6 @@ try {
       notesArray.sort((a, b) => new Date(a.date) - new Date(b.date));
       allNotesContent = notesArray.map(n => `${n.user} (${n.date}): ${n.note}`).join("\n\n");
   }
-
   const note = document.createElement("div");
   note.id = "yp-note-overlay";
   note.textContent = allNotesContent || "(No notes available for this location)"; // Updated to use allNotesContent
@@ -441,8 +421,6 @@ Object.assign(note.style, {
   whiteSpace: "pre-wrap",   // preserve line breaks but wrap long lines
   wordBreak: "break-word"   // force long words to wrap instead of overflow
 });
-
-
   let offsetX = 0, offsetY = 0, isDragging = false;
   note.addEventListener("mousedown", (e) => {
     isDragging = true;
@@ -458,12 +436,10 @@ Object.assign(note.style, {
   document.addEventListener("mouseup", () => {
     isDragging = false;
   });
-
   document.body.appendChild(note);
 } catch (err) {
   console.error("🛑 Failed to load note overlay:", err);
 }
-
       const baseUrl = `https://gogetta.nyc/team/location/${uuid}`;
       const isClosed = document.querySelector('p.text-dark.mb-0\\.5.font-medium.text-sm')?.textContent.trim() === 'Closed';
       // Create hover button to expose YP buttons
@@ -486,22 +462,18 @@ Object.assign(note.style, {
         cursor: 'pointer',
         transition: 'all 0.2s ease'
       });
-
       // Create the actual YP buttons (initially hidden) - dynamic based on URL and context
       const buttonData = [];
-      
       // Core editing options
       buttonData.push(
         { text: 'Edit Services', target: 'recap' },
         { text: 'Add/Delete Services', target: 'services' },
         { text: 'Edit Location', target: 'edit' }
       );
-      
       // Navigation options based on current context
       const url = new URL(window.location.href);
       const currentPath = url.pathname;
       const searchParams = url.searchParams;
-      
       // Add navigation options based on current page context
       if (currentPath === '/locations' && searchParams.get('sortBy') === 'recentlyUpdated') {
         // On outdated pages listing, show lastpage navigation
@@ -510,18 +482,14 @@ Object.assign(note.style, {
         // On individual location pages, show only most outdated page option
         buttonData.push({ text: 'Most outdated page', target: 'mostOutdated' });
       }
-      
       // Add Go to Getta button for YourPeer pages
       buttonData.push({ text: 'Go to Getta', target: 'goToGetta' });
-      
       // Conditional closure button
       if (isClosed) {
         buttonData.push({ text: 'Open Location', target: 'closureInfo' });
       }
-      
       console.log('Creating YourPeer hover menu');
       console.log('YP Button Data:', buttonData);
-
       const ypButtons = [];
       buttonData.forEach((data, index) => {
         const btn = document.createElement('button');
@@ -544,12 +512,10 @@ Object.assign(note.style, {
           transition: 'all 0.3s ease',
           pointerEvents: 'none'
         });
-
         btn.addEventListener('click', () => {
           if (data.target === 'mostOutdated') {
             const preloadUrl = "https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=70";
             window.location.href = preloadUrl;
-
             const timeout = 10000;
             const observer = new MutationObserver((mutationsList, obs) => {
               const spanParent = document.querySelector("div.flex.items-center.justify-between > div.text-dark.font-medium");
@@ -569,9 +535,7 @@ Object.assign(note.style, {
                 }
               }
             });
-
             observer.observe(document.body, { childList: true, subtree: true });
-
             const observerTimeout = setTimeout(() => {
               observer.disconnect();
               console.warn("⏳ Timeout: Did not find pagination element.");
@@ -580,7 +544,6 @@ Object.assign(note.style, {
             // Navigate to the last page of outdated locations
             const preloadUrl = "https://yourpeer.nyc/locations?sortBy=recentlyUpdated&page=70";
             window.location.href = preloadUrl;
-
             const timeout = 10000;
             const observer = new MutationObserver((mutationsList, obs) => {
               const spanParent = document.querySelector("div.flex.items-center.justify-between > div.text-dark.font-medium");
@@ -600,9 +563,7 @@ Object.assign(note.style, {
                 }
               }
             });
-
             observer.observe(document.body, { childList: true, subtree: true });
-
             const observerTimeout = setTimeout(() => {
               observer.disconnect();
               console.warn("⏳ Timeout: Did not find pagination element.");
@@ -627,7 +588,6 @@ Object.assign(note.style, {
                 }
               }
             });
-
             // If pagination is already loaded, try to get the last page immediately
             const spanParent = document.querySelector("div.flex.items-center.justify-between > div.text-dark.font-medium");
             if (spanParent) {
@@ -643,10 +603,8 @@ Object.assign(note.style, {
                 }
               }
             }
-
             // If not immediately available, observe for changes
             observer.observe(document.body, { childList: true, subtree: true });
-
             const observerTimeout = setTimeout(() => {
               observer.disconnect();
               console.warn("⏳ Timeout: Did not find pagination element for direct navigation.");
@@ -667,11 +625,9 @@ Object.assign(note.style, {
             });
           }
         });
-
         ypButtons.push(btn);
         document.body.appendChild(btn);
       });
-
       // Hover functionality to show/hide buttons
       let hoverTimeout;
       const showButtons = () => {
@@ -684,7 +640,6 @@ Object.assign(note.style, {
           }, index * 100);
         });
       };
-
       const hideButtons = () => {
         hoverTimeout = setTimeout(() => {
           ypButtons.forEach((btn) => {
@@ -694,18 +649,14 @@ Object.assign(note.style, {
           });
         }, 300);
       };
-
       hoverButton.addEventListener('mouseenter', showButtons);
       hoverButton.addEventListener('mouseleave', hideButtons);
-
       // Also keep buttons visible when hovering over them
       ypButtons.forEach(btn => {
         btn.addEventListener('mouseenter', () => clearTimeout(hoverTimeout));
         btn.addEventListener('mouseleave', hideButtons);
       });
-
       document.body.appendChild(hoverButton);
-      
       if (slug) {
         await injectServiceEditButtons(slug, uuid, json?.Services || [], false, json);
       }
@@ -724,7 +675,6 @@ Object.assign(note.style, {
         console.warn('[YPHost] No slug found in path:', location.pathname);
         return;
       }
-
       try {
         console.log('[YPHost] Fetching location data for:', slug);
         const headers = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
@@ -733,14 +683,12 @@ Object.assign(note.style, {
         const locationId = json.id;
         const services = json?.Services || [];
         console.log('[YPHost] Found', services.length, 'services for location', locationId);
-
         await injectServiceEditButtons(slug, locationId, services, true, json); // true = skip links in iframe
         console.log('[YPHost] Validation recency injected');
       } catch (err) {
         console.error('[YP] ❌ Failed to inject validation recency:', err);
       }
     }
-
     await injectValidationRecencyOnly();
     onUrlChange(() => {
       console.log('[YPHost] URL changed in iframe, re-injecting validation recency');

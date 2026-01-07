@@ -4,26 +4,20 @@
   const isGoogleVoice = hostname.includes('voice.google.com');
   const isYourPeer = hostname.includes('yourpeer.nyc');
   const isGoGetta = hostname.includes('gogetta.nyc');
-
   // Skip hyperlink functionality entirely on Gmail only
   if (isGmail) {
     return;
   }
-
   const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?(?:\(\d{1,4}\)|\d{1,4})[-.\s]?\d{1,4}[-.\s]?\d{1,9}(?:\s?(?:ext|x|extension)\.?\s?\d+)?/gi;
   const emailRegex = /[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?/gi;
   const urlRegex = /\b(?:(?:https?|ftp):\/\/|www\.)[-a-zA-Z0-9+&@#\/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#\/%=~_|]/gi;
-
   const AUTO_TEXT_FLAG = '__tesserAutoText';
   const processedNodes = new WeakSet();
-
   const SKIP_TAGS = new Set([
     'A', 'TEXTAREA', 'CODE', 'PRE', 'SCRIPT', 'STYLE', 'NOSCRIPT', 'OPTION', 'BUTTON',
     'INPUT', 'SELECT', 'LABEL', 'CANVAS', 'SVG', 'TITLE', 'HEAD', 'IFRAME'
   ]);
-
   const hyperlinkPatterns = [];
-
   if (!isYourPeer && !isGoGetta) {
     hyperlinkPatterns.push({
       type: 'url',
@@ -42,7 +36,6 @@
       }
     });
   }
-
   hyperlinkPatterns.push({
     type: 'email',
     getRegex: () => new RegExp(emailRegex.source, 'gi'),
@@ -56,7 +49,6 @@
       return anchor;
     }
   });
-
   if (!isGoogleVoice) {
     hyperlinkPatterns.push({
       type: 'phone',
@@ -74,11 +66,9 @@
       }
     });
   }
-
   if (!hyperlinkPatterns.length) {
     return;
   }
-
   function shouldSkipNode(node) {
     let current = node.parentNode;
     while (current) {
@@ -92,7 +82,6 @@
     }
     return false;
   }
-
   function findNextMatch(text, startIndex) {
     let best = null;
     for (const pattern of hyperlinkPatterns) {
@@ -105,20 +94,16 @@
     }
     return best;
   }
-
   function createLinkifiedFragment(text) {
     let cursor = 0;
     let changed = false;
     const parts = [];
-
     while (cursor < text.length) {
       const next = findNextMatch(text, cursor);
       if (!next) break;
-
       if (next.index > cursor) {
         parts.push({ type: 'text', value: text.slice(cursor, next.index) });
       }
-
       const anchor = next.pattern.build(next.match);
       if (anchor) {
         parts.push({ type: 'node', value: anchor });
@@ -126,19 +111,15 @@
       } else {
         parts.push({ type: 'text', value: next.value });
       }
-
       const advanceBy = next.value.length || 1;
       cursor = next.index + advanceBy;
     }
-
     if (!changed) {
       return null;
     }
-
     if (cursor < text.length) {
       parts.push({ type: 'text', value: text.slice(cursor) });
     }
-
     const fragment = document.createDocumentFragment();
     for (const part of parts) {
       if (part.type === 'node') {
@@ -151,13 +132,10 @@
     }
     return fragment;
   }
-
   function hyperlinkTextNodes(root) {
     if (!root) return;
-
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
     const candidates = [];
-
     while (walker.nextNode()) {
       const node = walker.currentNode;
       if (processedNodes.has(node)) continue;
@@ -175,7 +153,6 @@
       }
       candidates.push(node);
     }
-
     candidates.forEach(node => {
       const fragment = createLinkifiedFragment(node.nodeValue);
       if (fragment) {
@@ -184,7 +161,6 @@
       processedNodes.add(node);
     });
   }
-
   function processNode(rootNode) {
     if (rootNode.nodeType === Node.TEXT_NODE) {
       if (
@@ -196,22 +172,17 @@
       }
       return;
     }
-
     if (rootNode.nodeType === Node.ELEMENT_NODE || rootNode.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
       hyperlinkTextNodes(rootNode);
     }
   }
-
   function processNodeAndShadows(rootNode) {
     if (!rootNode) return;
-
     processNode(rootNode);
-
     const elementsToScan =
       rootNode.nodeType === Node.ELEMENT_NODE || rootNode.nodeType === Node.DOCUMENT_FRAGMENT_NODE
         ? rootNode.querySelectorAll('*')
         : [];
-
     elementsToScan.forEach(element => {
       if (element.shadowRoot) {
         processNodeAndShadows(element.shadowRoot);
@@ -222,7 +193,6 @@
       }
     });
   }
-
   function observeMutations(targetNode) {
     const observer = new MutationObserver(mutationsList => {
       for (const mutation of mutationsList) {
@@ -250,12 +220,9 @@
         }
       }
     });
-
     observer.observe(targetNode, { childList: true, subtree: true });
   }
-
   processNodeAndShadows(document.body);
-
   if (!document.body._tesserObserverAttached) {
     observeMutations(document.body);
     document.body._tesserObserverAttached = true;

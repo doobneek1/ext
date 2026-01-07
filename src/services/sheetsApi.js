@@ -1,15 +1,12 @@
 import { fetchAuthSession } from "aws-amplify/auth";
-
 export const LOCATION_API_BASE = "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations";
 export const PHONE_API_BASE = "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/phones";
 export const NOTE_API = "https://locationnote1-iygwucy2fa-uc.a.run.app";
-
 const getExtensionLocationFetcher = () => {
   if (typeof window === "undefined") return null;
   const fetcher = window.gghost?.fetchLocationsByRadius;
   return typeof fetcher === "function" ? fetcher : null;
 };
-
 const waitForExtensionLocationFetcher = async (timeoutMs = 2000, interval = 100) => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -21,7 +18,6 @@ const waitForExtensionLocationFetcher = async (timeoutMs = 2000, interval = 100)
   }
   return null;
 };
-
   const fetcher = await waitForExtensionLocationFetcher();
   if (!fetcher) return null;
   try {
@@ -31,7 +27,6 @@ const waitForExtensionLocationFetcher = async (timeoutMs = 2000, interval = 100)
     return null;
   }
 };
-
 const getAuthTokens = async () => {
   try {
     const { tokens } = await fetchAuthSession();
@@ -46,13 +41,11 @@ const getAuthTokens = async () => {
     throw error;
   }
 };
-
 const buildAuthVariants = (token, preferRaw) => {
   const raw = { Authorization: token };
   const bearer = { Authorization: `Bearer ${token}` };
   return preferRaw ? [raw, bearer] : [bearer, raw];
 };
-
 const readResponseBody = async (response) => {
   const text = await response.text();
   if (!text) return null;
@@ -62,18 +55,14 @@ const readResponseBody = async (response) => {
     return text;
   }
 };
-
 const authenticatedFetch = async (url, options = {}) => {
   const { preferRawToken = false, headers = {}, body, method = "GET", ...rest } = options;
   const { idToken, accessToken } = await getAuthTokens();
   const tokens = [idToken, accessToken].filter(Boolean);
-
   if (!tokens.length) {
     throw new Error("No Cognito session token available.");
   }
-
   let lastAuthError = null;
-
   for (const token of tokens) {
     const variants = buildAuthVariants(token, preferRawToken);
     for (const variant of variants) {
@@ -89,35 +78,28 @@ const authenticatedFetch = async (url, options = {}) => {
         credentials: "include",
         ...rest
       });
-
       if (response.ok) {
         return readResponseBody(response);
       }
-
       if (response.status === 401 || response.status === 403) {
         lastAuthError = new Error("Not authorized to access Sheets APIs.");
         continue;
       }
-
       const errorBody = await readResponseBody(response);
       throw new Error(`Sheets API error (${response.status}): ${errorBody || "Unknown error"}`);
     }
   }
-
   throw lastAuthError || new Error("Sheets API request failed.");
 };
-
 export const fetchLocationsByRadius = async ({ latitude, longitude, radius }) => {
   const extensionData = await fetchLocationsViaExtension({ latitude, longitude, radius });
   if (extensionData !== null && extensionData !== undefined) {
     return extensionData;
   }
-
   const url = new URL(LOCATION_API_BASE);
   url.searchParams.set("latitude", latitude);
   url.searchParams.set("longitude", longitude);
   url.searchParams.set("radius", radius);
-
   const response = await fetch(url.toString(), {
     method: "GET",
     headers: {
@@ -125,15 +107,12 @@ export const fetchLocationsByRadius = async ({ latitude, longitude, radius }) =>
     },
     mode: "cors"
   });
-
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Failed to load locations (${response.status}): ${text}`);
   }
-
   return response.json();
 };
-
 export const patchLocation = async (locationId, payload) => {
   if (!locationId) {
     throw new Error("Location id is required.");
@@ -145,7 +124,6 @@ export const patchLocation = async (locationId, payload) => {
     preferRawToken: true
   });
 };
-
 export const patchPhone = async (phoneId, payload) => {
   if (!phoneId) {
     throw new Error("Phone id is required.");
@@ -157,12 +135,10 @@ export const patchPhone = async (phoneId, payload) => {
     preferRawToken: true
   });
 };
-
 export const postLocationNote = async ({ uuid, userName, date, note }) => {
   if (!uuid) {
     throw new Error("Location uuid is required.");
   }
-
   return authenticatedFetch(NOTE_API, {
     method: "POST",
     body: {

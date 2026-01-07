@@ -4,7 +4,6 @@ const contentEl = document.getElementById("content");
 const params = new URLSearchParams(location.search);
 const embedUrlParam = params.get("embedUrl");
 const nonce = params.get("nonce") || "";
-
 const persistTokens = (tokens = {}) => {
   if (!tokens || typeof chrome === "undefined" || !chrome.storage?.local) return;
   chrome.storage.local.set({
@@ -17,20 +16,17 @@ const persistTokens = (tokens = {}) => {
     }
   });
 };
-
 const setStatus = (text, isError = false) => {
   if (!statusEl) return;
   statusEl.textContent = text;
   statusEl.style.display = text ? "inline-flex" : "none";
   statusEl.style.background = isError ? "rgba(210,20,20,0.9)" : "rgba(0,0,0,0.7)";
 };
-
 if (!embedUrlParam) {
   setStatus("Missing embed url", true);
   contentEl.innerHTML = "";
   throw new Error("No embedUrl provided");
 }
-
 let iframe;
 try {
   iframe = document.createElement("iframe");
@@ -42,22 +38,18 @@ try {
   setStatus("Invalid embed URL", true);
   console.error(error);
 }
-
 const embedOrigin = new URL(embedUrlParam).origin;
-
 const requestTokensFromEmbed = (requestedNonce) => {
   iframe?.contentWindow?.postMessage(
     { type: "REQUEST_TOKENS", payload: { nonce: requestedNonce || nonce } },
     embedOrigin
   );
 };
-
 const getStoredTokens = () => new Promise((resolve) => {
   chrome.storage.local.get(COGNITO_TOKEN_CACHE_KEY, (data) => {
     resolve(data[COGNITO_TOKEN_CACHE_KEY] || null);
   });
 });
-
 const sendCreds = async (requestedNonce) => {
   const tokens = await getStoredTokens();
   if (!tokens) {
@@ -74,12 +66,10 @@ const sendCreds = async (requestedNonce) => {
   iframe?.contentWindow?.postMessage({ type: "CREDS", payload }, embedOrigin);
   setStatus("Table loaded", false);
 };
-
 iframe?.addEventListener("load", () => {
   void sendCreds(nonce);
   requestTokensFromEmbed(nonce);
 });
-
 const handleMessage = async (event) => {
   if (event.source !== iframe?.contentWindow) return;
   if (event.origin !== embedOrigin) return;
@@ -95,10 +85,7 @@ const handleMessage = async (event) => {
     window.close();
   }
 };
-
 window.addEventListener("message", handleMessage);
-
 const closeBtn = document.getElementById("closeBtn");
 closeBtn?.addEventListener("click", () => window.close());
-
 setStatus("Waiting for embed login to share tokens", false);

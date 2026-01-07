@@ -10,11 +10,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-
-
 DEFAULT_BASE_URL = "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations"
 DEFAULT_GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
-
 EMPTY_VALUES = {"", "null", "none", "nan", "na", "n/a"}
 CITY_ALIASES = {"nyc": "new york", "new york city": "new york"}
 US_STATE_ABBREV = {
@@ -70,7 +67,6 @@ US_STATE_ABBREV = {
     "wisconsin": "WI",
     "wyoming": "WY",
 }
-
 DIRECTIONAL_REPLACEMENTS = [
     ("Northwest", "NW"),
     ("Northeast", "NE"),
@@ -81,7 +77,6 @@ DIRECTIONAL_REPLACEMENTS = [
     ("East", "E"),
     ("West", "W"),
 ]
-
 ADDRESS_REPLACEMENTS = [
     ("Suite", "Ste"),
     ("Street", "St"),
@@ -93,9 +88,7 @@ ADDRESS_REPLACEMENTS = [
     ("Lane", "Ln"),
     ("Court", "Ct"),
 ]
-
 UPPER_TOKENS = {"N", "S", "E", "W", "NE", "NW", "SE", "SW", "PO"}
-
 REPORT_FIELDS = [
     "uuid",
     "csv_city",
@@ -115,8 +108,6 @@ PATCH_REPORT_FIELDS = [
     "geo_flags",
     "payload",
 ]
-
-
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         description=(
@@ -204,8 +195,6 @@ def parse_args(argv):
         help="Normalize city/address from API values when CSV columns are empty.",
     )
     return parser.parse_args(argv)
-
-
 def build_headers(token, is_json):
     headers = {
         "accept": "application/json, text/plain, */*",
@@ -214,8 +203,6 @@ def build_headers(token, is_json):
     if is_json:
         headers["content-type"] = "application/json"
     return headers
-
-
 def http_request(method, url, headers, payload=None, timeout=30):
     data = None
     if payload is not None:
@@ -229,12 +216,8 @@ def http_request(method, url, headers, payload=None, timeout=30):
         return exc.code, body
     except urllib.error.URLError as exc:
         return None, str(exc)
-
-
 def floats_close(a, b, tol):
     return abs(a - b) <= tol
-
-
 def extract_location_payload(obj):
     if not isinstance(obj, dict):
         return obj
@@ -242,8 +225,6 @@ def extract_location_payload(obj):
     if isinstance(data, dict):
         return data
     return obj
-
-
 def extract_coordinates(obj):
     obj = extract_location_payload(obj)
     if not isinstance(obj, dict):
@@ -258,40 +239,28 @@ def extract_coordinates(obj):
     if lat is not None and lon is not None:
         return [lon, lat]
     return None
-
-
 def normalize_whitespace(value):
     return " ".join(str(value or "").strip().split())
-
-
 def capitalize_words(value):
     return re.sub(
         r"(^|[\s-])([a-z])",
         lambda match: f"{match.group(1)}{match.group(2).upper()}",
         value,
     )
-
-
 def normalize_city_name(value):
     text = normalize_whitespace(value)
     if not text:
         return ""
     lower = text.lower()
     return capitalize_words(lower)
-
-
 def apply_replacements(text, replacements):
     for long, short in replacements:
         text = re.sub(rf"\b{long}\b", short, text, flags=re.IGNORECASE)
     return text
-
-
 def uppercase_tokens(text, tokens):
     for token in tokens:
         text = re.sub(rf"\b{re.escape(token)}\b", token, text, flags=re.IGNORECASE)
     return text
-
-
 def normalize_street_address(value):
     text = normalize_whitespace(value)
     if not text:
@@ -308,14 +277,10 @@ def normalize_street_address(value):
         titled,
     )
     return titled
-
-
 def add_flags(container, values):
     for value in values:
         if value and value not in container:
             container.append(value)
-
-
 def flag_city(value):
     flags = []
     text = normalize_whitespace(value)
@@ -324,8 +289,6 @@ def flag_city(value):
     elif re.search(r"\d", text):
         flags.append("city_has_digits")
     return flags
-
-
 def flag_address(value):
     flags = []
     text = normalize_whitespace(value)
@@ -339,16 +302,12 @@ def flag_address(value):
     if not re.search(r"\d", text):
         flags.append("address_no_digits")
     return flags
-
-
 def normalized_equal(a, b):
     left = normalize_whitespace(a).lower()
     right = normalize_whitespace(b).lower()
     if not left and not right:
         return True
     return left == right
-
-
 def extract_address(obj):
     obj = extract_location_payload(obj)
     if not isinstance(obj, dict):
@@ -383,8 +342,6 @@ def extract_address(obj):
     if region and "state" not in address:
         address["region"] = normalize_whitespace(region)
     return address
-
-
 def is_blank(value):
     if value is None:
         return True
@@ -392,31 +349,23 @@ def is_blank(value):
     if not text:
         return True
     return text.lower() in EMPTY_VALUES
-
-
 def normalize_compare_text(value):
     text = normalize_whitespace(value).lower()
     if not text:
         return ""
     text = re.sub(r"[^a-z0-9]+", " ", text)
     return " ".join(text.split())
-
-
 def normalize_zip(value):
     text = normalize_whitespace(value)
     if not text:
         return ""
     match = re.search(r"\d{5}", text)
     return match.group(0) if match else text
-
-
 def normalize_city_compare(value):
     text = normalize_compare_text(value)
     if text in CITY_ALIASES:
         return CITY_ALIASES[text]
     return text
-
-
 def normalize_state_compare(value):
     text = normalize_compare_text(value)
     if not text:
@@ -429,12 +378,8 @@ def normalize_state_compare(value):
     if len(text) == 2:
         return text.upper()
     return US_STATE_ABBREV.get(text, text.upper())
-
-
 def extract_number_tokens(value):
     return re.findall(r"\d+", normalize_whitespace(value))
-
-
 def is_very_off(current, suggested, threshold=0.6, check_numbers=False):
     current_norm = normalize_compare_text(current)
     suggested_norm = normalize_compare_text(suggested)
@@ -449,8 +394,6 @@ def is_very_off(current, suggested, threshold=0.6, check_numbers=False):
             return True
     ratio = difflib.SequenceMatcher(None, current_norm, suggested_norm).ratio()
     return ratio < threshold
-
-
 def build_full_address(address):
     if not address:
         return ""
@@ -466,8 +409,6 @@ def build_full_address(address):
     parts = [street, city, state, postal, country]
     parts = [normalize_whitespace(part) for part in parts if normalize_whitespace(part)]
     return ", ".join(parts)
-
-
 def format_google_address(address):
     if not address:
         return ""
@@ -475,8 +416,6 @@ def format_google_address(address):
     if formatted:
         return normalize_whitespace(formatted)
     return build_full_address(address)
-
-
 def parse_google_address(result):
     components = result.get("address_components") or []
     component_map = {}
@@ -485,7 +424,6 @@ def parse_google_address(result):
         for component_type in types:
             if component_type not in component_map:
                 component_map[component_type] = component
-
     def get_component(types, use_short=False):
         for component_type in types:
             component = component_map.get(component_type)
@@ -493,7 +431,6 @@ def parse_google_address(result):
                 key = "short_name" if use_short else "long_name"
                 return normalize_whitespace(component.get(key))
         return ""
-
     street_number = get_component(["street_number"])
     route = get_component(["route"])
     street = " ".join(part for part in [street_number, route] if part).strip()
@@ -518,8 +455,6 @@ def parse_google_address(result):
         "country": country,
         "formatted": normalize_whitespace(result.get("formatted_address")),
     }
-
-
 def google_geocode_request(params, api_key, timeout):
     query = dict(params)
     query["key"] = api_key
@@ -540,8 +475,6 @@ def google_geocode_request(params, api_key, timeout):
     if not results:
         return None, "Google returned no results"
     return results[0], None
-
-
 def google_geocode_address(address, api_key, timeout):
     if not address:
         return None, "Missing address for Google geocode"
@@ -549,28 +482,20 @@ def google_geocode_address(address, api_key, timeout):
     if err:
         return None, err
     return parse_google_address(result), None
-
-
 def google_reverse_geocode(lat, lon, api_key, timeout):
     result, err = google_geocode_request({"latlng": f"{lat},{lon}"}, api_key, timeout)
     if err:
         return None, err
     return parse_google_address(result), None
-
-
 def parse_float(value, label, row_id):
     try:
         return float(value)
     except (TypeError, ValueError):
         raise ValueError(f"Invalid {label} for {row_id}: {value!r}")
-
-
 def parse_optional_float(value, label, row_id):
     if is_blank(value):
         return None
     return parse_float(value, label, row_id)
-
-
 def build_field_map(fieldnames):
     field_map = {}
     for name in fieldnames:
@@ -580,16 +505,12 @@ def build_field_map(fieldnames):
         if key and key not in field_map:
             field_map[key] = name
     return field_map
-
-
 def pick_field(field_map, candidates):
     for candidate in candidates:
         key = candidate.lower()
         if key in field_map:
             return field_map[key]
     return None
-
-
 def get_field_value(row, field):
     if not field:
         return ""
@@ -597,8 +518,6 @@ def get_field_value(row, field):
     if value is None:
         return ""
     return str(value).strip()
-
-
 def iter_rows(csv_path, no_header):
     with open(csv_path, newline="", encoding="utf-8") as handle:
         if no_header:
@@ -616,7 +535,6 @@ def iter_rows(csv_path, no_header):
                     "address_1": "",
                 }
             return
-
         reader = csv.DictReader(handle)
         if not reader.fieldnames:
             raise ValueError("CSV appears empty or missing headers.")
@@ -633,7 +551,6 @@ def iter_rows(csv_path, no_header):
         lon_field = pick_field(field_map, ("longitude", "lon", "lng", "long"))
         city_field = pick_field(field_map, ("city",))
         address_field = pick_field(field_map, ("address_1", "address1", "street", "address"))
-
         for row in reader:
             yield {
                 "uuid": get_field_value(row, id_field),
@@ -642,15 +559,11 @@ def iter_rows(csv_path, no_header):
                 "city": get_field_value(row, city_field),
                 "address_1": get_field_value(row, address_field),
             }
-
-
 def default_report_path(csv_path):
     root, ext = os.path.splitext(csv_path)
     if not ext:
         ext = ".csv"
     return f"{root}_address_report{ext}"
-
-
 def main(argv):
     args = parse_args(argv)
     token = args.token or os.getenv("DOOBNEEK_JWT") or os.getenv("JWT")
@@ -658,7 +571,6 @@ def main(argv):
         print("Missing token. Provide --token or set DOOBNEEK_JWT/JWT.", file=sys.stderr)
         return 2
     use_google = bool(args.google_api_key) and not args.skip_google
-
     total = 0
     position_matched = 0
     position_updates = 0
@@ -672,7 +584,6 @@ def main(argv):
     flagged = 0
     no_change = 0
     errors = 0
-
     report_handle = None
     report_writer = None
     report_path = None if args.no_report else args.report_csv or default_report_path(
@@ -681,7 +592,6 @@ def main(argv):
     patched_report_handle = None
     patched_report_writer = None
     patched_report_path = args.patched_only_csv
-
     try:
         for row in iter_rows(args.csv_path, args.no_header):
             total += 1
@@ -690,16 +600,13 @@ def main(argv):
                 print(f"[SKIP] Row {total}: missing uuid")
                 skipped += 1
                 continue
-
             wants_position = bool(row["latitude"] or row["longitude"] or args.no_header)
             wants_city = bool(row["city"]) or args.normalize_api_address
             wants_address = bool(row["address_1"]) or args.normalize_api_address
-
             if not wants_position and not wants_city and not wants_address and not use_google:
                 print(f"[SKIP] {location_id}: no usable fields and no Google API key")
                 skipped += 1
                 continue
-
             csv_lat = None
             csv_lon = None
             position_issue = None
@@ -715,19 +622,16 @@ def main(argv):
                     position_issue = str(exc)
                     csv_lat = None
                     csv_lon = None
-
                 if csv_lat is None and csv_lon is None:
                     position_issue = position_issue or f"{location_id}: missing latitude/longitude"
                 elif csv_lat is None or csv_lon is None:
                     position_issue = position_issue or f"{location_id}: missing latitude/longitude"
                     csv_lat = None
                     csv_lon = None
-
             if position_issue and not (wants_city or wants_address) and not use_google:
                 print(f"[SKIP] {position_issue}")
                 skipped += 1
                 continue
-
             get_url = f"{args.base_url}/{location_id}"
             status, body = http_request(
                 "GET",
@@ -742,14 +646,12 @@ def main(argv):
                 print(f"[ERROR] {location_id}: GET {status} {body}")
                 errors += 1
                 continue
-
             try:
                 data = json.loads(body)
             except json.JSONDecodeError:
                 print(f"[ERROR] {location_id}: invalid JSON response")
                 errors += 1
                 continue
-
             payload = {}
             change_notes = []
             flags = []
@@ -767,7 +669,6 @@ def main(argv):
                     coords = None
                     api_lat = None
                     api_lon = None
-
             if wants_position:
                 if csv_lat is None or csv_lon is None:
                     if position_issue:
@@ -811,7 +712,6 @@ def main(argv):
                             else:
                                 payload["latitude"] = csv_lat
                                 payload["longitude"] = csv_lon
-
             address_data = extract_address(data)
             api_city = normalize_whitespace(address_data.get("city", ""))
             api_street = normalize_whitespace(address_data.get("street", ""))
@@ -821,7 +721,6 @@ def main(argv):
             api_postal = normalize_whitespace(address_data.get("postalCode", ""))
             normalized_city = ""
             normalized_address = ""
-
             if wants_city:
                 csv_city = normalize_whitespace(row["city"])
                 city_source = csv_city or api_city
@@ -838,7 +737,6 @@ def main(argv):
                         change_notes.append(
                             f"city '{api_city or ''}' -> '{normalized_city}'"
                         )
-
             if wants_address:
                 csv_address = normalize_whitespace(row["address_1"])
                 address_source = csv_address or api_street
@@ -857,7 +755,6 @@ def main(argv):
                         change_notes.append(
                             f"address '{api_street or ''}' -> '{normalized_address}'"
                         )
-
             base_address = {k: v for k, v in address_data.items() if v}
             next_address = dict(base_address)
             if normalized_city and normalized_city != api_city and "city" not in blocked:
@@ -868,7 +765,6 @@ def main(argv):
                 and "address" not in blocked
             ):
                 next_address["street"] = normalized_address
-
             google_address = None
             google_error = None
             if use_google:
@@ -886,7 +782,6 @@ def main(argv):
                         google_address, google_error = google_reverse_geocode(
                             api_lat, api_lon, args.google_api_key, args.google_timeout
                         )
-
             if google_error:
                 print(f"[WARN] {location_id}: google {google_error}")
             elif google_address:
@@ -902,7 +797,6 @@ def main(argv):
                     change_notes.append(
                         f"zip '{api_postal or ''}' -> '{suggested_zip}'"
                     )
-
                 current_street = api_street
                 suggested_street = normalize_whitespace(google_address.get("street"))
                 if current_street and suggested_street:
@@ -912,7 +806,6 @@ def main(argv):
                         geo_flags.append(
                             f"street '{current_street}' vs '{suggested_street}'"
                         )
-
                 current_city_cmp = normalize_city_compare(api_city)
                 suggested_city_cmp = normalize_city_compare(google_address.get("city"))
                 if (
@@ -924,7 +817,6 @@ def main(argv):
                         geo_flags.append(
                             f"city '{api_city}' vs '{normalize_whitespace(google_address.get('city'))}'"
                         )
-
                 current_state_cmp = normalize_state_compare(api_state)
                 suggested_state_cmp = normalize_state_compare(google_address.get("state"))
                 if (
@@ -935,19 +827,15 @@ def main(argv):
                     geo_flags.append(
                         f"state '{api_state}' vs '{normalize_whitespace(google_address.get('state'))}'"
                     )
-
                 if suggested_display and (position_changed or geo_flags or zip_mismatch):
                     print(f"[SUGGEST] {location_id}: {suggested_display}")
                 if geo_flags:
                     geo_flagged += 1
                     print(f"[ADDR] {location_id}: " + "; ".join(geo_flags))
-
             if next_address != base_address:
                 payload["address"] = next_address
-
             if flags:
                 flagged += 1
-
             if not payload:
                 if blocked:
                     print(
@@ -983,7 +871,6 @@ def main(argv):
                     else:
                         patched += 1
                         patch_status = "patched"
-
                 if patched_report_path and patch_status == "patched":
                     if patched_report_writer is None:
                         patched_report_handle = open(
@@ -1003,7 +890,6 @@ def main(argv):
                             "payload": json.dumps(payload, ensure_ascii=True),
                         }
                     )
-
             if report_path and (wants_city or wants_address):
                 if report_writer is None:
                     report_handle = open(
@@ -1026,7 +912,6 @@ def main(argv):
                         "patch_status": patch_status,
                     }
                 )
-
             if args.sleep > 0:
                 time.sleep(args.sleep)
     finally:
@@ -1034,7 +919,6 @@ def main(argv):
             report_handle.close()
         if patched_report_handle:
             patched_report_handle.close()
-
     print(
         "Done. "
         f"total={total} "
@@ -1052,7 +936,5 @@ def main(argv):
         f"errors={errors}"
     )
     return 0 if errors == 0 else 1
-
-
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))

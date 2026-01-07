@@ -46,7 +46,6 @@ import { getCognitoUserInfo } from "./creds.js";
 import withStreetlivesAuth from "./streetlivesAuth/withStreetlivesAuth.jsx";
 import { useAuthState } from "./contexts/AppStateProvider.js";
 import { db, ref as firebaseRef, get, set } from "./firebase.js";
-
 const LOCATION_QUERY = {
   latitude: 40.697488,
   longitude: -73.979681,
@@ -56,13 +55,11 @@ const NOTES_BASE_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locat
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const REVALIDATED_SENTINEL = "revalidated123435355342";
 const COLLAPSED_COLUMNS_KEY = "sheets-collapsed-columns";
-
 const buildCacheKey = () => {
   const lat = String(LOCATION_QUERY.latitude).replace(/[^0-9-]/g, "_");
   const lng = String(LOCATION_QUERY.longitude).replace(/[^0-9-]/g, "_");
   return `sheets_${lat}_${lng}_${LOCATION_QUERY.radius}`;
 };
-
 const normalizeUrl = (value) => {
   if (!value) return "";
   const trimmed = String(value).trim();
@@ -70,7 +67,6 @@ const normalizeUrl = (value) => {
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
 };
-
 const normalizeNoteText = (raw) => {
   if (raw == null) return "";
   if (typeof raw === "string") {
@@ -91,7 +87,6 @@ const normalizeNoteText = (raw) => {
   }
   return String(raw).trim();
 };
-
 const parseNoteTimestamp = (dateKey, noteValue) => {
   if (noteValue && typeof noteValue === "object" && noteValue.date) {
     const parsed = Date.parse(noteValue.date);
@@ -107,13 +102,11 @@ const parseNoteTimestamp = (dateKey, noteValue) => {
   if (!Number.isNaN(parsed)) return parsed;
   return null;
 };
-
 const formatNoteDateLabel = (dateKey, timestamp) => {
   if (dateKey && /^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return dateKey;
   if (timestamp) return new Date(timestamp).toISOString().slice(0, 10);
   return dateKey || "";
 };
-
 const parseNotesPayload = (payload) => {
   if (!payload || typeof payload !== "object") {
     return {
@@ -124,17 +117,13 @@ const parseNotesPayload = (payload) => {
       latestDateLabel: ""
     };
   }
-
   const notes = [];
-
   Object.entries(payload).forEach(([userKey, entries]) => {
     if (!entries || typeof entries !== "object") return;
     if (userKey.startsWith("_") || userKey === "stats" || userKey === "invocations") return;
-
     Object.entries(entries).forEach(([dateKey, noteValue]) => {
       const noteText = normalizeNoteText(noteValue);
       if (!noteText) return;
-
       const resolvedUser = noteValue?.userName ? String(noteValue.userName) : userKey;
       const timestamp = parseNoteTimestamp(dateKey, noteValue);
       notes.push({
@@ -145,10 +134,8 @@ const parseNotesPayload = (payload) => {
       });
     });
   });
-
   notes.sort((a, b) => (b.date || 0) - (a.date || 0));
   const latest = notes[0] || null;
-
   return {
     notes,
     latestNote: latest?.note || "",
@@ -157,33 +144,28 @@ const parseNotesPayload = (payload) => {
     latestDateLabel: latest?.dateLabel || ""
   };
 };
-
 const isRevalidatedNote = (noteText) => {
   if (!noteText) return false;
   const normalized = String(noteText).trim().toLowerCase();
   if (normalized === REVALIDATED_SENTINEL) return true;
-
   const cleaned = normalized.replace(/revalidated\d+/g, "revalidated");
   if (!/\brevalidated\b/.test(cleaned)) return false;
   if (/\bdid(?:n'?t| not)\s+revalidat/.test(cleaned)) return false;
   if (/\bnot\s+revalidat/.test(cleaned)) return false;
   return true;
 };
-
 const normalizePhoneNumber = (value) => {
   const digits = String(value || "").replace(/\D/g, "");
   if (!digits) return "";
   if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
   return digits;
 };
-
 const getLastValidatedTimestamp = (location) => {
   const raw = location?.last_validated_at || location?.lastValidatedAt || location?.lastValidated;
   if (!raw) return null;
   const parsed = Date.parse(raw);
   return Number.isNaN(parsed) ? null : parsed;
 };
-
 const buildAddressPayload = (address, address1) => {
   const entry = {
     id: address?.id || undefined,
@@ -196,12 +178,10 @@ const buildAddressPayload = (address, address1) => {
     country: address?.country || undefined,
     region: address?.region || undefined
   };
-
   return {
     physical_addresses: [entry]
   };
 };
-
 const formatCacheTimestamp = (timestamp) => {
   if (!timestamp) return "unknown";
   try {
@@ -210,7 +190,6 @@ const formatCacheTimestamp = (timestamp) => {
     return "unknown";
   }
 };
-
 const COLUMN_ORDER = [
   "organization",
   "location",
@@ -224,7 +203,6 @@ const COLUMN_ORDER = [
   "email",
   "gogetta"
 ];
-
 const DEFAULT_COLUMN_WIDTHS = {
   organization: "12%",
   location: "10%",
@@ -238,9 +216,7 @@ const DEFAULT_COLUMN_WIDTHS = {
   email: "6%",
   gogetta: "2%"
 };
-
 const MIN_COLUMN_WIDTH = 60;
-
 const SheetsCell = ({
   columnKey,
   collapsedColumns,
@@ -260,7 +236,6 @@ const SheetsCell = ({
     collapsedColumns,
     tableContainerRef
   });
-
   return (
     <TableCell
       sx={(theme) => ({
@@ -292,14 +267,12 @@ const SheetsCell = ({
     </TableCell>
   );
 };
-
 const SheetsApp = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { user: firebaseUser } = useAuthState();
   const cacheKey = React.useMemo(() => buildCacheKey(), []);
   const localCacheKey = React.useMemo(() => `sheetsCache:${cacheKey}`, [cacheKey]);
-
   const [locations, setLocations] = React.useState([]);
   const [notesById, setNotesById] = React.useState({});
   const [loading, setLoading] = React.useState(true);
@@ -308,7 +281,6 @@ const SheetsApp = () => {
   const [error, setError] = React.useState(null);
   const [cacheInfo, setCacheInfo] = React.useState(null);
   const [snackbar, setSnackbar] = React.useState({ open: false, message: "", severity: "success" });
-
   const [collapsedColumns, setCollapsedColumns] = React.useState(() => {
     const defaults = {};
     COLUMN_ORDER.forEach((key) => {
@@ -316,14 +288,12 @@ const SheetsApp = () => {
     });
     return defaults;
   });
-
   const [serviceModal, setServiceModal] = React.useState({
     open: false,
     services: [],
     focusId: null,
     locationName: ""
   });
-
   const [noteModal, setNoteModal] = React.useState({
     open: false,
     locationId: null,
@@ -332,18 +302,15 @@ const SheetsApp = () => {
   });
   const [noteSubmitting, setNoteSubmitting] = React.useState(false);
   const [cognitoUsername, setCognitoUsername] = React.useState(null);
-
   const [addressDrafts, setAddressDrafts] = React.useState({});
   const [phoneDrafts, setPhoneDrafts] = React.useState({});
   const [savingAddressIds, setSavingAddressIds] = React.useState(new Set());
   const [savingPhoneIds, setSavingPhoneIds] = React.useState(new Set());
-
   const tableContainerRef = React.useRef(null);
   const columnWidthsRef = React.useRef(DEFAULT_COLUMN_WIDTHS);
   const addressDefaultsRef = React.useRef({});
   const phoneDefaultsRef = React.useRef({});
   const serviceRefs = React.useRef(new Map());
-
   React.useEffect(() => {
     try {
       const raw = localStorage.getItem(COLLAPSED_COLUMNS_KEY);
@@ -354,7 +321,6 @@ const SheetsApp = () => {
       // Ignore storage failures.
     }
   }, []);
-
   const toggleAndPersistColumn = React.useCallback((columnKey) => {
     setCollapsedColumns((prev) => {
       const next = { ...prev, [columnKey]: !prev[columnKey] };
@@ -366,7 +332,6 @@ const SheetsApp = () => {
       return next;
     });
   }, []);
-
   React.useEffect(() => {
     let active = true;
     const loadCognitoUser = async () => {
@@ -385,7 +350,6 @@ const SheetsApp = () => {
       active = false;
     };
   }, []);
-
   const sendTokensToHost = React.useCallback(
     async (requestedNonce, targetWindow, targetOrigin) => {
       const originToUse = targetOrigin || window.location.origin;
@@ -415,7 +379,6 @@ const SheetsApp = () => {
     },
     [cognitoUsername]
   );
-
   React.useEffect(() => {
     const handleEmbedTokenRequest = (event) => {
       if (!event?.data) return;
@@ -441,7 +404,6 @@ const SheetsApp = () => {
     window.addEventListener("message", handleEmbedTokenRequest);
     return () => window.removeEventListener("message", handleEmbedTokenRequest);
   }, [sendTokensToHost]);
-
   const readCache = React.useCallback(async () => {
     if (firebaseUser?.uid) {
       try {
@@ -453,7 +415,6 @@ const SheetsApp = () => {
         // Ignore cache read failure.
       }
     }
-
     try {
       const raw = localStorage.getItem(localCacheKey);
       if (!raw) return null;
@@ -462,13 +423,11 @@ const SheetsApp = () => {
       return null;
     }
   }, [cacheKey, firebaseUser?.uid, localCacheKey]);
-
   const writeCache = React.useCallback(async (payload) => {
     const cachePayload = {
       fetchedAt: Date.now(),
       locations: payload
     };
-
     if (firebaseUser?.uid) {
       try {
         await set(firebaseRef(db, `users/${firebaseUser.uid}/meta/sheetsCache/${cacheKey}`), cachePayload);
@@ -478,7 +437,6 @@ const SheetsApp = () => {
         // Fall through to local cache.
       }
     }
-
     try {
       localStorage.setItem(localCacheKey, JSON.stringify(cachePayload));
       setCacheInfo({ source: "local", fetchedAt: cachePayload.fetchedAt });
@@ -486,12 +444,10 @@ const SheetsApp = () => {
       // Ignore storage failures.
     }
   }, [cacheKey, firebaseUser?.uid, localCacheKey]);
-
   const refreshLocations = React.useCallback(async ({ skipLoading = false } = {}) => {
     if (!skipLoading) setLoading(true);
     setRefreshing(true);
     setError(null);
-
     try {
       const data = await fetchLocationsByRadius(LOCATION_QUERY);
       const list = Array.isArray(data) ? data : [];
@@ -504,7 +460,6 @@ const SheetsApp = () => {
       setLoading(false);
     }
   }, [writeCache]);
-
   React.useEffect(() => {
     let active = true;
     const bootstrap = async () => {
@@ -525,7 +480,6 @@ const SheetsApp = () => {
       active = false;
     };
   }, [readCache, refreshLocations]);
-
   React.useEffect(() => {
     setAddressDrafts((prev) => {
       let changed = false;
@@ -542,7 +496,6 @@ const SheetsApp = () => {
       return changed ? next : prev;
     });
   }, [locations]);
-
   React.useEffect(() => {
     setPhoneDrafts((prev) => {
       let changed = false;
@@ -562,7 +515,6 @@ const SheetsApp = () => {
       return changed ? next : prev;
     });
   }, [locations]);
-
   const loadNotesForLocation = React.useCallback(async (locationId) => {
     const response = await fetch(`${NOTES_BASE_URL}/${locationId}.json`, { method: "GET" });
     if (!response.ok) {
@@ -571,17 +523,14 @@ const SheetsApp = () => {
     const data = await response.json();
     return parseNotesPayload(data);
   }, []);
-
   React.useEffect(() => {
     let active = true;
     const loadAllNotes = async () => {
       if (!locations.length) return;
       const missing = locations.filter((loc) => !notesById[loc.id]);
       if (!missing.length) return;
-
       setNotesLoading(true);
       const nextNotes = {};
-
       await Promise.all(
         missing.map(async (loc) => {
           try {
@@ -592,19 +541,16 @@ const SheetsApp = () => {
           }
         })
       );
-
       if (active && Object.keys(nextNotes).length > 0) {
         setNotesById((prev) => ({ ...prev, ...nextNotes }));
       }
       if (active) setNotesLoading(false);
     };
-
     loadAllNotes();
     return () => {
       active = false;
     };
   }, [locations, loadNotesForLocation, notesById]);
-
   React.useEffect(() => {
     if (!serviceModal.open || !serviceModal.focusId) return;
     const node = serviceRefs.current.get(serviceModal.focusId);
@@ -612,13 +558,11 @@ const SheetsApp = () => {
       node.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [serviceModal.open, serviceModal.focusId]);
-
   const rows = React.useMemo(() => {
     const mapped = locations.map((loc) => {
       const address = Array.isArray(loc?.PhysicalAddresses) ? loc.PhysicalAddresses[0] : null;
       const notes = notesById[loc.id] || {};
       const lastValidatedTs = getLastValidatedTimestamp(loc);
-
       return {
         id: loc.id,
         organization: loc?.Organization?.name || "",
@@ -632,18 +576,15 @@ const SheetsApp = () => {
         lastValidatedTs
       };
     });
-
     mapped.sort((a, b) => (b.lastValidatedTs || 0) - (a.lastValidatedTs || 0));
     return mapped;
   }, [locations, notesById]);
-
   const handleSaveAddress = async (row) => {
     const draft = addressDrafts[row.id] ?? "";
     if (!row.address) {
       setSnackbar({ open: true, message: "No address record available.", severity: "error" });
       return;
     }
-
     setSavingAddressIds((prev) => new Set([...prev, row.id]));
     try {
       const payload = buildAddressPayload(row.address, draft.trim());
@@ -670,7 +611,6 @@ const SheetsApp = () => {
       });
     }
   };
-
   const handleSavePhone = async (locationId, phoneId) => {
     const draft = phoneDrafts[phoneId] ?? "";
     const normalized = normalizePhoneNumber(draft);
@@ -678,7 +618,6 @@ const SheetsApp = () => {
       setSnackbar({ open: true, message: "Enter a phone number before saving.", severity: "warning" });
       return;
     }
-
     setSavingPhoneIds((prev) => new Set([...prev, phoneId]));
     try {
       await patchPhone(phoneId, { number: normalized });
@@ -705,18 +644,15 @@ const SheetsApp = () => {
       });
     }
   };
-
   const handleOpenNotes = (row) => {
     setNoteModal({ open: true, locationId: row.id, locationName: row.locationName, value: "" });
   };
-
   const handleSubmitNote = async () => {
     const noteText = noteModal.value.trim();
     if (!noteText) {
       setSnackbar({ open: true, message: "Enter a note before saving.", severity: "warning" });
       return;
     }
-
     setNoteSubmitting(true);
     try {
       const userName = cognitoUsername || "doobneek";
@@ -737,7 +673,6 @@ const SheetsApp = () => {
       setNoteSubmitting(false);
     }
   };
-
   const handleOpenServiceModal = (row, service) => {
     setServiceModal({
       open: true,
@@ -746,9 +681,7 @@ const SheetsApp = () => {
       locationName: row.locationName
     });
   };
-
   const cacheLabel = cacheInfo?.fetchedAt ? formatCacheTimestamp(cacheInfo.fetchedAt) : null;
-
   return (
     <Box sx={{ px: { xs: 1.5, md: 3 }, py: { xs: 2, md: 3 } }}>
       <Stack spacing={2}>
@@ -785,9 +718,7 @@ const SheetsApp = () => {
             )}
           </Stack>
         </Stack>
-
         {error && <Alert severity="error">{error}</Alert>}
-
         <Paper elevation={2} sx={{ overflow: "hidden" }}>
           <TableContainer ref={tableContainerRef} sx={{ maxHeight: "70vh" }}>
             <Table stickyHeader sx={{ minWidth: 1200 }}>
@@ -820,7 +751,6 @@ const SheetsApp = () => {
                       email: "Email",
                       gogetta: "Go"
                     };
-
                     return (
                       <HeadCells
                         key={key}
@@ -867,7 +797,6 @@ const SheetsApp = () => {
                   const addressDraft = addressDrafts[row.id] ?? "";
                   const addressDirty = addressDraft !== (addressDefaultsRef.current[row.id] || "");
                   const isSavingAddress = savingAddressIds.has(row.id);
-
                   return (
                     <TableRow
                       key={row.id}
@@ -889,7 +818,6 @@ const SheetsApp = () => {
                           {row.organization || "--"}
                         </Typography>
                       </SheetsCell>
-
                       <SheetsCell
                         columnKey="location"
                         collapsedColumns={collapsedColumns}
@@ -899,7 +827,6 @@ const SheetsApp = () => {
                       >
                         <Typography variant="body2">{row.locationName || "--"}</Typography>
                       </SheetsCell>
-
                       <SheetsCell
                         columnKey="services"
                         collapsedColumns={collapsedColumns}
@@ -932,7 +859,6 @@ const SheetsApp = () => {
                           )}
                         </Stack>
                       </SheetsCell>
-
                       <SheetsCell
                         columnKey="notes"
                         collapsedColumns={collapsedColumns}
@@ -970,7 +896,6 @@ const SheetsApp = () => {
                           </Button>
                         </Stack>
                       </SheetsCell>
-
                       <SheetsCell
                         columnKey="claim"
                         collapsedColumns={collapsedColumns}
@@ -980,7 +905,6 @@ const SheetsApp = () => {
                       >
                         <Typography variant="body2">{latestUser || "--"}</Typography>
                       </SheetsCell>
-
                       <SheetsCell
                         columnKey="revalidated"
                         collapsedColumns={collapsedColumns}
@@ -990,7 +914,6 @@ const SheetsApp = () => {
                       >
                         <Checkbox checked={isRevalidated} disabled />
                       </SheetsCell>
-
                       <SheetsCell
                         columnKey="address"
                         collapsedColumns={collapsedColumns}
@@ -1029,7 +952,6 @@ const SheetsApp = () => {
                           </Button>
                         </Stack>
                       </SheetsCell>
-
                       <SheetsCell
                         columnKey="website"
                         collapsedColumns={collapsedColumns}
@@ -1047,7 +969,6 @@ const SheetsApp = () => {
                           </Typography>
                         )}
                       </SheetsCell>
-
                       <SheetsCell
                         columnKey="phones"
                         collapsedColumns={collapsedColumns}
@@ -1094,7 +1015,6 @@ const SheetsApp = () => {
                           )}
                         </Stack>
                       </SheetsCell>
-
                       <SheetsCell
                         columnKey="email"
                         collapsedColumns={collapsedColumns}
@@ -1110,7 +1030,6 @@ const SheetsApp = () => {
                           </Typography>
                         )}
                       </SheetsCell>
-
                       <SheetsCell
                         columnKey="gogetta"
                         collapsedColumns={collapsedColumns}
@@ -1137,7 +1056,6 @@ const SheetsApp = () => {
           </TableContainer>
         </Paper>
       </Stack>
-
       <Dialog open={serviceModal.open} onClose={() => setServiceModal({ open: false, services: [], focusId: null, locationName: "" })} maxWidth="md" fullWidth>
         <DialogTitle>
           Services for {serviceModal.locationName || "location"}
@@ -1180,7 +1098,6 @@ const SheetsApp = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       <Dialog open={noteModal.open} onClose={() => setNoteModal({ open: false, locationId: null, locationName: "", value: "" })} maxWidth="sm" fullWidth>
         <DialogTitle>Add note for {noteModal.locationName || "location"}</DialogTitle>
         <DialogContent dividers>
@@ -1213,7 +1130,6 @@ const SheetsApp = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
@@ -1226,5 +1142,4 @@ const SheetsApp = () => {
     </Box>
   );
 };
-
 export default withStreetlivesAuth(SheetsApp);

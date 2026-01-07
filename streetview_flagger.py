@@ -9,7 +9,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from math import atan2, cos, degrees, radians, sin
-
 EMPTY_VALUES = {"", "null", "none", "nan", "na", "n/a"}
 ORG_KEYS = ["organization_name", "org_name", "organization", "org"]
 LOC_KEYS = ["location_name", "loc_name", "location", "name"]
@@ -28,12 +27,8 @@ COUNTRY_KEYS = ["country", "country_code"]
 LAT_KEYS = ["lat", "latitude", "y", "lat "]
 LNG_KEYS = ["lng", "lon", "long", "longitude", "x", "lng "]
 STREETVIEW_KEYS = ["streetview_url", "street_view_url", "streetview", "street_view"]
-
-
 def normalize_header(text):
     return (text or "").strip().lower()
-
-
 def build_header_map(headers):
     mapping = {}
     for header in headers or []:
@@ -41,16 +36,12 @@ def build_header_map(headers):
         if key and key not in mapping:
             mapping[key] = header
     return mapping
-
-
 def is_empty(value):
     if value is None:
         return True
     if isinstance(value, str):
         return normalize_header(value) in EMPTY_VALUES
     return False
-
-
 def get_value(row, header_map, *candidates):
     for candidate in candidates:
         key = normalize_header(candidate)
@@ -64,8 +55,6 @@ def get_value(row, header_map, *candidates):
             return value.strip()
         return str(value)
     return ""
-
-
 def parse_float(value):
     if is_empty(value):
         return None
@@ -73,8 +62,6 @@ def parse_float(value):
         return float(str(value).strip())
     except ValueError:
         return None
-
-
 def build_full_address(row, header_map):
     full_address = get_value(row, header_map, "full_address", "address_full", "fulladdress")
     if full_address:
@@ -89,8 +76,6 @@ def build_full_address(row, header_map):
     parts = [street, city, state, postal, country]
     parts = [part for part in parts if part]
     return ", ".join(parts)
-
-
 def build_search_query(org_name, loc_name, address):
     parts = []
     org = (org_name or "").strip()
@@ -103,14 +88,10 @@ def build_search_query(org_name, loc_name, address):
     if addr:
         parts.append(addr)
     return " ".join(parts)
-
-
 def build_maps_search_url(query):
     if not query:
         return ""
     return "https://www.google.com/maps/search/?api=1&query=" + urllib.parse.quote_plus(query)
-
-
 def build_pano_url(lat, lng):
     if lat is None or lng is None:
         return ""
@@ -118,26 +99,18 @@ def build_pano_url(lat, lng):
         "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint="
         + f"{lat},{lng}"
     )
-
-
 def http_get(url, headers=None, timeout=30):
     request = urllib.request.Request(url, headers=headers or {})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read()
-
-
 def http_get_json(url, headers=None, timeout=30):
     data = http_get(url, headers=headers, timeout=timeout)
     return json.loads(data.decode("utf-8"))
-
-
 def http_post_json(url, payload, headers=None, timeout=60):
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=data, headers=headers or {}, method="POST")
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
-
-
 def fetch_with_retries(fn, retries=2, backoff=2.0):
     last_error = None
     for attempt in range(retries + 1):
@@ -148,8 +121,6 @@ def fetch_with_retries(fn, retries=2, backoff=2.0):
             if attempt < retries:
                 time.sleep(backoff * (attempt + 1))
     raise last_error
-
-
 def compute_heading(from_lat, from_lng, to_lat, to_lng):
     lat1 = radians(from_lat)
     lat2 = radians(to_lat)
@@ -158,16 +129,12 @@ def compute_heading(from_lat, from_lng, to_lat, to_lng):
     x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dlon)
     bearing = degrees(atan2(y, x))
     return (bearing + 360) % 360
-
-
 def fetch_streetview_metadata(lat, lng, api_key, radius, source, timeout):
     url = (
         "https://maps.googleapis.com/maps/api/streetview/metadata?location="
         + f"{lat},{lng}&radius={radius}&source={source}&key={api_key}"
     )
     return fetch_with_retries(lambda: http_get_json(url, timeout=timeout))
-
-
 def fetch_streetview_image(lat, lng, api_key, size, radius, source, timeout):
     metadata = fetch_streetview_metadata(lat, lng, api_key, radius, source, timeout)
     status = metadata.get("status")
@@ -196,8 +163,6 @@ def fetch_streetview_image(lat, lng, api_key, size, radius, source, timeout):
         "pano_lng": pano_lng,
         "metadata": metadata,
     }, None
-
-
 def google_geocode(query, api_key, timeout):
     url = (
         "https://maps.googleapis.com/maps/api/geocode/json?address="
@@ -215,8 +180,6 @@ def google_geocode(query, api_key, timeout):
     if not location:
         return None, "Geocode missing location"
     return location, None
-
-
 def google_places_text_search(query, api_key, timeout):
     url = (
         "https://maps.googleapis.com/maps/api/place/textsearch/json?query="
@@ -234,8 +197,6 @@ def google_places_text_search(query, api_key, timeout):
     if not location:
         return None, "Places missing location"
     return location, None
-
-
 def extract_json(text):
     try:
         return json.loads(text)
@@ -251,8 +212,6 @@ def extract_json(text):
         return json.loads(text[start : end + 1])
     except json.JSONDecodeError:
         return {"error": "invalid_json", "raw": text}
-
-
 def call_openai(api_key, model, prompt, images, timeout):
     content = [{"type": "text", "text": prompt}]
     for image in images:
@@ -281,8 +240,6 @@ def call_openai(api_key, model, prompt, images, timeout):
     choice = (response.get("choices") or [{}])[0]
     message = choice.get("message") or {}
     return message.get("content", "")
-
-
 def build_openai_prompt(org_name, loc_name, address, has_search):
     org = org_name or "(missing)"
     loc = loc_name or "(missing)"
@@ -315,8 +272,6 @@ def build_openai_prompt(org_name, loc_name, address, has_search):
         "}\n"
         "Be conservative and set unsure=true if you cannot tell."
     )
-
-
 def load_processed_ids(output_path, id_column):
     if not os.path.exists(output_path):
         return set()
@@ -328,16 +283,12 @@ def load_processed_ids(output_path, id_column):
             if value:
                 processed.add(value)
     return processed
-
-
 def build_output_fields(input_fields, new_fields):
     output_fields = list(input_fields or [])
     for field in new_fields:
         if field not in output_fields:
             output_fields.append(field)
     return output_fields
-
-
 def main():
     parser = argparse.ArgumentParser(
         description=(
@@ -366,26 +317,21 @@ def main():
     parser.add_argument("--skip-google", action="store_true", help="Skip Google lookups.")
     parser.add_argument("--cache-dir", default="", help="Optional folder to save images.")
     args = parser.parse_args()
-
     input_path = args.input
     output_path = args.output
     if not output_path:
         base, ext = os.path.splitext(input_path)
         output_path = base + "_streetview_flags.csv"
-
     if args.cache_dir:
         os.makedirs(args.cache_dir, exist_ok=True)
-
     with open(input_path, "r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
         input_fields = reader.fieldnames or []
         header_map = build_header_map(input_fields)
-
         id_column = header_map.get("uuid") or header_map.get("id") or "uuid"
         processed_ids = set()
         if args.resume:
             processed_ids = load_processed_ids(output_path, id_column)
-
         new_fields = [
             "gogetta_streetview_link",
             "default_streetview_url",
@@ -404,14 +350,12 @@ def main():
             "error",
         ]
         output_fields = build_output_fields(input_fields, new_fields)
-
         output_exists = os.path.exists(output_path) and args.resume
         mode = "a" if output_exists else "w"
         with open(output_path, mode, encoding="utf-8", newline="") as out_handle:
             writer = csv.DictWriter(out_handle, fieldnames=output_fields)
             if not output_exists:
                 writer.writeheader()
-
             count = 0
             for row in reader:
                 if args.limit and count >= args.limit:
@@ -422,7 +366,6 @@ def main():
                     continue
                 if uuid in processed_ids:
                     continue
-
                 org_name = get_value(row, header_map, *ORG_KEYS)
                 loc_name = get_value(row, header_map, *LOC_KEYS)
                 address = build_full_address(row, header_map)
@@ -430,10 +373,8 @@ def main():
                 has_streetview = bool(streetview_url)
                 if has_streetview and not args.include_all:
                     continue
-
                 lat = parse_float(get_value(row, header_map, *LAT_KEYS))
                 lng = parse_float(get_value(row, header_map, *LNG_KEYS))
-
                 row_out = dict(row)
                 row_out.update(
                     {
@@ -456,27 +397,22 @@ def main():
                         "error": "",
                     }
                 )
-
                 search_query = build_search_query(org_name, loc_name, address)
                 row_out["search_query"] = search_query
                 row_out["search_maps_url"] = build_maps_search_url(search_query)
-
                 if has_streetview and args.include_all:
                     row_out["ai_status"] = "skipped_existing_streetview"
                     writer.writerow(row_out)
                     continue
-
                 if lat is None or lng is None:
                     row_out["ai_status"] = "missing_coordinates"
                     row_out["error"] = "Missing lat/lng for default Street View."
                     writer.writerow(row_out)
                     continue
-
                 default_image = None
                 search_image = None
                 search_lat = None
                 search_lng = None
-
                 use_google = bool(args.google_api_key) and not args.skip_google
                 if use_google:
                     default_image, default_err = fetch_streetview_image(
@@ -498,7 +434,6 @@ def main():
                                 image_handle.write(default_image["image_bytes"])
                 else:
                     row_out["ai_status"] = "skipped_missing_google_key"
-
                 if use_google and search_query:
                     if args.google_search_mode == "places":
                         search_location, search_err = google_places_text_search(
@@ -535,25 +470,21 @@ def main():
                                 path = os.path.join(args.cache_dir, f"{uuid}_search.jpg")
                                 with open(path, "wb") as image_handle:
                                     image_handle.write(search_image["image_bytes"])
-
                 if args.skip_openai or not args.openai_api_key:
                     if not row_out["ai_status"]:
                         row_out["ai_status"] = "skipped_missing_openai_key"
                     writer.writerow(row_out)
                     continue
-
                 if not default_image:
                     row_out["ai_status"] = "skipped_missing_default_image"
                     writer.writerow(row_out)
                     continue
-
                 default_b64 = base64.b64encode(default_image["image_bytes"]).decode("ascii")
                 default_data_url = "data:image/jpeg;base64," + default_b64
                 images = [default_data_url]
                 if search_image:
                     search_b64 = base64.b64encode(search_image["image_bytes"]).decode("ascii")
                     images.append("data:image/jpeg;base64," + search_b64)
-
                 prompt = build_openai_prompt(org_name, loc_name, address, bool(search_image))
                 try:
                     response_text = call_openai(
@@ -574,14 +505,9 @@ def main():
                 except Exception as err:
                     row_out["ai_status"] = "openai_error"
                     row_out["error"] = str(err)
-
                 writer.writerow(row_out)
-
                 if args.sleep:
                     time.sleep(args.sleep)
-
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -4,7 +4,6 @@
   word-break: break-word;
   overflow-wrap: anywhere;
 }
-
 .formatter-preview a {
   color: #007bff;
   text-decoration: underline;
@@ -12,7 +11,6 @@
   overflow-wrap: anywhere;
   white-space: normal;
 }
-
 .formatter-preview a span {
   display: inline;
 } */
@@ -23,13 +21,11 @@
   word-break: break-word;
   overflow-wrap: anywhere;
 }
-
 /* Hyperlink styling */
 .formatter-preview a {
   color: #007bff;
   text-decoration: underline;
 }
-
 /* Code block styling inside instructions */
 .formatter-button-row code {
   color: #4CAF50;
@@ -38,7 +34,6 @@
   border-radius: 4px;
   background-color: #f0fff4;
 }
-
 /* Button base style */
 .formatter-button-row button {
   border-radius: 999px;
@@ -47,7 +42,6 @@
   overflow: hidden;
   z-index: 1;
 }
-
 /* Rainbow animation */
 .formatter-button-row button::before {
   content: "";
@@ -65,29 +59,24 @@
   z-index: 0;
   opacity: 0;
 }
-
 .formatter-button-row button:active::before {
   left: -100%;
   opacity: 1;
   animation: rainbow-slide 1s linear forwards;
 }
-
 @keyframes rainbow-slide {
   0% { left: -100%; opacity: 1; }
   100% { left: 100%; opacity: 0; }
 }
-
 .formatter-button-row button:active {
   color: white !important;
 }
-
 /* Specific: Convert filled green */
 .formatter-button-row button.convert-button {
   background-color: #4CAF50;
   color: white;
   border: 2px solid #4CAF50;
 }
-
 /* Specific: Others outlined green */
 .formatter-button-row button:not(.convert-button) {
   background-color: white;
@@ -99,14 +88,12 @@
   color: #888;
   pointer-events: none;
 }
-
 /* Link Validator Styles */
 .link-validator-container {
   position: relative;
   display: inline-block;
   width: 100%;
 }
-
 .link-validator-indicator {
   position: absolute;
   right: 8px;
@@ -119,11 +106,9 @@
   pointer-events: auto;
   transition: transform 0.2s ease;
 }
-
 .link-validator-indicator:hover {
   transform: translateY(-50%) scale(1.1);
 }
-
 .link-validator-preview-btn {
   position: absolute;
   right: 35px;
@@ -139,13 +124,11 @@
   font-size: 14px;
   transition: all 0.2s ease;
 }
-
 .link-validator-preview-btn:hover {
   background: #f8f9fa;
   border-color: #007bff;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
-
 .link-validator-warning {
   color: #dc3545;
   font-size: 12px;
@@ -155,7 +138,6 @@
   gap: 4px;
   animation: slideDown 0.3s ease;
 }
-
 @keyframes slideDown {
   from {
     opacity: 0;
@@ -166,7 +148,6 @@
     transform: translateY(0);
   }
 }
-
 .link-validator-preview-overlay {
   position: fixed;
   top: 0;
@@ -180,19 +161,16 @@
   justify-content: center;
   animation: fadeIn 0.2s;
 }
-
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-
 /* Input state styles */
 input.link-checking {
   border-color: #ffa500 !important;
   border-width: 2px !important;
   animation: pulse 1.5s ease-in-out infinite;
 }
-
 @keyframes pulse {
   0%, 100% {
     box-shadow: 0 0 0 0.2rem rgba(255, 165, 0, 0.25);
@@ -201,20 +179,17 @@ input.link-checking {
     box-shadow: 0 0 0 0.2rem rgba(255, 165, 0, 0.5);
   }
 }
-
 input.link-valid {
   border-color: #28a745 !important;
   border-width: 2px !important;
   box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25) !important;
 }
-
 input.link-broken {
   border-color: #dc3545 !important;
   border-width: 2px !important;
   box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
   animation: shake 0.5s;
 }
-
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }

@@ -10,7 +10,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-
 DEFAULT_LOCATION_API = "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations"
 DEFAULT_SERVICE_API = "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/services"
 DEFAULT_PHONE_API = "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/phones"
@@ -18,11 +17,9 @@ DEFAULT_NOTE_API = "https://locationnote1-iygwucy2fa-uc.a.run.app"
 DEFAULT_NOTE_BASE_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/"
 REQUEST_DELAY_MIN = 0.0
 REQUEST_DELAY_MAX = 0.0
-
 EVENT_OCCASION = "COVID19"
 BULLET = "\u2022"
 EMPTY_VALUES = {"", "null", "none", "nan", "na", "n/a"}
-
 ANCHOR_RE = re.compile(r"(<a\b[^>]*>.*?</a>)", re.IGNORECASE | re.DOTALL)
 BROKEN_CLOSE_ANCHOR_RE = re.compile(
     r"</a(?=\s|$|[<\)\]\}\.,;:!?])",
@@ -41,8 +38,6 @@ PHONE_RE = re.compile(
 EXT_WORD_RE = re.compile(r"^\s*(?:ext\.?|extension|#)\b", re.IGNORECASE)
 EXT_COMMA_RE = re.compile(r"^\s*(?:,|;)\s*\d+")
 EXT_SPACE_DIGITS_RE = re.compile(r"^\s+\d+")
-
-
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         description="Clean service/location text and phone numbers from issue CSV."
@@ -147,12 +142,8 @@ def parse_args(argv):
         help="CSV path to record attempted patches.",
     )
     return parser.parse_args(argv)
-
-
 def normalize_header(text):
     return (text or "").strip().lower()
-
-
 def build_header_map(headers):
     mapping = {}
     for header in headers or []:
@@ -160,16 +151,12 @@ def build_header_map(headers):
         if key and key not in mapping:
             mapping[key] = header
     return mapping
-
-
 def is_empty(value):
     if value is None:
         return True
     if isinstance(value, str):
         return normalize_header(value) in EMPTY_VALUES
     return False
-
-
 def get_value(row, header_map, *candidates):
     for candidate in candidates:
         key = normalize_header(candidate)
@@ -183,22 +170,16 @@ def get_value(row, header_map, *candidates):
             return value.strip()
         return str(value)
     return ""
-
-
 def split_semicolon_list(value):
     if not value:
         return []
     return [item.strip() for item in str(value).split(";") if item.strip()]
-
-
 def set_request_delay(min_seconds, max_seconds):
     global REQUEST_DELAY_MIN, REQUEST_DELAY_MAX
     min_value = max(float(min_seconds or 0), 0.0)
     max_value = max(float(max_seconds or 0), min_value)
     REQUEST_DELAY_MIN = min_value
     REQUEST_DELAY_MAX = max_value
-
-
 def maybe_sleep_before_request():
     if REQUEST_DELAY_MAX <= 0:
         return
@@ -206,8 +187,6 @@ def maybe_sleep_before_request():
         time.sleep(REQUEST_DELAY_MAX)
         return
     time.sleep(random.uniform(REQUEST_DELAY_MIN, REQUEST_DELAY_MAX))
-
-
 def http_request(method, url, headers, payload=None, timeout=30):
     maybe_sleep_before_request()
     data = None
@@ -222,15 +201,11 @@ def http_request(method, url, headers, payload=None, timeout=30):
         return exc.code, body
     except urllib.error.URLError as exc:
         return None, str(exc)
-
-
 def http_get_json(url, timeout=30):
     maybe_sleep_before_request()
     req = urllib.request.Request(url, headers={"accept": "application/json, text/plain, */*"})
     with urllib.request.urlopen(req, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
-
-
 def build_headers(token, is_json=True):
     headers = {"accept": "application/json, text/plain, */*"}
     if token:
@@ -238,8 +213,6 @@ def build_headers(token, is_json=True):
     if is_json:
         headers["content-type"] = "application/json"
     return headers
-
-
 def build_note_headers(token):
     headers = {"Content-Type": "application/json"}
     if token:
@@ -248,16 +221,12 @@ def build_note_headers(token):
             value = f"Bearer {value}"
         headers["Authorization"] = value
     return headers
-
-
 def is_auth_error(status, body):
     if status in (401, 403):
         return True
     if isinstance(body, str) and "expired" in body.lower() and "token" in body.lower():
         return True
     return False
-
-
 def normalize_http_body(body, limit=500):
     if body is None:
         return ""
@@ -265,16 +234,12 @@ def normalize_http_body(body, limit=500):
     if len(text) > limit:
         return text[:limit] + "..."
     return text
-
-
 def format_http_error(method, url, status, body, limit=500):
     status_label = "no_status" if status is None else str(status)
     body_text = normalize_http_body(body, limit=limit)
     if body_text:
         return f"{method} {url} -> {status_label} {body_text}"
     return f"{method} {url} -> {status_label}"
-
-
 def normalize_raw_text(text):
     if text is None:
         return ""
@@ -284,8 +249,6 @@ def normalize_raw_text(text):
     value = value.replace("\u00e2\u20ac\u00a2", BULLET)
     value = value.replace("\u00c2\u2022", BULLET)
     return value
-
-
 def trim_excess_blank_lines(text):
     lines = text.split("\n")
     while lines and lines[-1].strip() == "":
@@ -301,8 +264,6 @@ def trim_excess_blank_lines(text):
         blank_count = 0
         cleaned.append(line)
     return "\n".join(cleaned)
-
-
 def repair_anchor_markup(text):
     value = text
     value = BROKEN_CLOSE_ANCHOR_RE.sub("</a>", value)
@@ -313,16 +274,12 @@ def repair_anchor_markup(text):
         flags=re.IGNORECASE,
     )
     return value
-
-
 def has_unbalanced_anchors(text):
     if BROKEN_CLOSE_ANCHOR_RE.search(text):
         return True
     opens = len(re.findall(r"<a\b", text, flags=re.IGNORECASE))
     closes = len(re.findall(r"</a>", text, flags=re.IGNORECASE))
     return opens != closes
-
-
 def normalize_line(line):
     value = (line or "").strip()
     if not value:
@@ -330,8 +287,6 @@ def normalize_line(line):
     value = re.sub(r"^(?:&nbsp;|&emsp;|\s)+", "", value)
     value = re.sub(r"^[\u2022\-\u2013*]\s*", "", value)
     return value.strip()
-
-
 def normalize_url(raw_url):
     if not raw_url:
         return None
@@ -359,8 +314,6 @@ def normalize_url(raw_url):
     if len(sld) < 2:
         return None
     return parsed
-
-
 def url_display(parsed):
     host = parsed.hostname or ""
     display = host + (parsed.path or "")
@@ -369,35 +322,27 @@ def url_display(parsed):
     if parsed.fragment:
         display += "#" + parsed.fragment
     return display.replace("www.", "", 1)
-
-
 def split_trailing_punct(text):
     trailing = ""
     while text and text[-1] in ".,;:!?":
         trailing = text[-1] + trailing
         text = text[:-1]
     return text, trailing
-
-
 def linkify_phones(segment):
     output = []
     flags = []
     last = 0
-
     for match in PHONE_RE.finditer(segment):
         start, end = match.span()
         output.append(segment[last:start])
-
         num = match.group("num")
         ext = match.group("ext") or ""
         before = segment[max(0, start - 6):start].lower()
-
         if before.endswith("tel:") or before.endswith("sms:"):
             output.append(segment[start:end])
             flags.append("phone_scheme_prefix")
             last = end
             continue
-
         if not ext:
             after = segment[end:]
             if (
@@ -409,7 +354,6 @@ def linkify_phones(segment):
                 flags.append("phone_ext_ambiguous")
                 last = end
                 continue
-
         digits = re.sub(r"\D", "", num)
         if len(digits) == 11 and digits.startswith("1"):
             digits = digits[1:]
@@ -418,7 +362,6 @@ def linkify_phones(segment):
             flags.append("phone_digits_length")
             last = end
             continue
-
         ext_digits = ""
         if ext:
             ext_digits = re.sub(r"\D", "", ext)
@@ -427,7 +370,6 @@ def linkify_phones(segment):
                 flags.append("phone_ext_missing")
                 last = end
                 continue
-
         formatted = f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
         if ext_digits:
             anchor = f'<a href="tel:{digits},{ext_digits}">{formatted} x{ext_digits}</a>'
@@ -435,23 +377,18 @@ def linkify_phones(segment):
             anchor = f'<a href="tel:{digits}">{formatted}</a>'
         output.append(anchor)
         last = end
-
     output.append(segment[last:])
     return "".join(output), flags
-
-
 def linkify_plain(segment):
     output = []
     flags = []
     pos = 0
-
     for match in EMAIL_OR_URL_RE.finditer(segment):
         start, end = match.span()
         if start > pos:
             linked, phone_flags = linkify_phones(segment[pos:start])
             output.append(linked)
             flags.extend(phone_flags)
-
         if match.group("email"):
             email, trailing = split_trailing_punct(match.group("email"))
             output.append(f'<a href="mailto:{email}">{email}</a>{trailing}')
@@ -468,17 +405,12 @@ def linkify_plain(segment):
                     attrs.append('target="_blank"')
                     attrs.append('rel="noopener noreferrer"')
                 output.append(f"<a {' '.join(attrs)}>{display}</a>{trailing}")
-
         pos = end
-
     if pos < len(segment):
         linked, phone_flags = linkify_phones(segment[pos:])
         output.append(linked)
         flags.extend(phone_flags)
-
     return "".join(output), flags
-
-
 def linkify_line(line):
     parts = ANCHOR_RE.split(line)
     output = []
@@ -491,8 +423,6 @@ def linkify_line(line):
         output.append(linked)
         flags.extend(part_flags)
     return "".join(output), flags
-
-
 def clean_text(raw_text, source):
     flags = []
     normalized = normalize_raw_text(raw_text)
@@ -507,13 +437,11 @@ def clean_text(raw_text, source):
     )
     normalized = re.sub(rf"^\s*{re.escape(BULLET)}", BULLET, normalized, flags=re.MULTILINE)
     normalized = trim_excess_blank_lines(normalized)
-
     lines = normalized.split("\n")
     non_empty_lines = sum(1 for line in lines if line.strip())
     if non_empty_lines == 0:
         return "", flags
     should_add_bullets = non_empty_lines > 1
-
     output_lines = []
     pending_break = False
     for idx, line in enumerate(lines):
@@ -523,19 +451,16 @@ def clean_text(raw_text, source):
                 output_lines.append({"text": "<br>", "skip_linkify": True})
             pending_break = True
             continue
-
         if raw.lower().startswith("<br>"):
             after = raw[4:].lstrip()
             if after.startswith(BULLET):
                 raw = "<br>" + after[len(BULLET) :].lstrip()
         elif raw.startswith(BULLET):
             raw = raw[len(BULLET) :].lstrip()
-
         is_first = idx == 0
         already_bullet = raw.startswith("<br>&emsp;—") or raw.startswith("<br>")
         had_pending_break = pending_break
         pending_break = False
-
         if not already_bullet and not (is_first and raw.endswith(":")):
             if raw.startswith("-"):
                 raw = f"<br>&emsp;— {raw[1:].strip()}"
@@ -543,9 +468,7 @@ def clean_text(raw_text, source):
                 raw = f"<br>{raw}"
             elif should_add_bullets:
                 raw = f"{BULLET} {raw}"
-
         output_lines.append({"text": raw, "skip_linkify": False})
-
     rendered = []
     for entry in output_lines:
         if entry["skip_linkify"]:
@@ -554,10 +477,7 @@ def clean_text(raw_text, source):
         linked, line_flags = linkify_line(entry["text"])
         rendered.append(linked)
         flags.extend(line_flags)
-
     return "\n".join(rendered), flags
-
-
 def find_service_event_info(service):
     infos = service.get("EventRelatedInfos")
     if not isinstance(infos, list):
@@ -566,8 +486,6 @@ def find_service_event_info(service):
         if info.get("event") == EVENT_OCCASION:
             return info
     return None
-
-
 def find_location_event_info(location):
     infos = location.get("EventRelatedInfos")
     if not isinstance(infos, list):
@@ -579,22 +497,14 @@ def find_location_event_info(location):
         if not info.get("service_id"):
             return info
     return None
-
-
 def build_service_link(location_id, service_id, suffix):
     return f"https://gogetta.nyc/team/location/{location_id}/services/{service_id}/{suffix}"
-
-
 def build_location_link(location_id):
     return f"https://gogetta.nyc/team/location/{location_id}"
-
-
 def build_phone_link(location_id, phone_id):
     return (
         f"https://gogetta.nyc/team/location/{location_id}/questions/phone-number/{phone_id}"
     )
-
-
 def fetch_existing_note(note_base_url, uuid, user_name, date_key, timeout=20):
     maybe_sleep_before_request()
     base = note_base_url.rstrip("/") + "/"
@@ -611,29 +521,22 @@ def fetch_existing_note(note_base_url, uuid, user_name, date_key, timeout=20):
     if isinstance(data, str):
         return data.strip()
     return ""
-
-
 def contains_revalidate_tag(note_text):
     lower = note_text.lower()
     return "<<did not revalidate>>" in lower or "<<didnt revalidate>>" in lower
-
-
 def main(argv):
     args = parse_args(argv)
     set_request_delay(args.delay_min, args.delay_max)
     token = args.token or os.getenv("DOOBNEEK_JWT") or os.getenv("JWT")
-
     if not token and not args.dry_run:
         print("Missing token. Provide --token or set DOOBNEEK_JWT/JWT.", file=sys.stderr)
         return 2
-
     text_rows = {}
     phone_number_ids = {}
     phone_extension_ids = {}
     phone_number_values = {}
     phone_extension_values = {}
     phone_id_locations = {}
-
     with open(args.csv, "r", encoding="cp1252", newline="") as handle:
         reader = csv.DictReader(handle)
         header_map = build_header_map(reader.fieldnames or [])
@@ -642,7 +545,6 @@ def main(argv):
             location_id = get_value(row, header_map, "location_id")
             service_id = get_value(row, header_map, "service_id")
             text = get_value(row, header_map, "text")
-
             if location_id:
                 bad_phone_ids = split_semicolon_list(
                     get_value(row, header_map, "bad_phone_ids")
@@ -656,7 +558,6 @@ def main(argv):
                         phone_id_locations.setdefault(phone_id, location_id)
                         if idx < len(bad_phone_numbers):
                             phone_number_values.setdefault(phone_id, bad_phone_numbers[idx])
-
                 bad_extension_ids = split_semicolon_list(
                     get_value(row, header_map, "bad_extension_ids")
                 )
@@ -669,7 +570,6 @@ def main(argv):
                         phone_id_locations.setdefault(phone_id, location_id)
                         if idx < len(bad_phone_extensions):
                             phone_extension_values.setdefault(phone_id, bad_phone_extensions[idx])
-
             if not source or not text:
                 continue
             key = (location_id, service_id, source)
@@ -680,20 +580,17 @@ def main(argv):
                     "source": source,
                     "text": text,
                 }
-
     location_cache = {}
     text_updates = {}
     location_updates = {}
     phone_updates = []
     note_updates = {}
-
     patched_count = 0
     flagged_count = 0
     patched_writer = None
     patched_handle = None
     flagged_writer = None
     flagged_handle = None
-
     patched_fields = [
         "location_id",
         "service_id",
@@ -742,12 +639,10 @@ def main(argv):
     progress_handle = None
     processed_keys = set()
     append_reports = bool(args.resume)
-
     def build_excel_link(url):
         if not url:
             return ""
         return f'=HYPERLINK("{url}")'
-
     def open_report_writer(path, fieldnames, append):
         exists = os.path.exists(path)
         file_empty = not exists or os.path.getsize(path) == 0
@@ -758,7 +653,6 @@ def main(argv):
             writer.writeheader()
             handle.flush()
         return writer, handle
-
     def write_patched(row):
         nonlocal patched_writer, patched_handle, patched_count
         if patched_writer is None:
@@ -768,7 +662,6 @@ def main(argv):
         patched_writer.writerow(row)
         patched_handle.flush()
         patched_count += 1
-
     def write_flagged(row):
         nonlocal flagged_writer, flagged_handle, flagged_count
         if flagged_writer is None:
@@ -778,7 +671,6 @@ def main(argv):
         flagged_writer.writerow(row)
         flagged_handle.flush()
         flagged_count += 1
-
     def add_flagged(row):
         if limit_flags:
             reason = row.get("reason") or ""
@@ -790,12 +682,10 @@ def main(argv):
         if "url" in row and "excel_link" not in row:
             row["excel_link"] = build_excel_link(row.get("url"))
         write_flagged(row)
-
     def make_patch_key(kind, entity_id, target=""):
         if target:
             return f"{kind}:{entity_id}:{target}"
         return f"{kind}:{entity_id}"
-
     def build_edit_url(location_id, service_id, phone_id, target, payload=None):
         if phone_id or target in {"phone_number", "phone_extension"}:
             if location_id and phone_id:
@@ -817,7 +707,6 @@ def main(argv):
         if location_id:
             return build_location_link(location_id)
         return ""
-
     def load_processed_keys():
         if not args.resume or not os.path.exists(args.progress_csv):
             return
@@ -828,7 +717,6 @@ def main(argv):
                 status = (row.get("status") or "").strip().lower()
                 if key and status in {"patched", "dry_run"}:
                     processed_keys.add(key)
-
     def write_progress(entry):
         nonlocal progress_writer, progress_handle
         if args.dry_run:
@@ -843,9 +731,7 @@ def main(argv):
                 progress_writer.writeheader()
         progress_writer.writerow(entry)
         progress_handle.flush()
-
     load_processed_keys()
-
     def load_location(location_id):
         if location_id in location_cache:
             return location_cache[location_id]
@@ -856,21 +742,17 @@ def main(argv):
             data = {"_error": str(exc)}
         location_cache[location_id] = data
         return data
-
     processed = 0
     for key in sorted(text_rows.keys()):
         if args.limit and processed >= args.limit:
             break
         processed += 1
-
         row = text_rows[key]
         location_id = row["location_id"]
         service_id = row["service_id"]
         source = row["source"].strip().lower()
-
         if source not in {"event", "service"} or not location_id:
             continue
-
         if not service_id:
             reason = "location_event_not_supported" if source == "event" else "missing_service_id"
             target = "service_other_info" if source == "event" else "service_description"
@@ -888,10 +770,8 @@ def main(argv):
                 }
             )
             continue
-
         if args.fast:
             target = "service_description" if source == "service" else "service_other_info"
-
             csv_text = normalize_raw_text(row["text"])
             cleaned, flags = clean_text(csv_text, "service" if source == "service" else "event")
             if flags:
@@ -914,17 +794,14 @@ def main(argv):
                     }
                 )
                 continue
-
             if cleaned == csv_text:
                 continue
-
             update = text_updates.setdefault(service_id, {"location_id": location_id})
             if source == "service":
                 update["description"] = cleaned
             else:
                 update["eventRelatedInfo"] = {"event": EVENT_OCCASION, "information": cleaned}
             continue
-
         location_data = load_location(location_id)
         if not isinstance(location_data, dict) or location_data.get("_error"):
             add_flagged(
@@ -940,10 +817,8 @@ def main(argv):
                 }
             )
             continue
-
         current_text = ""
         target = ""
-
         if service_id:
             services = location_data.get("Services") or []
             service = next((svc for svc in services if svc.get("id") == service_id), None)
@@ -961,7 +836,6 @@ def main(argv):
                     }
                 )
                 continue
-
             if source == "service":
                 current_text = service.get("description") or ""
                 target = "service_description"
@@ -991,7 +865,6 @@ def main(argv):
                 }
             )
             continue
-
         cleaned, flags = clean_text(csv_text, "service" if source == "service" else "event")
         if flags:
             add_flagged(
@@ -1013,16 +886,13 @@ def main(argv):
                 }
             )
             continue
-
         if cleaned == api_text:
             continue
-
         update = text_updates.setdefault(service_id, {"location_id": location_id})
         if source == "service":
             update["description"] = cleaned
         else:
             update["eventRelatedInfo"] = {"event": EVENT_OCCASION, "information": cleaned}
-
     if args.fast:
         for phone_id, number in phone_number_values.items():
             location_id = phone_id_locations.get(phone_id, "")
@@ -1072,7 +942,6 @@ def main(argv):
             location_data = load_location(location_id)
             phones = location_data.get("Phones") or []
             phone_map = {phone.get("id"): phone for phone in phones if phone.get("id")}
-
             for phone_id in sorted(phone_ids):
                 phone = phone_map.get(phone_id)
                 if not phone:
@@ -1089,7 +958,6 @@ def main(argv):
                         }
                     )
                     continue
-
                 number = phone.get("number") or ""
                 digits = re.sub(r"\D", "", number)
                 if len(digits) == 11 and digits.startswith("1"):
@@ -1108,10 +976,8 @@ def main(argv):
                         }
                     )
                     continue
-
                 if digits == number:
                     continue
-
                 phone_updates.append(
                     {
                         "location_id": location_id,
@@ -1120,7 +986,6 @@ def main(argv):
                         "target": "phone_number",
                     }
                 )
-
     if args.fast:
         for phone_id, extension in phone_extension_values.items():
             location_id = phone_id_locations.get(phone_id, "")
@@ -1154,7 +1019,6 @@ def main(argv):
             location_data = load_location(location_id)
             phones = location_data.get("Phones") or []
             phone_map = {phone.get("id"): phone for phone in phones if phone.get("id")}
-
             for phone_id in sorted(phone_ids):
                 phone = phone_map.get(phone_id)
                 if not phone:
@@ -1171,7 +1035,6 @@ def main(argv):
                         }
                     )
                     continue
-
                 extension = phone.get("extension") or ""
                 digits = re.sub(r"\D", "", str(extension))
                 if not digits:
@@ -1188,10 +1051,8 @@ def main(argv):
                         }
                     )
                     continue
-
                 if digits == extension:
                     continue
-
                 phone_updates.append(
                     {
                         "location_id": location_id,
@@ -1200,7 +1061,6 @@ def main(argv):
                         "target": "phone_extension",
                     }
                 )
-
     sorted_phone_updates = sorted(
         phone_updates, key=lambda item: (item["phone_id"], item["target"])
     )
@@ -1211,7 +1071,6 @@ def main(argv):
         patch_keys.append(make_patch_key("location", location_id, "location_update"))
     for entry in sorted_phone_updates:
         patch_keys.append(make_patch_key("phone", entry["phone_id"], entry["target"]))
-
     total_patch_candidates = len(patch_keys)
     pending_patch_candidates = sum(
         1 for key in patch_keys if not (args.resume and key in processed_keys)
@@ -1237,28 +1096,22 @@ def main(argv):
             )
     else:
         print("[PLAN] patches_total=0")
-
     def record_note(location_id, note_text):
         if not note_text:
             return
         note_updates.setdefault(location_id, []).append(note_text)
-
     def summarize_service_change(service_id, label):
         return f"service {service_id} {label} cleaned"
-
     def summarize_location_change(label):
         return f"location {label} cleaned"
-
     def summarize_phone_change(phone_id, label):
         return f"phone {phone_id} {label} cleaned"
-
     def note_remaining(patch_key):
         nonlocal remaining_patches
         if remaining_patches <= 0:
             return
         remaining_patches -= 1
         print(f"[PATCH] {patch_key} (remaining {remaining_patches})")
-
     for service_id in sorted(text_updates):
         if stop_processing:
             break
@@ -1270,7 +1123,6 @@ def main(argv):
             break
         patch_count += 1
         note_remaining(patch_key)
-
         update = text_updates[service_id]
         location_id = update["location_id"]
         payload = {}
@@ -1281,7 +1133,6 @@ def main(argv):
         if "eventRelatedInfo" in update:
             payload["eventRelatedInfo"] = update["eventRelatedInfo"]
             notes.append(summarize_service_change(service_id, "other-info"))
-
         patch_status = "dry_run"
         error_note = ""
         if not args.dry_run:
@@ -1311,7 +1162,6 @@ def main(argv):
                 )
             else:
                 patch_status = "patched"
-
         edit_url = build_edit_url(location_id, service_id, "", "service_update", payload)
         note_for_reports = " | ".join(notes)
         if error_note:
@@ -1330,7 +1180,6 @@ def main(argv):
                 "note": note_for_reports,
             }
         )
-
         if not args.dry_run:
             write_progress(
                 {
@@ -1348,7 +1197,6 @@ def main(argv):
             )
             if patch_status in {"patched", "dry_run"}:
                 processed_keys.add(patch_key)
-
         if patch_status == "patched":
             record_note(location_id, " | ".join(notes))
         if patch_status not in {"patched", "dry_run"}:
@@ -1357,7 +1205,6 @@ def main(argv):
             stop_reason = patch_status
             stop_patch_key = patch_key
             break
-
     for location_id in sorted(location_updates):
         if stop_processing:
             break
@@ -1369,7 +1216,6 @@ def main(argv):
             break
         patch_count += 1
         note_remaining(patch_key)
-
         payload = location_updates[location_id]
         notes = [summarize_location_change("other-info")]
         patch_status = "dry_run"
@@ -1401,7 +1247,6 @@ def main(argv):
                 )
             else:
                 patch_status = "patched"
-
         edit_url = build_edit_url(location_id, "", "", "location_update", payload)
         note_for_reports = " | ".join(notes)
         if error_note:
@@ -1420,7 +1265,6 @@ def main(argv):
                 "note": note_for_reports,
             }
         )
-
         if not args.dry_run:
             write_progress(
                 {
@@ -1438,7 +1282,6 @@ def main(argv):
             )
             if patch_status in {"patched", "dry_run"}:
                 processed_keys.add(patch_key)
-
         if patch_status == "patched":
             record_note(location_id, " | ".join(notes))
         if patch_status not in {"patched", "dry_run"}:
@@ -1447,7 +1290,6 @@ def main(argv):
             stop_reason = patch_status
             stop_patch_key = patch_key
             break
-
     for entry in sorted_phone_updates:
         if stop_processing:
             break
@@ -1459,13 +1301,11 @@ def main(argv):
             break
         patch_count += 1
         note_remaining(patch_key)
-
         location_id = entry["location_id"]
         phone_id = entry["phone_id"]
         payload = entry["payload"]
         label = "number" if "number" in payload else "extension"
         notes = [summarize_phone_change(phone_id, label)]
-
         patch_status = "dry_run"
         error_note = ""
         if not args.dry_run:
@@ -1495,7 +1335,6 @@ def main(argv):
                 )
             else:
                 patch_status = "patched"
-
         edit_url = build_edit_url(location_id, "", phone_id, entry["target"], payload)
         note_for_reports = " | ".join(notes)
         if error_note:
@@ -1514,7 +1353,6 @@ def main(argv):
                 "note": note_for_reports,
             }
         )
-
         if not args.dry_run:
             write_progress(
                 {
@@ -1532,7 +1370,6 @@ def main(argv):
             )
             if patch_status in {"patched", "dry_run"}:
                 processed_keys.add(patch_key)
-
         if patch_status == "patched":
             record_note(location_id, " | ".join(notes))
         if patch_status not in {"patched", "dry_run"}:
@@ -1541,7 +1378,6 @@ def main(argv):
             stop_reason = patch_status
             stop_patch_key = patch_key
             break
-
     if not args.dry_run and not stop_for_error:
         today = time.strftime("%Y-%m-%d")
         for location_id, note_list in note_updates.items():
@@ -1558,7 +1394,6 @@ def main(argv):
                     note_text = existing + " | " + summary + " <<did not revalidate>>"
             else:
                 note_text = summary + " <<did not revalidate>>"
-
             note_body = {
                 "uuid": location_id,
                 "userName": args.notes_user,
@@ -1596,14 +1431,12 @@ def main(argv):
                 stop_for_error = True
                 stop_patch_key = f"note:{location_id}"
                 break
-
     if patched_handle:
         patched_handle.close()
     if flagged_handle:
         flagged_handle.close()
     if progress_handle:
         progress_handle.close()
-
     print(
         f"Done. text_updates={len(text_updates)} location_updates={len(location_updates)} "
         f"phone_updates={len(phone_updates)} patched_rows={patched_count} "
@@ -1618,9 +1451,6 @@ def main(argv):
         return 1
     if args.dry_run:
         print("Dry run complete. Re-run without --dry-run to apply patches.")
-
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))

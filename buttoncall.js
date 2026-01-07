@@ -6,7 +6,6 @@
   let callTargetUrl = '';
   let callSessionStartedAt = 0;
   let retryTimerId = null;
-
   const CALL_PARAM_PREFIX = 'nc,';
   const CALL_SESSION_TTL_MS = 20000;
   const RETRY_DELAY_MS = 900;
@@ -22,7 +21,6 @@
   const NEW_CALL_TOUCH_TARGET_CLASS = '.mat-mdc-button-touch-target';
   const NEW_CALL_CLICK_RETRY_MS = 150;
   const NEW_CALL_CLICK_MAX_ATTEMPTS = 8;
-
   function getCallParam(url) {
     try {
       const parsed = new URL(url);
@@ -35,7 +33,6 @@
       return null;
     }
   }
-
   function getNavigationStartUrl() {
     try {
       const entries = performance.getEntriesByType('navigation');
@@ -44,27 +41,22 @@
       return '';
     }
   }
-
   function isCallTargetUrl(url) {
     return Boolean(getCallParam(url));
   }
-
   function getDialTargetFromUrl(url) {
     const callParam = getCallParam(url);
     if (!callParam) return null;
     const rawTarget = callParam.slice(CALL_PARAM_PREFIX.length).trim();
     return rawTarget || null;
   }
-
   function storeCallSession(url) {
     const previousUrl = sessionStorage.getItem(STORAGE_KEY_CALL_URL);
     const isNewCall = previousUrl !== url;
-
     callTargetUrl = url;
     callSessionStartedAt = Date.now();
     sessionStorage.setItem(STORAGE_KEY_CALL_URL, url);
     sessionStorage.setItem(STORAGE_KEY_CALL_TS, String(callSessionStartedAt));
-
     if (isNewCall) {
       sessionStorage.setItem(STORAGE_KEY_CALL_RETRY, '0');
       sessionStorage.setItem(STORAGE_KEY_CALL_CLICKED, '0');
@@ -73,7 +65,6 @@
       callClicked = sessionStorage.getItem(STORAGE_KEY_CALL_CLICKED) === '1';
     }
   }
-
   function restoreCallSession() {
     const storedUrl = sessionStorage.getItem(STORAGE_KEY_CALL_URL);
     const storedTs = Number(sessionStorage.getItem(STORAGE_KEY_CALL_TS) || 0);
@@ -99,7 +90,6 @@
     callClicked = sessionStorage.getItem(STORAGE_KEY_CALL_CLICKED) === '1';
     return true;
   }
-
   function clearCallSession() {
     callTargetUrl = '';
     callSessionStartedAt = 0;
@@ -112,7 +102,6 @@
       retryTimerId = null;
     }
   }
-
   function isCallSessionActive() {
     return Boolean(
       callTargetUrl &&
@@ -120,12 +109,10 @@
       Date.now() - callSessionStartedAt <= CALL_SESSION_TTL_MS
     );
   }
-
   function markCallClicked() {
     callClicked = true;
     sessionStorage.setItem(STORAGE_KEY_CALL_CLICKED, '1');
   }
-
   function scheduleRetryIfNeeded(reason) {
     if (!isCallSessionActive() || callClicked || !callTargetUrl) {
       return;
@@ -151,17 +138,14 @@
       location.href = callTargetUrl;
     }, RETRY_DELAY_MS);
   }
-
   function showLoadingBanner() {
     if (bannerShown) {
       return bannerRemovalPromise; // Return existing promise if banner process already initiated
     }
     bannerShown = true; // Set flag: banner process is starting
-
     bannerRemovalPromise = new Promise((resolve) => {
       const bannerDisplayTime = 2000; // ms
       const bannerFadeTime = 500;   // ms
-
       const banner = document.createElement('div');
       banner.id = 'doobneek-loading-banner';
       banner.textContent = 'doobneek is loading';
@@ -183,7 +167,6 @@
       });
       document.body.appendChild(banner);
       console.log('[ℹ️] Banner shown.');
-
       setTimeout(() => {
         banner.style.opacity = '0';
         setTimeout(() => {
@@ -197,7 +180,6 @@
     });
     return bannerRemovalPromise;
   }
-
   function setInputValue(input, value) {
     const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value');
     if (descriptor && descriptor.set) {
@@ -208,34 +190,28 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }
-
   function isButtonDisabled(button) {
     return button.disabled || button.getAttribute('aria-disabled') === 'true';
   }
-
   function clickNewCallButtonWhenReady(button, attempt) {
     if (!document.body.contains(button)) {
       console.log('[voice-call] New call button removed before click.');
       return;
     }
-
     if (!isButtonDisabled(button)) {
       const touchTarget = button.querySelector(NEW_CALL_TOUCH_TARGET_CLASS) || button;
       touchTarget.click();
       console.log('[voice-call] Clicked the new call button.');
       return;
     }
-
     if (attempt >= NEW_CALL_CLICK_MAX_ATTEMPTS) {
       console.log('[voice-call] New call button remained disabled. Giving up.');
       return;
     }
-
     setTimeout(() => {
       clickNewCallButtonWhenReady(button, attempt + 1);
     }, NEW_CALL_CLICK_RETRY_MS);
   }
-
   function disconnectCallButtonObserver() {
     if (callButtonMutationObserver) {
       callButtonMutationObserver.disconnect();
@@ -243,25 +219,19 @@
       console.log('[ℹ️] Disconnected call button observer.');
     }
   }
-
   function attemptNewCallFlow() {
     const inputRow = document.querySelector(NEW_CALL_ROW_SELECTOR);
     if (!inputRow) return false;
-
     const input = inputRow.querySelector('input') || document.querySelector(NEW_CALL_INPUT_SELECTOR);
     const button = inputRow.querySelector(NEW_CALL_BUTTON_SELECTOR) || document.querySelector(NEW_CALL_BUTTON_SELECTOR);
-
     if (!input || !button) return false;
-
     const dialTarget = getDialTargetFromUrl(callTargetUrl || location.href);
     if (!dialTarget) {
       console.log('[voice-call] No dial target found in deep-link.');
       return false;
     }
-
     markCallClicked();
     disconnectCallButtonObserver();
-
     console.log('[voice-call] Found new call input. Injecting number and clicking.');
     bannerRemovalPromise.then(() => {
       input.focus();
@@ -270,22 +240,17 @@
     }).catch(err => {
       console.error('[voice-call] Error while preparing new call click:', err);
     });
-
     return true;
   }
-
   function observeForCallButton() {
     if (callClicked) { // If call already processed or being processed
         console.log('[voice-call] Call button action already initiated or completed. Observer not started.');
         return;
     }
-
     disconnectCallButtonObserver(); // Ensure any old observer is gone
-
     if (attemptNewCallFlow()) {
       return;
     }
-
     console.log(`[voice-call] Starting observer for buttons: ${NEW_CALL_BUTTON_SELECTOR} or ${DIALOG_BUTTON_SELECTOR}`);
     callButtonMutationObserver = new MutationObserver((mutations, observer) => {
       if (!isCallSessionActive()) {
@@ -293,25 +258,20 @@
         disconnectCallButtonObserver(); // Self-disconnect if call session expired
         return;
       }
-
       if (callClicked) { // Double check flag, in case of rapid mutations
         // console.log('[voice-call] Call already clicked (checked in observer). Disconnecting.'); // Can be noisy
         disconnectCallButtonObserver();
         return;
       }
-
       if (attemptNewCallFlow()) {
         return;
       }
-
       const button = document.querySelector(DIALOG_BUTTON_SELECTOR);
       if (button) {
         markCallClicked(); // Set flag: we found it and will attempt to click.
         console.log('[voice-call] Found Call button. Waiting for banner removal if necessary, then clicking.');
-
         // Ensure observer doesn't fire again for this found button
         disconnectCallButtonObserver();
-
         bannerRemovalPromise.then(() => {
           console.log('[voice-call] Banner removal promise resolved. Proceeding to click.');
           setTimeout(() => { // Grace period after banner removal
@@ -333,14 +293,11 @@
         });
       }
     });
-
     callButtonMutationObserver.observe(document.body, { childList: true, subtree: true });
     console.log('[voice-call] Call button observer watching document.body.');
   }
-
   function runOnVoiceCallPage() {
     const isVoiceCallPage = isCallTargetUrl(location.href);
-
     if (isVoiceCallPage) {
       storeCallSession(location.href);
       console.log('[voice-call] On call deep-link. Initializing script logic.');
@@ -350,7 +307,6 @@
       }
       return;
     }
-
     const hasActiveSession = isCallSessionActive() || restoreCallSession();
     if (hasActiveSession) {
       console.log('[voice-call] Call deep-link was recently seen. Continuing call attempt.');
@@ -361,7 +317,6 @@
       }
       return;
     }
-
     if (bannerShown || callClicked || callButtonMutationObserver) {
       // Only log reset if there was something to reset
       console.log('[voice-call] Not on call deep-link. Resetting state.');
@@ -372,11 +327,9 @@
     bannerRemovalPromise = Promise.resolve();
     clearCallSession();
   }
-
   // Handle initial page load
   console.log('[ℹ️] Script starting. Initial check for voice call page.');
   runOnVoiceCallPage();
-
   // Also handle SPA navigation
   let lastUrl = location.href;
   new MutationObserver(() => {
@@ -387,6 +340,5 @@
       runOnVoiceCallPage(); // Re-evaluate state based on new URL
     }
   }).observe(document.body, { childList: true, subtree: true }); // Broad observer for URL change detection
-
   console.log('[ℹ️] Script initialized. Waiting for page changes or button.');
 })();

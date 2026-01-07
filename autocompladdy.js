@@ -1,4 +1,3 @@
-
 (async function () {
   function formatAddress(fullAddress) {
     if (typeof fullAddress !== 'string') {
@@ -26,34 +25,28 @@
     }
     return firstPart.trim();
   }
-
   function resolvePredictionText(prediction) {
     if (!prediction) {
       return { display: '', address: '' };
     }
-
     if (typeof prediction === 'string') {
       return { display: prediction, address: prediction };
     }
-
     const structured = prediction.structured_formatting || prediction.structuredFormatting;
     const structuredDisplay = structured?.main_text
       ? structured?.secondary_text
         ? `${structured.main_text} - ${structured.secondary_text}`
         : structured.main_text
       : '';
-
     const formattedAddress =
       prediction.formatted_address ||
       prediction.short_formatted_address ||
       prediction.address ||
       prediction.shortFormattedAddress ||
       '';
-
     const nameAndAddress = prediction.name && formattedAddress
       ? `${prediction.name} - ${formattedAddress}`
       : '';
-
     const display =
       prediction.description ||
       structuredDisplay ||
@@ -61,19 +54,16 @@
       prediction.name ||
       formattedAddress ||
       '';
-
     const address =
       formattedAddress ||
       prediction.description ||
       structured?.main_text ||
       prediction.name ||
       '';
-
     return { display, address };
   }
-
   function waitForInput(selector, timeout = 5000) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const interval = 100;
       let waited = 0;
       const timer = setInterval(() => {
@@ -83,31 +73,43 @@
           resolve(input);
         } else if ((waited += interval) >= timeout) {
           clearInterval(timer);
-          reject(new Error('Input not found'));
+          resolve(null);
         }
       }, interval);
     });
   }
-
   function fetchAddressSuggestions(input) {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        { type: 'getAddressSuggestions', input },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            console.warn('[YP] Message error:', chrome.runtime.lastError?.message);
-            return resolve([]);
+      if (!chrome?.runtime?.sendMessage) {
+        return resolve([]);
+      }
+      try {
+        chrome.runtime.sendMessage(
+          { type: 'getAddressSuggestions', input },
+          (response) => {
+            let lastError = null;
+            try {
+              lastError = chrome?.runtime?.lastError;
+            } catch (err) {
+              console.warn('[YP] Message error:', err);
+              return resolve([]);
+            }
+            if (lastError) {
+              console.warn('[YP] Message error:', lastError?.message);
+              return resolve([]);
+            }
+            const predictions = Array.isArray(response?.predictions) ? response.predictions : [];
+            resolve(predictions);
           }
-          const predictions = Array.isArray(response?.predictions) ? response.predictions : [];
-          resolve(predictions);
-        }
-      );
+        );
+      } catch (err) {
+        console.warn('[YP] Message error:', err);
+        resolve([]);
+      }
     });
   }
-
   function createSuggestionBox(inputEl, suggestions) {
     document.querySelectorAll('.autocomplete-box').forEach(el => el.remove());
-
     const box = document.createElement('div');
     box.className = 'autocomplete-box';
     Object.assign(box.style, {
@@ -122,7 +124,6 @@
       boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
       width: inputEl.offsetWidth + 'px'
     });
-
     let hasItems = false;
     suggestions.forEach(prediction => {
       const { display, address } = resolvePredictionText(prediction);
@@ -147,17 +148,15 @@
     if (!hasItems) {
       return;
     }
-
     const rect = inputEl.getBoundingClientRect();
     box.style.left = rect.left + window.scrollX + 'px';
     box.style.top = rect.bottom + window.scrollY + 'px';
     document.body.appendChild(box);
   }
-
   async function setupAutocomplete() {
     try {
       const input = await waitForInput('input[placeholder="Enter the address of the location"]');
-
+      if (!input) return;
       input.addEventListener('input', async () => {
         const value = input.value.trim();
         cleanupAutocomplete();
@@ -167,13 +166,11 @@
           createSuggestionBox(input, suggestions);
         }
       });
-
       input.addEventListener('blur', () => {
         setTimeout(() => {
           cleanupAutocomplete();
         }, 200);
       });
-
       // Also cleanup on window blur (when switching tabs/apps) and beforeunload
       window.addEventListener('blur', cleanupAutocomplete);
       window.addEventListener('beforeunload', cleanupAutocomplete);
@@ -181,14 +178,11 @@
       console.warn('[YourPeer] Address autocomplete error:', err);
     }
   }
-
   // 🔁 Monitor SPA navigation changes
   let lastPathname = location.pathname;
-
   function cleanupAutocomplete() {
     document.querySelectorAll('.autocomplete-box').forEach(el => el.remove());
   }
-
   function monitorRouteChanges() {
     const observer = new MutationObserver(() => {
       const newPath = location.pathname;
@@ -200,10 +194,8 @@
         }
       }
     });
-
     observer.observe(document.body, { childList: true, subtree: true });
   }
-
   // Run both on first load and on future route changes
   if (/\/questions\/location-address$/.test(location.pathname)) {
     setupAutocomplete();

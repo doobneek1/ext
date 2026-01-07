@@ -4,19 +4,15 @@
     console.log('[streetview.js] Script already active, preventing re-execution');
     return;
   }
-
   const isBackForwardNavigation = performance.navigation && performance.navigation.type === 2;
   if (isBackForwardNavigation) {
     console.log('[streetview.js] Back/forward navigation detected, delaying initialization');
   }
-
   window.doobneekStreetViewActive = true;
-
   // Use EXACT same bubble paste method as text formatter in injector.js
   function dispatchInput(el) {
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }
-
   // Track URL changes and NO LET'S EDIT IT clicks
   let lastStreetViewUrl = '';
   let hasClickedNoLetsEdit = false;
@@ -37,10 +33,8 @@
   let streetViewReopenButton = null;
   let originalPushState = null;
   let originalReplaceState = null;
-
   // Check if yourpeerredirect is enabled
   let cachedRedirectEnabled = localStorage.getItem('redirectEnabled') === 'true';
-
   // Try to load from chrome.storage if available (content script context)
   // Otherwise fall back to localStorage (MAIN world context)
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -51,38 +45,32 @@
       console.log('[streetview.js] Redirect enabled loaded from chrome.storage:', cachedRedirectEnabled);
     });
   }
-
   function isYourPeerRedirectEnabled() {
     // Double-check localStorage in case cache is stale
     const lsValue = localStorage.getItem('redirectEnabled') === 'true';
     return cachedRedirectEnabled || lsValue;
   }
-
   // Check if we're on street-view page with proper regex
   function isStreetViewPage(url) {
     return /\/questions\/street-view\/?$/.test(url);
   }
-
   const LOCATION_API_BASE = 'https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations';
   const RELOCATE_PROMPT_DISTANCE_METERS = 20;
   const MIDTOWN_CENTER = { lat: 40.754932, lng: -73.984016 };
   const MIDTOWN_RADIUS_METERS = 15 * 1609.34;
   const STREETVIEW_REOPEN_BUTTON_ID = 'gghost-streetview-reopen-button';
-
   function resolveLocationId(locationData) {
     const candidate = locationData?.id || locationData?.location_id || locationData?.uuid || locationData?.slug;
     if (typeof candidate !== 'string') return null;
     const trimmed = candidate.trim();
     return trimmed ? trimmed : null;
   }
-
   function normalizeCityName(value) {
     const text = String(value || '').trim();
     if (!text) return '';
     const lower = text.toLowerCase();
     return lower.replace(/(^|[\s-])([a-z])/g, (match, sep, letter) => `${sep}${letter.toUpperCase()}`);
   }
-
   function normalizeLocationAddress(locationData) {
     const raw = locationData?.address || locationData?.Address || locationData?.PhysicalAddresses?.[0] || null;
     if (!raw) return {};
@@ -105,7 +93,6 @@
     if (region && !address.state) address.region = String(region).trim();
     return address;
   }
-
   function resolveLocationPosition(locationData) {
     const coords = locationData?.position?.coordinates;
     if (Array.isArray(coords) && coords.length >= 2) {
@@ -118,7 +105,6 @@
     if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
     return null;
   }
-
   function decodeJwtPayload(token) {
     if (!token || typeof token !== 'string') return null;
     const parts = token.split('.');
@@ -131,13 +117,11 @@
       return null;
     }
   }
-
   function getTokenExp(token) {
     const payload = decodeJwtPayload(token);
     const exp = Number(payload?.exp);
     return Number.isFinite(exp) ? exp : null;
   }
-
   function collectStorageTokens(storage) {
     const tokens = [];
     if (!storage) return tokens;
@@ -158,7 +142,6 @@
     const valid = tokens.filter(item => !item.exp || item.exp > nowSec + 60);
     return (valid.length ? valid : tokens).map(item => item.token);
   }
-
   function expandAuthTokens(tokens) {
     const expanded = [];
     const seen = new Set();
@@ -177,7 +160,6 @@
     });
     return expanded;
   }
-
   function getLocationAuthTokens() {
     const tokens = [];
     const gghost = window.gghost;
@@ -201,7 +183,6 @@
     if (!expanded.length) expanded.push(null);
     return expanded;
   }
-
   async function patchLocationRecord(locationId, payload) {
     if (!locationId) throw new Error('Missing location id.');
     const url = `${LOCATION_API_BASE}/${locationId}`;
@@ -225,7 +206,6 @@
     }
     throw new Error(lastError || 'Failed to update location.');
   }
-
   function toLatLngLiteral(value) {
     if (!value) return null;
     if (typeof value.lat === 'function' && typeof value.lng === 'function') {
@@ -236,7 +216,6 @@
     if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
     return null;
   }
-
   function computeDistanceMeters(a, b) {
     const pointA = toLatLngLiteral(a);
     const pointB = toLatLngLiteral(b);
@@ -257,7 +236,6 @@
       + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
     return 6371000 * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
   }
-
   function ensureStreetViewReopenButton() {
     if (streetViewReopenButton && document.contains(streetViewReopenButton)) {
       return streetViewReopenButton;
@@ -294,23 +272,19 @@
     streetViewReopenButton = button;
     return button;
   }
-
   function setStreetViewReopenVisible(visible) {
     const button = ensureStreetViewReopenButton();
     if (!button) return;
     button.style.display = visible ? 'block' : 'none';
   }
-
   // URL change detection function
   function handleUrlChange() {
     const currentUrl = window.location.href;
     if (currentUrl !== lastUrl) {
       console.log('URL changed from:', lastUrl, 'to:', currentUrl);
-
       // Clean up observers when leaving street view pages
       const wasStreetView = isStreetViewPage(lastUrl);
       const isStreetView = isStreetViewPage(currentUrl);
-
       if (wasStreetView && !isStreetView) {
         console.log('[streetview.js] Leaving street view page, cleaning up resources');
         if (observer) {
@@ -320,26 +294,20 @@
         // Clean up any active modals and maps when leaving street view
         cleanupMapsAndModals();
       }
-
       // Also clean up modals if navigating to ANY non-street-view page
       if (!isStreetView && activeModals.length > 0) {
         console.log('[streetview.js] Not on street-view page, cleaning up any lingering modals');
         cleanupMapsAndModals();
       }
-
       lastUrl = currentUrl;
-
       // Reset flags when URL changes
       hasClickedNoLetsEdit = false;
       bannerShown = false;
-
       // Run street view logic if on street-view page
       if (isStreetView) {
         // Prevent back navigation when entering street view
         preventBackNavigation();
-
         clickNoLetsEditIfNeeded(); // Execute immediately without delay
-
         // Reinitialize observer if needed (with throttling to prevent excessive calls)
         if (!observer) {
           let lastCallTime = 0;
@@ -365,7 +333,6 @@
       }
     }
   }
-
   // Set up URL change monitoring using multiple methods
   function setupUrlChangeListener() {
     // Prevent conflicts with other scripts that might override history
@@ -376,60 +343,46 @@
       window.addEventListener('popstate', popstateHandler);
       return;
     }
-
     window.doobneekHistoryOverridden = true;
-
     // Method 1: Override pushState and replaceState
     originalPushState = history.pushState;
     originalReplaceState = history.replaceState;
-
     history.pushState = function() {
       originalPushState.apply(history, arguments);
       setTimeout(handleUrlChange, 0);
     };
-
     history.replaceState = function() {
       originalReplaceState.apply(history, arguments);
       setTimeout(handleUrlChange, 0);
     };
-
     // Method 2: Listen for popstate events
     popstateHandler = handleUrlChange;
     window.addEventListener('popstate', popstateHandler);
-
     console.log('URL change listener setup complete');
   }
-
-
-
   // Click "NO, LET'S EDIT IT" button if not already clicked for this URL
   function clickNoLetsEditIfNeeded() {
     const currentUrl = window.location.href;
-
     // Reset flags if URL changed
     if (lastStreetViewUrl !== currentUrl) {
       hasClickedNoLetsEdit = false;
       bannerShown = false;
       lastStreetViewUrl = currentUrl;
     }
-
     // Check if OK was recently clicked and skip if so
     const lastOkClickTime = parseInt(localStorage.getItem('ypLastOkClickTime') || '0', 10);
     const now = Date.now();
     const elapsed = now - lastOkClickTime;
-
     if (isStreetViewPage(currentUrl) && elapsed < 10000) {
       console.log(`[streetview.js] ⏳ Skipping 'NO, LET'S EDIT IT' — recent OK click (${elapsed}ms ago)`);
       return;
     }
-
     // Always click on street-view pages if we haven't clicked for this URL yet
     // (regardless of redirect setting - redirect only controls YES button and navigation)
     if (!hasClickedNoLetsEdit && isStreetViewPage(currentUrl)) {
       // Look for button by text content since :contains() isn't valid CSS
       const buttons = document.querySelectorAll('button');
       let noLetsEditButton = null;
-      
       for (const btn of buttons) {
         const text = btn.textContent.trim().toUpperCase();
         if (text.includes('NO') && (text.includes('EDIT') || text.includes('LET'))) {
@@ -437,7 +390,6 @@
           break;
         }
       }
-      
       if (noLetsEditButton) {
         console.log('Clicking NO, LET\'S EDIT IT button');
         noLetsEditButton.click();
@@ -446,7 +398,6 @@
       }
     }
   }
-
   // Prevent back navigation on street view pages
   function preventBackNavigation() {
     if (isStreetViewPage(window.location.href)) {
@@ -454,7 +405,6 @@
       if (!window.doobneekHistoryBlocked) {
         window.doobneekHistoryBlocked = true;
         history.pushState({ doobneekBlock: true }, '', window.location.href);
-
         // Override back button behavior
         const handlePopstate = (event) => {
           if (isStreetViewPage(window.location.href)) {
@@ -463,29 +413,22 @@
             console.log('[streetview.js] Back navigation prevented on street view page');
           }
         };
-
         window.addEventListener('popstate', handlePopstate);
-
         // Store the handler for cleanup
         window.doobneekPopstateHandler = handlePopstate;
       }
     }
   }
-
   function init() {
     console.log('[streetview.js] Initializing script');
     // Initialize URL change listener
     setupUrlChangeListener();
-
     // Loading banner removed
-
     // Prevent back navigation on street view pages
     preventBackNavigation();
-
     // Run the check when page loads and on mutations (only on street-view pages)
     if (isStreetViewPage(window.location.href)) {
       clickNoLetsEditIfNeeded(); // Execute immediately without delay
-
       // Only create observer if one doesn't already exist
       if (!observer) {
         let lastCallTime = 0;
@@ -511,7 +454,6 @@
       }
     }
   }
-
   // Bubble paste functionality - create visual feedback
   function createBubble(text) {
     const bubble = document.createElement('div');
@@ -531,7 +473,6 @@
       animation: 'bubbleFade 2s ease-out forwards'
     });
     bubble.textContent = text;
-
     // Add CSS animation
     const style = document.createElement('style');
     style.textContent = `
@@ -544,19 +485,16 @@
     `;
     document.head.appendChild(style);
     document.body.appendChild(bubble);
-
     setTimeout(() => {
       if (bubble.parentNode) bubble.remove();
       if (style.parentNode) style.remove();
     }, 2000);
   }
-
   function loadGoogleMapsAPI(apiKey, callback) {
     if (window.google && window.google.maps && window.google.maps.StreetViewPanorama) {
       callback();
       return;
     }
-
     // Prevent multiple script injections using a global flag
     if (window.doobneekMapsLoading) {
       // Wait for existing load to complete
@@ -573,7 +511,6 @@
       checkGoogle();
       return;
     }
-
     // Check if script is already loading
     const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
     if (existingScript) {
@@ -596,7 +533,6 @@
       checkGoogle();
       return;
     }
-
     window.doobneekMapsLoading = true;
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,streetview,geometry&v=weekly`;
@@ -629,7 +565,6 @@
     document.head.appendChild(script);
     injectedScripts.push(script); // Track for cleanup
   }
-
   async function createStreetViewPicker(locationData, apiKey) {
     // Only show modal on street-view pages
     const currentUrl = window.location.href;
@@ -637,10 +572,8 @@
       console.log('[streetview.js] Skipping modal - not on street-view page');
       return;
     }
-
     lastStreetViewPayload = locationData || null;
     lastStreetViewApiKey = apiKey || null;
-
     // Use provided location details to get address and org/location names
     const locationId = resolveLocationId(locationData);
     let addressData = normalizeLocationAddress(locationData);
@@ -655,7 +588,6 @@
       promptOpen: false,
       lastPromptAt: 0
     };
-
     if (locationData) {
       const orgName = locationData.Organization?.name || '';
       const locName = locationData.name || '';
@@ -669,7 +601,6 @@
     } else {
       console.warn('[streetview.js] Missing location data for header details');
     }
-
     const modal = document.createElement('div');
     modal.setAttribute('data-doobneek-modal', 'true'); // Mark for cleanup
     Object.assign(modal.style, {
@@ -689,7 +620,6 @@
       flexDirection: 'column'
     });
     activeModals.push(modal); // Track for cleanup
-
     const header = document.createElement('div');
     header.style.padding = '12px 16px';
     header.style.background = '#f1f1f1';
@@ -698,7 +628,6 @@
     header.style.justifyContent = 'space-between';
     header.style.alignItems = 'center';
     header.innerHTML = `<span style="font-weight:bold; font-size:16px;">${headerTitle}</span>`;
-
     const closeButton = document.createElement('button');
     closeButton.setAttribute('data-doobneek-modal-close', 'true');
     closeButton.textContent = '✕';
@@ -712,7 +641,6 @@
     // Add a style rule to ensure the autocomplete suggestions appear over the modal.
     const style = document.createElement('style');
     style.textContent = '.pac-container { z-index: 100002 !important; }';
-
     const closeModal = () => {
       cleanupModalMaps(modal);
       modal.remove();
@@ -734,12 +662,10 @@
     header.appendChild(headerActions);
     modal.appendChild(header);
     document.head.appendChild(style);
-
     // Search bar
     const searchContainer = document.createElement('div');
     searchContainer.style.padding = '12px 16px';
     searchContainer.style.borderBottom = '1px solid #ddd';
-
     const searchLabel = document.createElement('div');
     searchLabel.textContent = 'Search for address';
     Object.assign(searchLabel.style, {
@@ -748,7 +674,6 @@
       color: '#555',
       marginBottom: '6px'
     });
-
     const searchInput = document.createElement('input');
     Object.assign(searchInput.style, {
       width: '100%',
@@ -763,7 +688,6 @@
     if (streetAddress) {
       searchInput.value = streetAddress;
     }
-
     searchContainer.appendChild(searchLabel);
     searchContainer.appendChild(searchInput);
     if (canEditLocation) {
@@ -775,7 +699,6 @@
         gap: '8px',
         marginTop: '8px'
       });
-
       const addressLabel = document.createElement('div');
       addressLabel.textContent = 'Edit address';
       Object.assign(addressLabel.style, {
@@ -785,7 +708,6 @@
         whiteSpace: 'nowrap',
         flex: '0 0 auto'
       });
-
       const addressInput = document.createElement('input');
       addressInput.type = 'text';
       addressInput.placeholder = 'Street address (line 1)';
@@ -798,7 +720,6 @@
         flex: '1 1 auto',
         minWidth: '0'
       });
-
       const addressSaveButton = document.createElement('button');
       addressSaveButton.type = 'button';
       addressSaveButton.textContent = 'Save';
@@ -814,7 +735,6 @@
         padding: '6px 10px'
       });
       addressSaveButton.disabled = true;
-
       const addressAdornment = document.createElement('div');
       Object.assign(addressAdornment.style, {
         fontSize: '11px',
@@ -825,26 +745,21 @@
         textOverflow: 'ellipsis',
         textAlign: 'right'
       });
-
       addressRow.appendChild(addressLabel);
       addressRow.appendChild(addressInput);
       addressRow.appendChild(addressSaveButton);
       addressRow.appendChild(addressAdornment);
-
       const addressMessage = document.createElement('div');
       addressMessage.style.fontSize = '11px';
       addressMessage.style.color = '#666';
       addressMessage.style.minHeight = '14px';
       addressMessage.style.marginTop = '4px';
-
       searchContainer.appendChild(addressRow);
       searchContainer.appendChild(addressMessage);
-
       let addressSync = false;
       let addressSaving = false;
       let lastSavedStreet = addressData.street || '';
       let addressBlurFromOverlay = false;
-
       const buildAddressAdornment = (data) => {
         if (!data) return '';
         const city = normalizeCityName(data.city);
@@ -856,17 +771,14 @@
         }
         return suffix;
       };
-
       const setAddressMessage = (text, tone) => {
         addressMessage.textContent = text || '';
         addressMessage.style.color = tone === 'error' ? '#b42318' : '#666';
       };
-
       const sanitizeStreetInput = (value) => {
         const raw = String(value || '');
         return raw.split(/\r?\n/)[0].trim();
       };
-
       const isStreetValid = (value) => {
         if (!value) return false;
         if (value.length < 3) return false;
@@ -874,7 +786,6 @@
         if (!/[A-Za-z]/.test(value)) return false;
         return true;
       };
-
       const updateSaveButton = () => {
         const sanitized = sanitizeStreetInput(addressInput.value);
         const isValid = isStreetValid(sanitized);
@@ -884,7 +795,6 @@
         addressSaveButton.style.opacity = addressSaveButton.disabled ? '0.6' : '1';
         addressSaveButton.style.cursor = addressSaveButton.disabled ? 'not-allowed' : 'pointer';
       };
-
       const syncAddressInput = (value) => {
         addressSync = true;
         addressInput.value = value || '';
@@ -892,7 +802,6 @@
         addressSync = false;
         updateSaveButton();
       };
-
       const applyAddressPatch = async (streetValue) => {
         if (addressSaving) return;
         if (!isStreetValid(streetValue)) {
@@ -938,7 +847,6 @@
           updateSaveButton();
         }
       };
-
       const saveAddressFromInput = () => {
         const sanitized = sanitizeStreetInput(addressInput.value);
         if (sanitized !== addressInput.value) {
@@ -958,7 +866,6 @@
         }
         void applyAddressPatch(sanitized);
       };
-
       const shouldIgnoreOverlayBlur = (target) => {
         if (!target || typeof target.closest !== 'function') return false;
         return Boolean(
@@ -967,7 +874,6 @@
           target.closest('[data-doobneek-modal-close]')
         );
       };
-
       modal.addEventListener('mousedown', (event) => {
         if (shouldIgnoreOverlayBlur(event.target)) {
           addressBlurFromOverlay = false;
@@ -975,15 +881,12 @@
         }
         addressBlurFromOverlay = true;
       });
-
       addressSaveButton.addEventListener('click', () => {
         saveAddressFromInput();
       });
-
       addressInput.addEventListener('focus', () => {
         addressBlurFromOverlay = false;
       });
-
       addressInput.addEventListener('input', () => {
         if (addressSync) return;
         const sanitized = sanitizeStreetInput(addressInput.value);
@@ -1005,7 +908,6 @@
         setAddressMessage('', 'info');
         updateSaveButton();
       });
-
       addressInput.addEventListener('blur', (event) => {
         if (addressSync) {
           addressBlurFromOverlay = false;
@@ -1021,7 +923,6 @@
         if (!shouldSave) return;
         saveAddressFromInput();
       });
-
       addressInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
           event.preventDefault();
@@ -1029,32 +930,26 @@
           addressInput.blur();
         }
       });
-
       syncAddressInput(addressData.street || '');
     }
     modal.appendChild(searchContainer);
-
     // Map and Street View container
     const contentContainer = document.createElement('div');
     contentContainer.style.display = 'flex';
     contentContainer.style.flex = '1 1 auto';
     contentContainer.style.minHeight = '0';
-
     // Map div (left side)
     const mapDiv = document.createElement('div');
     mapDiv.style.width = '50%';
     mapDiv.style.height = '100%';
     mapDiv.style.borderRight = '1px solid #ddd';
-
     // Street View div (right side)  
     const streetViewDiv = document.createElement('div');
     streetViewDiv.style.width = '50%';
     streetViewDiv.style.height = '100%';
-
     contentContainer.appendChild(mapDiv);
     contentContainer.appendChild(streetViewDiv);
     modal.appendChild(contentContainer);
-
     // Bottom bar with set button
     const bottomBar = document.createElement('div');
     Object.assign(bottomBar.style, {
@@ -1065,7 +960,6 @@
       alignItems: 'center',
       background: '#f9f9f9'
     });
-
     const urlDisplay = document.createElement('span');
     urlDisplay.style.fontSize = '12px';
     urlDisplay.style.color = '#666';
@@ -1074,7 +968,6 @@
     urlDisplay.style.textOverflow = 'ellipsis';
     urlDisplay.style.whiteSpace = 'nowrap';
     urlDisplay.textContent = 'Click on the map to select a Street View location';
-
     const setButton = document.createElement('button');
     setButton.textContent = 'Set Street View';
     Object.assign(setButton.style, {
@@ -1091,18 +984,14 @@
       bottom: '0'
     });
     setButton.disabled = true;
-
     bottomBar.appendChild(urlDisplay);
     bottomBar.appendChild(setButton);
     modal.appendChild(bottomBar);
-
     document.body.appendChild(modal);
     setStreetViewReopenVisible(false);
-
     let showRelocateOverlay = () => {};
     let updateRelocateOverlay = () => {};
     let hideRelocateOverlay = () => {};
-
     if (canEditLocation) {
       const relocateOverlay = document.createElement('div');
       relocateOverlay.setAttribute('data-doobneek-relocate-overlay', 'true');
@@ -1115,7 +1004,6 @@
         justifyContent: 'center',
         zIndex: 100003
       });
-
       const relocatePanel = document.createElement('div');
       Object.assign(relocatePanel.style, {
         background: '#fff',
@@ -1129,21 +1017,17 @@
         flexDirection: 'column',
         gap: '8px'
       });
-
       const relocateTitle = document.createElement('div');
       relocateTitle.textContent = 'Relocate this location?';
       relocateTitle.style.fontWeight = '600';
       relocateTitle.style.fontSize = '14px';
-
       const relocateMessage = document.createElement('div');
       relocateMessage.style.color = '#333';
       relocateMessage.style.lineHeight = '1.4';
-
       const relocateInputs = document.createElement('div');
       relocateInputs.style.display = 'grid';
       relocateInputs.style.gridTemplateColumns = '1fr 1fr';
       relocateInputs.style.gap = '8px';
-
       const relocateLatInput = document.createElement('input');
       relocateLatInput.type = 'text';
       relocateLatInput.placeholder = 'Latitude';
@@ -1153,7 +1037,6 @@
         borderRadius: '4px',
         fontSize: '12px'
       });
-
       const relocateLngInput = document.createElement('input');
       relocateLngInput.type = 'text';
       relocateLngInput.placeholder = 'Longitude';
@@ -1163,22 +1046,18 @@
         borderRadius: '4px',
         fontSize: '12px'
       });
-
       relocateInputs.appendChild(relocateLatInput);
       relocateInputs.appendChild(relocateLngInput);
-
       const relocateStatus = document.createElement('div');
       relocateStatus.style.fontSize = '11px';
       relocateStatus.style.minHeight = '14px';
       relocateStatus.style.color = '#666';
-
       const relocateActions = document.createElement('div');
       Object.assign(relocateActions.style, {
         display: 'flex',
         justifyContent: 'flex-end',
         gap: '8px'
       });
-
       const relocateKeepButton = document.createElement('button');
       relocateKeepButton.type = 'button';
       relocateKeepButton.textContent = 'Keep current';
@@ -1191,7 +1070,6 @@
         fontSize: '12px',
         cursor: 'pointer'
       });
-
       const relocateConfirmButton = document.createElement('button');
       relocateConfirmButton.type = 'button';
       relocateConfirmButton.textContent = 'Relocate';
@@ -1204,10 +1082,8 @@
         fontSize: '12px',
         cursor: 'pointer'
       });
-
       relocateActions.appendChild(relocateKeepButton);
       relocateActions.appendChild(relocateConfirmButton);
-
       relocatePanel.appendChild(relocateTitle);
       relocatePanel.appendChild(relocateMessage);
       relocatePanel.appendChild(relocateInputs);
@@ -1215,11 +1091,9 @@
       relocatePanel.appendChild(relocateActions);
       relocateOverlay.appendChild(relocatePanel);
       modal.appendChild(relocateOverlay);
-
       let relocateInputSync = false;
       let relocateInputsDirty = false;
       let relocateSaving = false;
-
       const setRelocateStatus = (text, tone) => {
         relocateStatus.textContent = text || '';
         relocateStatus.style.color = tone === 'error'
@@ -1228,7 +1102,6 @@
             ? '#b45309'
             : '#666';
       };
-
       const setRelocateInputs = (candidate) => {
         const literal = toLatLngLiteral(candidate);
         if (!literal) return;
@@ -1237,13 +1110,11 @@
         relocateLngInput.value = literal.lng.toFixed(6);
         relocateInputSync = false;
       };
-
       const extractNumbers = (text) => {
         const matches = String(text || '').match(/-?\d+(?:\.\d+)?/g);
         if (!matches) return [];
         return matches.map(value => Number(value)).filter(value => Number.isFinite(value));
       };
-
       const pickLatLngFromNumbers = (numbers) => {
         if (!Array.isArray(numbers) || numbers.length < 2) return null;
         const n0 = numbers[0];
@@ -1264,7 +1135,6 @@
         if (!Number.isFinite(distanceA) || !Number.isFinite(distanceB)) return candidates[0];
         return distanceB < distanceA ? candidates[1] : candidates[0];
       };
-
       const formatRelocateMessage = (candidate) => {
         const literal = toLatLngLiteral(candidate);
         const distance = relocateState.original
@@ -1278,32 +1148,26 @@
           : '';
         relocateMessage.textContent = `Pin moved to ${coordText}${distanceText}. Update the saved location position?`;
       };
-
       const updateRelocateConfirmState = (enabled) => {
         if (relocateSaving) return;
         relocateConfirmButton.disabled = !enabled;
         relocateConfirmButton.style.opacity = enabled ? '1' : '0.5';
       };
-
       const evaluateRelocateInputs = ({ allowSync = true } = {}) => {
         if (relocateInputSync) return;
         const latText = relocateLatInput.value.trim();
         const lngText = relocateLngInput.value.trim();
         const combined = `${latText} ${lngText}`.trim();
-
         if (combined && /\d+[a-zA-Z]+\d+/.test(combined)) {
           setRelocateStatus('Remove letters inside numbers.', 'error');
           updateRelocateConfirmState(false);
           return;
         }
-
         const latNums = extractNumbers(latText);
         const lngNums = extractNumbers(lngText);
-
         let candidate = null;
         let swapped = false;
         let inferenceNote = '';
-
         if (latNums.length >= 2 || lngNums.length >= 2) {
           const source = latNums.length >= 2 ? latNums : lngNums;
           const parsed = pickLatLngFromNumbers(source);
@@ -1372,27 +1236,22 @@
           updateRelocateConfirmState(false);
           return;
         }
-
         if (Math.abs(candidate.lat) > 90 || Math.abs(candidate.lng) > 180) {
           setRelocateStatus('Coordinates are outside valid ranges.', 'error');
           updateRelocateConfirmState(false);
           return;
         }
-
         relocateState.pending = { ...candidate };
         formatRelocateMessage(candidate);
-
         const distance = computeDistanceMeters(MIDTOWN_CENTER, candidate);
         const warningText = Number.isFinite(distance) && distance > MIDTOWN_RADIUS_METERS
           ? `Outside NYC radius (~${(distance / 1609.34).toFixed(1)} mi from Midtown).`
           : '';
         const swapText = swapped ? 'Interpreted as [lng, lat].' : '';
         const combinedWarning = [swapText, inferenceNote, warningText].filter(Boolean).join(' ');
-
         setRelocateStatus(combinedWarning, combinedWarning ? 'warning' : 'info');
         updateRelocateConfirmState(true);
       };
-
       showRelocateOverlay = (candidate) => {
         relocateState.promptOpen = true;
         relocateState.pending = toLatLngLiteral(candidate) || candidate;
@@ -1403,7 +1262,6 @@
         evaluateRelocateInputs({ allowSync: false });
         relocateOverlay.style.display = 'flex';
       };
-
       updateRelocateOverlay = (candidate) => {
         if (!relocateInputsDirty) {
           setRelocateInputs(relocateState.pending || candidate);
@@ -1412,14 +1270,12 @@
           formatRelocateMessage(relocateState.pending || candidate);
         }
       };
-
       hideRelocateOverlay = () => {
         relocateOverlay.style.display = 'none';
         relocateState.promptOpen = false;
         relocateInputsDirty = false;
         setRelocateStatus('', 'info');
       };
-
       relocateLatInput.addEventListener('input', () => {
         relocateInputsDirty = true;
         evaluateRelocateInputs();
@@ -1428,19 +1284,16 @@
         relocateInputsDirty = true;
         evaluateRelocateInputs();
       });
-
       relocateOverlay.addEventListener('click', (event) => {
         if (event.target === relocateOverlay) {
           relocateKeepButton.click();
         }
       });
-
       relocateKeepButton.addEventListener('click', () => {
         relocateState.dismissed = relocateState.pending;
         relocateState.pending = null;
         hideRelocateOverlay();
       });
-
       relocateConfirmButton.addEventListener('click', async () => {
         const literal = toLatLngLiteral(relocateState.pending);
         if (!literal) {
@@ -1480,12 +1333,10 @@
         }
       });
     }
-
     // Helper function to truncate URL for display
     const truncateUrl = (url) => {
       if (!url) return '';
       if (url.length <= 80) return url;
-
       // For Street View URLs, show domain + coordinates + ellipsis
       if (url.includes('google.com/maps/@')) {
         const coordPart = url.split('/@')[1]?.split('/')[0];
@@ -1494,31 +1345,25 @@
           return `google.com/maps/@${coords}...`;
         }
       }
-
       // Generic truncation
       return url.substring(0, 80) + '...';
     };
-
     loadGoogleMapsAPI(apiKey, () => {
       let currentStreetViewUrl = '';
       let map, panorama, marker;
       let hasAppliedInitialSuggestion = false;
-
       // Initialize map center - use existing streetview_url if available, otherwise use position or default
       let defaultCenter = { lat: 40.7128, lng: -74.0060 }; // NYC default
       let initialPov = { heading: 270, pitch: 0 };
       let initialStreetViewUrl = null;
-
       if (locationData.streetview_url) {
         try {
           const url = locationData.streetview_url;
           initialStreetViewUrl = url; // Preserve the original URL
-
           // Robustly parse lat, lng, heading, and pitch from the URL
           const urlParams = url.split('@')[1]?.split('/')[0]?.split(',');
           if (urlParams && urlParams.length >= 2) {
             defaultCenter = { lat: parseFloat(urlParams[0]), lng: parseFloat(urlParams[1]) };
-
             urlParams.forEach(param => {
               if (param.endsWith('h')) {
                 initialPov.heading = parseFloat(param.slice(0, -1));
@@ -1536,39 +1381,32 @@
         // Use position data if no street view URL is provided
         defaultCenter = { lat: locationData.position.coordinates[1], lng: locationData.position.coordinates[0] };
       }
-
       if (!relocateState.original && locationData?.streetview_url) {
         const fallbackOrigin = toLatLngLiteral(defaultCenter);
         if (fallbackOrigin) {
           relocateState.original = { ...fallbackOrigin };
         }
       }
-
       map = new google.maps.Map(mapDiv, {
         center: defaultCenter,
         zoom: 15,
         streetViewControl: true
       });
-
       // Initialize Street View with parsed or default values
       panorama = new google.maps.StreetViewPanorama(streetViewDiv, {
         position: defaultCenter,
         pov: initialPov
       });
-
       map.setStreetView(panorama);
-
       // Track maps instances for cleanup
       const mapsInstance = { map, panorama, modal };
       mapsInstances.push(mapsInstance);
-
       // Generate initial Street View URL and enable set button immediately
       const generateStreetViewURL = (position, pov) => {
         const lat = position.lat();
         const lng = position.lng();
         return `https://www.google.com/maps/@${lat},${lng},3a,75y,${pov.heading}h,${pov.pitch}t/data=!3m6!1e1!3m4!1s${panorama.getLocation()?.pano || 'unknown'}!2e0!7i16384!8i8192`;
       };
-
       // Enhanced URL generation - try multiple approaches to always enable the button
       const tryGenerateUrl = () => {
         if (initialStreetViewUrl) {
@@ -1579,7 +1417,6 @@
           console.log('Using initial Street View URL:', currentStreetViewUrl);
           return true;
         }
-
         if (panorama.getLocation()) {
           currentStreetViewUrl = generateStreetViewURL(panorama.getLocation().latLng, panorama.getPov());
           urlDisplay.textContent = truncateUrl(currentStreetViewUrl);
@@ -1588,7 +1425,6 @@
           console.log('Generated URL from panorama location:', currentStreetViewUrl);
           return true;
         }
-
         // Fallback: generate URL from default center even without Street View data
         const lat = defaultCenter.lat;
         const lng = defaultCenter.lng;
@@ -1601,16 +1437,13 @@
         console.log('Generated fallback URL from coordinates:', currentStreetViewUrl);
         return true;
       };
-
       // Try immediately with retry limit
       let retryCount = 0;
       const maxRetries = 3;
-
       const attemptGenerate = () => {
         if (tryGenerateUrl()) {
           return; // Success, stop trying
         }
-
         retryCount++;
         if (retryCount < maxRetries) {
           console.log(`[streetview.js] Retry ${retryCount}/${maxRetries} for URL generation`);
@@ -1619,29 +1452,24 @@
           console.warn('[streetview.js] Max retries reached for URL generation');
         }
       };
-
       setTimeout(attemptGenerate, 500);
-
       // Also try when panorama loads
       panorama.addListener('position_changed', () => {
         if (!currentStreetViewUrl || currentStreetViewUrl.includes('fallback')) {
           tryGenerateUrl();
         }
       });
-
       const streetViewService = new google.maps.StreetViewService();
       const shouldPromptRelocate = () => {
         if (!locationId || !isYourPeerRedirectEnabled()) return false;
         if (!relocateState.original) return false;
         return true;
       };
-
       const isDismissedCandidate = (candidate) => {
         if (!relocateState.dismissed) return false;
         const distance = computeDistanceMeters(relocateState.dismissed, candidate);
         return Number.isFinite(distance) && distance < RELOCATE_PROMPT_DISTANCE_METERS;
       };
-
       const maybePromptRelocate = (candidate, { allowPrompt = true } = {}) => {
         if (!allowPrompt) return;
         const literal = toLatLngLiteral(candidate);
@@ -1661,10 +1489,8 @@
         relocateState.pending = literal;
         showRelocateOverlay(literal);
       };
-
       const requestPanorama = (targetLatLng, referenceLatLng = targetLatLng) => {
         if (!targetLatLng) return;
-
         streetViewService.getPanorama({
           location: targetLatLng,
           radius: 50,
@@ -1677,13 +1503,10 @@
               heading = google.maps.geometry.spherical.computeHeading(data.location.latLng, referenceLatLng);
             }
             panorama.setPov({ heading, pitch: 0 });
-
             const lat = data.location.latLng.lat();
             const lng = data.location.latLng.lng();
             const pov = panorama.getPov();
-
             currentStreetViewUrl = `https://www.google.com/maps/@${lat},${lng},3a,75y,${pov.heading}h,${pov.pitch}t/data=!3m6!1e1!3m4!1s${data.location.pano}!2e0!7i16384!8i8192`;
-
             urlDisplay.textContent = truncateUrl(currentStreetViewUrl);
             setButton.disabled = false;
             setButton.style.opacity = '1';
@@ -1695,24 +1518,19 @@
           }
         });
       };
-
       const updateStreetViewForLocation = (referenceLatLng, { draggable = false, promptRelocate = true } = {}) => {
         if (!referenceLatLng) return;
-
         if (marker) {
           google.maps.event.clearInstanceListeners(marker);
           marker.setMap(null);
         }
-
         marker = new google.maps.Marker({
           position: referenceLatLng,
           map,
           draggable
         });
-
         requestPanorama(referenceLatLng);
         maybePromptRelocate(referenceLatLng, { allowPrompt: promptRelocate });
-
         if (draggable) {
           marker.addListener('dragend', () => {
             const newPosition = marker.getPosition();
@@ -1721,30 +1539,24 @@
           });
         }
       };
-
       const handlePlaceSelection = (place, options = {}) => {
         if (!place || !place.geometry) return;
-
         if (place.geometry.viewport) {
           map.fitBounds(place.geometry.viewport);
         } else if (place.geometry.location) {
           map.setCenter(place.geometry.location);
           map.setZoom(17);
         }
-
         if (place.geometry.location) {
           const promptRelocate = options.promptRelocate !== false;
           updateStreetViewForLocation(place.geometry.location, { draggable: true, promptRelocate });
         }
       };
-
       const isPlacesStatusOk = (status) => {
         const okStatus = google.maps.places?.PlacesServiceStatus?.OK;
         return status === okStatus || status === 'OK';
       };
-
       const placesService = new google.maps.places.PlacesService(map);
-
       const selectFirstSuggestion = (query) => {
         if (!query) return;
         const autocompleteService = new google.maps.places.AutocompleteService();
@@ -1752,7 +1564,6 @@
           if (!isPlacesStatusOk(status) || !predictions || !predictions.length) {
             return;
           }
-
           const [firstPrediction] = predictions;
           placesService.getDetails({ placeId: firstPrediction.place_id }, (place, detailStatus) => {
             if (!isPlacesStatusOk(detailStatus) || !place) {
@@ -1762,26 +1573,21 @@
           });
         });
       };
-
       // Search functionality
       const autocomplete = new google.maps.places.Autocomplete(searchInput);
       autocomplete.bindTo('bounds', map);
-
       autocomplete.addListener('place_changed', () => {
         const place = autocomplete.getPlace();
         handlePlaceSelection(place);
       });
-
       if (streetAddress && !hasAppliedInitialSuggestion) {
         hasAppliedInitialSuggestion = true;
         setTimeout(() => selectFirstSuggestion(streetAddress), 500);
       }
-
       // Click on map to set Street View
       map.addListener('click', (event) => {
         updateStreetViewForLocation(event.latLng, { draggable: true });
       });
-
       // Update URL when Street View changes
       panorama.addListener('pov_changed', () => {
         if (currentStreetViewUrl && panorama.getLocation()) {
@@ -1789,19 +1595,16 @@
           const pov = panorama.getPov();
           const lat = position.lat();
           const lng = position.lng();
-
           currentStreetViewUrl = `https://www.google.com/maps/@${lat},${lng},3a,75y,${pov.heading}h,${pov.pitch}t/data=!3m6!1e1!3m4!1s${panorama.getLocation().pano}!2e0!7i16384!8i8192`;
           urlDisplay.textContent = truncateUrl(currentStreetViewUrl);
         }
       });
-
       // Set button click handler
       setButton.onclick = () => {
         // Ensure we always have a URL before proceeding
         if (!currentStreetViewUrl) {
           tryGenerateUrl();
         }
-
         if (currentStreetViewUrl) {
           // Debug: List all input and textarea elements
           console.log('=== DEBUG: All input elements ===');
@@ -1816,7 +1619,6 @@
               element: input
             });
           });
-          
           console.log('=== DEBUG: All textarea elements ===');
           document.querySelectorAll('textarea').forEach((textarea, i) => {
             console.log(`Textarea ${i}:`, {
@@ -1828,7 +1630,6 @@
               element: textarea
             });
           });
-          
           // Find and fill the input field using bubble paste method
           const streetViewInput = document.querySelector(
             'input[placeholder*="google map streetview url"], ' +
@@ -1840,7 +1641,6 @@
             'textarea.TextArea-fluid[placeholder*="Enter the google map streetview url"], ' +
             'textarea.TextArea-fluid'
           );
-
           console.log('=== DEBUG: Selected element ===');
           console.log('streetViewInput found:', !!streetViewInput);
           if (streetViewInput) {
@@ -1856,21 +1656,16 @@
               element: streetViewInput
             });
           }
-
           if (streetViewInput) {
             // Comprehensive approach for React-controlled or special input fields
             streetViewInput.focus();
-
             // Try React-style property setting if available
             const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-
             // Clear the field first
             nativeInputValueSetter.call(streetViewInput, '');
             streetViewInput.dispatchEvent(new Event('input', { bubbles: true }));
-
             // Set the new value using native setter
             nativeInputValueSetter.call(streetViewInput, currentStreetViewUrl);
-
             // Simulate user editing by adding a character and removing it
             setTimeout(() => {
               // Add a space at the end (simulating user typing)
@@ -1878,13 +1673,11 @@
               nativeInputValueSetter.call(streetViewInput, currentValue + ' ');
               streetViewInput.dispatchEvent(new Event('input', { bubbles: true }));
               streetViewInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: ' ' }));
-
               // Remove the space (simulating user deleting)
               setTimeout(() => {
                 nativeInputValueSetter.call(streetViewInput, currentValue);
                 streetViewInput.dispatchEvent(new Event('input', { bubbles: true }));
                 streetViewInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Backspace' }));
-
                 // Fire all events after the edit simulation
                 const events = [
                   new Event('input', { bubbles: true }),
@@ -1893,14 +1686,11 @@
                   new KeyboardEvent('keyup', { bubbles: true, key: 'Enter' }),
                   new Event('blur', { bubbles: true })
                 ];
-
                 events.forEach(event => streetViewInput.dispatchEvent(event));
               }, 100);
             }, 50);
-
             createBubble('Street View URL Pasted!');
             console.log('[streetview.js] Street View URL pasted with React-style setter and comprehensive events:', currentStreetViewUrl);
-
             // Auto-click OK button after a short delay to make it stick
             console.log('[streetview.js] Setting up OK button auto-click timeout');
             setTimeout(() => {
@@ -1915,7 +1705,6 @@
                 console.warn('[streetview.js] OK button not found or text mismatch');
               }
             }, 500);
-
             // Close the modal after successful paste
             setTimeout(() => {
               closeModal();
@@ -1930,32 +1719,26 @@
               console.error('Failed to copy to clipboard:', err);
               createBubble('Street View URL Set!');
             });
-
             // Close the modal even in fallback case
             setTimeout(() => {
               closeModal();
               console.log('Street View modal closed after clipboard copy');
             }, 1500);
           }
-
           // Auto-click OK button when user clicks it - set up persistent listener
           if (!window.doobneekOkClickerActive) {
             window.doobneekOkClickerActive = true;
-
             globalClickHandler = function(e) {
               const okButton = e.target.closest('button.Button-primary');
               if (okButton && okButton.textContent.trim() === 'OK') {
                 console.log('OK button clicked, setting up auto-clickers');
-
                 // Click YES after delay - only if redirect is enabled
                 setTimeout(() => {
                   if (!isYourPeerRedirectEnabled()) {
                     console.log('=== SKIPPING YES BUTTON — redirect not enabled ===');
                     return;
                   }
-
                   console.log('=== AUTO-CLICKING YES BUTTON ===');
-
                   const yesButton = document.querySelector('button.Button-primary.Button-fluid');
                   if (yesButton && yesButton.textContent.trim() === 'YES') {
                     console.log('Clicking YES button');
@@ -1971,23 +1754,19 @@
                       createBubble('YES Clicked!');
                     }
                   }
-
                   // Click "Go to Next Section" after YES - only if URL ends with /thanks
                   setTimeout(() => {
                     console.log('=== AUTO-CLICKING GO TO NEXT SECTION ===');
-
                     // Check if current URL ends with /thanks
                     const currentUrl = window.location.href;
                     if (!currentUrl.endsWith('/thanks')) {
                       console.log('Skipping Go to Next Section - URL does not end with /thanks. Current URL:', currentUrl);
                       return;
                     }
-
                     const nextButtonSelectors = [
                       'button.Button.mt-4.Button-primary.Button-fluid',
                       'button.Button-primary.Button-fluid'
                     ];
-
                     let nextButton = null;
                     for (const selector of nextButtonSelectors) {
                       const buttons = document.querySelectorAll(selector);
@@ -2000,7 +1779,6 @@
                       }
                       if (nextButton) break;
                     }
-
                     if (nextButton) {
                       console.log('Clicking Go to Next Section button - URL ends with /thanks');
                       nextButton.click();
@@ -2021,17 +1799,13 @@
                 }, 1000); // Wait 1s after OK
               }
             };
-
             document.addEventListener('click', globalClickHandler);
           }
-
           closeModal();
         }
       };
-
     });
   }
-
   // Clean up maps instances for a specific modal
   function cleanupModalMaps(targetModal) {
     console.log('[streetview.js] Cleaning up maps for modal');
@@ -2054,11 +1828,9 @@
       mapsInstances.splice(index, 1);
     }
   }
-
   // Clean up all active modals and maps
   function cleanupMapsAndModals() {
     console.log('[streetview.js] Cleaning up all maps and modals');
-
     // Clean up all maps instances
     mapsInstances.forEach(instance => {
       try {
@@ -2073,7 +1845,6 @@
       }
     });
     mapsInstances.length = 0;
-
     // Clean up all active modals
     activeModals.forEach(modal => {
       try {
@@ -2085,7 +1856,6 @@
       }
     });
     activeModals.length = 0;
-
     // Clean up injected scripts
     injectedScripts.forEach(script => {
       try {
@@ -2097,7 +1867,6 @@
       }
     });
     injectedScripts.length = 0;
-
     // Remove any remaining doobneek elements
     document.querySelectorAll('[data-doobneek-modal]').forEach(el => el.remove());
     document.querySelectorAll('[data-doobneek-script]').forEach(el => el.remove());
@@ -2105,49 +1874,39 @@
     document.querySelectorAll('[data-doobneek-streetview-reopen]').forEach(el => el.remove());
     streetViewReopenButton = null;
   }
-
   // Cleanup function to prevent memory leaks
   function cleanup() {
     console.log('[streetview.js] Cleaning up all resources');
-
     if (observer) {
       observer.disconnect();
       observer = null;
     }
-
     if (urlCheckInterval) {
       clearInterval(urlCheckInterval);
       urlCheckInterval = null;
     }
-
     if (globalClickHandler) {
       document.removeEventListener('click', globalClickHandler);
       globalClickHandler = null;
     }
-
     if (popstateHandler) {
       window.removeEventListener('popstate', popstateHandler);
       popstateHandler = null;
     }
-
     if (beforeunloadHandler) {
       window.removeEventListener('beforeunload', beforeunloadHandler);
       beforeunloadHandler = null;
     }
-
     if (visibilityHandler) {
       document.removeEventListener('visibilitychange', visibilityHandler);
       visibilityHandler = null;
     }
-
     if (pagehideHandler) {
       window.removeEventListener('pagehide', pagehideHandler);
       pagehideHandler = null;
     }
-
     // Clean up all maps and modals
     cleanupMapsAndModals();
-
     // Restore history methods
     if (originalPushState) {
       history.pushState = originalPushState;
@@ -2157,29 +1916,24 @@
       history.replaceState = originalReplaceState;
       originalReplaceState = null;
     }
-
     // Reset global flags
     window.doobneekOkClickerActive = false;
     window.doobneekHistoryOverridden = false;
     window.doobneekHistoryBlocked = false;
-
     // Clean up back navigation prevention
     if (window.doobneekPopstateHandler) {
       window.removeEventListener('popstate', window.doobneekPopstateHandler);
       window.doobneekPopstateHandler = null;
     }
-
     // Clear global references
     if (window.createStreetViewPicker) {
       delete window.createStreetViewPicker;
     }
     window.doobneekStreetViewActive = false;
   }
-
   // Add cleanup on page unload
   beforeunloadHandler = cleanup;
   window.addEventListener('beforeunload', beforeunloadHandler);
-
   // Add cleanup on page visibility change (helps with back/forward navigation)
   visibilityHandler = () => {
     if (document.hidden) {
@@ -2187,24 +1941,20 @@
     }
   };
   document.addEventListener('visibilitychange', visibilityHandler);
-
   // Add cleanup on page hide (iOS Safari and some mobile browsers)
   pagehideHandler = cleanup;
   window.addEventListener('pagehide', pagehideHandler);
-
   // Force cleanup on navigation start
   window.addEventListener('beforeunload', () => {
     console.log('[streetview.js] beforeunload triggered, forcing cleanup');
     cleanup();
   });
-
   // Add cleanup on extension unload (if content script is reinjected)
   if (window.doobneekStreetViewLoaded) {
     console.log('[streetview.js] Script already loaded, cleaning up previous instance');
     cleanup();
   }
   window.doobneekStreetViewLoaded = true;
-
   // Add pageshow handler for bfcache
   window.addEventListener('pageshow', function(event) {
     if (event.persisted) {
@@ -2214,13 +1964,11 @@
       init();
     }
   });
-
   // Initial execution
   if (isBackForwardNavigation) {
     setTimeout(init, 1000);
   } else {
     init();
   }
-
   window.createStreetViewPicker = createStreetViewPicker;
 })();

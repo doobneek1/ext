@@ -1,4 +1,3 @@
-
 // (async function monitorCloseButtonOnLocationPage() {
 //   function addRedirectOnCloseButton() {
 //     const closeButton = document.querySelector('button.default.font-weight-light');
@@ -22,15 +21,10 @@
 //     });
 //   }, 300);
 // }
-
-
-
 //   function isLocationPage() {
 //     return /\/location$/.test(location.pathname);
 //   }
-
 //   let lastPath = location.pathname;
-
 //   const observer = new MutationObserver(() => {
 //     const newPath = location.pathname;
 //     if (newPath !== lastPath) {
@@ -38,20 +32,16 @@
 //       if (isLocationPage()) {
 //         setTimeout(addRedirectOnCloseButton, 300); // slight delay to allow DOM update
 //             setTimeout(refreshBttn, 300);
-
 //       }
 //     }
 //   });
-
 //   observer.observe(document.body, { childList: true, subtree: true });
-
 //   // Run once initially
 //   if (isLocationPage()) {
 //     setTimeout(addRedirectOnCloseButton, 300);
 //     setTimeout(refreshBttn, 300);
 //   }
 // })();
-
 (async function monitorCloseButtonOnLocationPage() {
   function addRedirectOnCloseButton() {
     const closeButton = document.querySelector('button.default.font-weight-light');
@@ -61,12 +51,10 @@
       });
     }
   }
-
   // Matches /location/{uuid} (UUID is assumed to be a standard format)
   function isUuidLocationPage() {
     return /\/location\/[a-f0-9-]{36}$/.test(location.pathname);
   }
-
   function waitForLocationChange(matchingFn, callback, timeout = 3000) {
     const startPath = location.pathname;
     const interval = setInterval(() => {
@@ -75,10 +63,8 @@
         callback();
       }
     }, 100);
-
     setTimeout(() => clearInterval(interval), timeout);
   }
-
   function attachOkButtonListener() {
     const buttons = document.querySelectorAll('button.Button-primary');
     buttons.forEach(btn => {
@@ -93,13 +79,10 @@
       }
     });
   }
-
   function isLocationPage() {
     return /\/location$/.test(location.pathname);
   }
-
   let lastPath = location.pathname;
-
   const observer = new MutationObserver(() => {
     const newPath = location.pathname;
     if (newPath !== lastPath) {
@@ -110,9 +93,7 @@
       }
     }
   });
-
   observer.observe(document.body, { childList: true, subtree: true });
-
   // Initial run
   if (isLocationPage()) {
     setTimeout(addRedirectOnCloseButton, 300);

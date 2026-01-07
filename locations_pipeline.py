@@ -13,16 +13,13 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-
 DEFAULT_BASE_URL = "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations"
 DEFAULT_GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 DEFAULT_NOTE_API = "https://locationnote1-iygwucy2fa-uc.a.run.app"
 DEFAULT_PATCH_PRIORITY_CSV = "locations_text_phone_patched.csv"
 DEFAULT_RUN_STATE_PATH = "locations_pipeline_run_state.json"
-
 RETRYABLE_HTTP_STATUS = {429, 500, 502, 503, 504}
 RETRYABLE_GOOGLE_STATUSES = {"OVER_QUERY_LIMIT", "RESOURCE_EXHAUSTED", "UNKNOWN_ERROR"}
-
 EMPTY_VALUES = {"", "null", "none", "nan", "na", "n/a"}
 CITY_ALIASES = {"nyc": "new york", "new york city": "new york"}
 US_STATE_ABBREV = {
@@ -78,7 +75,6 @@ US_STATE_ABBREV = {
     "wisconsin": "WI",
     "wyoming": "WY",
 }
-
 DIRECTIONAL_REPLACEMENTS = [
     ("Northwest", "NW"),
     ("Northeast", "NE"),
@@ -89,7 +85,6 @@ DIRECTIONAL_REPLACEMENTS = [
     ("East", "E"),
     ("West", "W"),
 ]
-
 ADDRESS_REPLACEMENTS = [
     ("Suite", "Ste"),
     ("Street", "St"),
@@ -101,13 +96,11 @@ ADDRESS_REPLACEMENTS = [
     ("Lane", "Ln"),
     ("Court", "Ct"),
 ]
-
 FLOOR_NUMBER_RE = re.compile(r"\b(?:floor|fl|lvl|level)\s*(\d{1,2})\b", re.IGNORECASE)
 FLOOR_NUMBER_RE_ALT = re.compile(
     r"\b(\d{1,2})(?:st|nd|rd|th)?\s*(?:floor|fl|lvl|level)\b", re.IGNORECASE
 )
 SUITE_HINT_RE = re.compile(r"\b(?:suite|ste|unit|rm|room)\b", re.IGNORECASE)
-
 UPPER_TOKENS = {"N", "S", "E", "W", "NE", "NW", "SE", "SW", "PO"}
 SMALL_WORDS = {
     "and",
@@ -130,7 +123,6 @@ SMALL_WORDS = {
     "vs",
     "v",
 }
-
 STREET_KEYS = [
     "street",
     "address1",
@@ -150,7 +142,6 @@ ORG_KEYS = ["organization_name", "org_name", "organization", "org"]
 LOC_KEYS = ["location_name", "loc_name", "location", "name"]
 STREETVIEW_KEYS = ["streetview_url", "street_view_url", "streetview", "street_view"]
 PRIORITY_ID_KEYS = ["location_id", "location id", "locationid", "uuid", "id"]
-
 PROGRESS_FIELDS = ["uuid", "status", "note", "source", "timestamp"]
 PATCH_FIELDS = [
     "uuid",
@@ -181,8 +172,6 @@ RECOMMEND_FIELDS = [
     "ai_notes",
     "source",
 ]
-
-
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         description=(
@@ -423,12 +412,8 @@ def parse_args(argv):
     args.google_places_key = args.google_places_key or args.google_api_key
     args.google_streetview_key = args.google_streetview_key or args.google_api_key
     return args
-
-
 def normalize_header(text):
     return (text or "").strip().lower()
-
-
 def build_header_map(headers):
     mapping = {}
     for header in headers or []:
@@ -436,34 +421,24 @@ def build_header_map(headers):
         if key and key not in mapping:
             mapping[key] = header
     return mapping
-
-
 def is_empty(value):
     if value is None:
         return True
     if isinstance(value, str):
         return normalize_header(value) in EMPTY_VALUES
     return False
-
-
 REPLACEMENT_CHAR = "\ufffd"
 APOSTROPHE_LIKE_CHARS = "'\u2019\u2018" + REPLACEMENT_CHAR
 APOSTROPHE_LIKE_CLASS = f"[{re.escape(APOSTROPHE_LIKE_CHARS)}]"
 REPLACEMENT_APOSTROPHE_RE = re.compile(rf"(?<=\w){REPLACEMENT_CHAR}(?=\w)")
-
-
 def repair_replacement_apostrophes(text):
     if not text:
         return ""
     return REPLACEMENT_APOSTROPHE_RE.sub("\u2019", text)
-
-
 def contains_replacement_char(text):
     if not text:
         return False
     return REPLACEMENT_CHAR in str(text)
-
-
 def has_titlecase_small_word(text):
     if not text:
         return False
@@ -475,8 +450,6 @@ def has_titlecase_small_word(text):
         if lower in SMALL_WORDS and word != lower:
             return True
     return False
-
-
 def extract_new_address_from_note(note):
     if not note:
         return ""
@@ -492,20 +465,14 @@ def extract_new_address_from_note(note):
     if end_idx != -1:
         return tail[:end_idx]
     return tail
-
-
 def note_has_small_word_issue(note):
     new_address = extract_new_address_from_note(note)
     return has_titlecase_small_word(new_address)
-
-
 def normalize_whitespace(value):
     text = " ".join(str(value or "").strip().split())
     if not text:
         return ""
     return repair_replacement_apostrophes(text)
-
-
 def pick_preferred_text(primary, fallback):
     primary_norm = normalize_whitespace(primary)
     fallback_norm = normalize_whitespace(fallback)
@@ -519,8 +486,6 @@ def pick_preferred_text(primary, fallback):
         ):
             return fallback_norm
     return primary_norm or fallback_norm
-
-
 def parse_heading_offsets(value):
     if value is None:
         return [0.0]
@@ -546,8 +511,6 @@ def parse_heading_offsets(value):
     if 0.0 not in seen:
         cleaned.insert(0, 0.0)
     return cleaned
-
-
 def parse_distance_offsets(value):
     if value is None:
         return []
@@ -571,8 +534,6 @@ def parse_distance_offsets(value):
         seen.add(offset)
         cleaned.append(offset)
     return cleaned
-
-
 def format_distance_label(value):
     if value is None:
         return ""
@@ -580,12 +541,8 @@ def format_distance_label(value):
     if abs(value - rounded) < 0.01:
         return str(int(rounded))
     return f"{value:.1f}".rstrip("0").rstrip(".")
-
-
 def format_distance_id(value):
     return format_distance_label(value).replace(".", "p")
-
-
 def detect_address_context(address):
     text = normalize_whitespace(address)
     if not text:
@@ -608,8 +565,6 @@ def detect_address_context(address):
     if suite_hint:
         parts.append("suite/unit")
     return ", ".join(parts), floor_num, suite_hint
-
-
 def get_value(row, header_map, *candidates):
     for candidate in candidates:
         key = normalize_header(candidate)
@@ -623,8 +578,6 @@ def get_value(row, header_map, *candidates):
             return value.strip()
         return str(value)
     return ""
-
-
 def parse_float(value):
     if is_empty(value):
         return None
@@ -632,8 +585,6 @@ def parse_float(value):
         return float(str(value).strip())
     except ValueError:
         return None
-
-
 def is_blank(value):
     if value is None:
         return True
@@ -641,41 +592,30 @@ def is_blank(value):
     if not text:
         return True
     return text.lower() in EMPTY_VALUES
-
-
 def capitalize_words(value):
     return re.sub(
         r"(^|[\s-])([a-z])",
         lambda match: f"{match.group(1)}{match.group(2).upper()}",
         value,
     )
-
-
 def normalize_city_name(value):
     text = normalize_whitespace(value)
     if not text:
         return ""
     lower = text.lower()
     return capitalize_words(lower)
-
-
 def apply_replacements(text, replacements):
     for long, short in replacements:
         text = re.sub(rf"\b{long}\b", short, text, flags=re.IGNORECASE)
     return text
-
-
 def uppercase_tokens(text, tokens):
     for token in tokens:
         pattern = f"(?<!{APOSTROPHE_LIKE_CLASS})\\b{re.escape(token)}\\b"
         text = re.sub(pattern, token, text, flags=re.IGNORECASE)
     return text
-
-
 def lowercase_small_words(text):
     if not text:
         return ""
-
     def replacer(match):
         word = match.group(0)
         if match.start() == 0:
@@ -684,10 +624,7 @@ def lowercase_small_words(text):
         if lower in SMALL_WORDS:
             return lower
         return word
-
     return re.sub(r"\b[A-Za-z]{1,3}\b", replacer, text)
-
-
 def normalize_street_address(value):
     text = normalize_whitespace(value)
     if not text:
@@ -705,31 +642,23 @@ def normalize_street_address(value):
     )
     titled = lowercase_small_words(titled)
     return titled
-
-
 def normalize_compare_text(value):
     text = normalize_whitespace(value).lower()
     if not text:
         return ""
     text = re.sub(r"[^a-z0-9]+", " ", text)
     return " ".join(text.split())
-
-
 def normalize_zip(value):
     text = normalize_whitespace(value)
     if not text:
         return ""
     match = re.search(r"\d{5}", text)
     return match.group(0) if match else text
-
-
 def normalize_city_compare(value):
     text = normalize_compare_text(value)
     if text in CITY_ALIASES:
         return CITY_ALIASES[text]
     return text
-
-
 def normalize_state_compare(value):
     text = normalize_compare_text(value)
     if not text:
@@ -742,12 +671,8 @@ def normalize_state_compare(value):
     if len(text) == 2:
         return text.upper()
     return US_STATE_ABBREV.get(text, text.upper())
-
-
 def extract_number_tokens(value):
     return re.findall(r"\d+", normalize_whitespace(value))
-
-
 def is_very_off(current, suggested, threshold=0.6, check_numbers=False):
     current_norm = normalize_compare_text(current)
     suggested_norm = normalize_compare_text(suggested)
@@ -762,14 +687,10 @@ def is_very_off(current, suggested, threshold=0.6, check_numbers=False):
             return True
     ratio = difflib.SequenceMatcher(None, current_norm, suggested_norm).ratio()
     return ratio < threshold
-
-
 def build_full_address_from_fields(street, city, state, postal, country):
     parts = [street, city, state, postal, country]
     parts = [normalize_whitespace(part) for part in parts if normalize_whitespace(part)]
     return ", ".join(parts)
-
-
 def build_search_query(org_name, loc_name, address):
     parts = []
     org = (org_name or "").strip()
@@ -782,8 +703,6 @@ def build_search_query(org_name, loc_name, address):
     if addr:
         parts.append(addr)
     return " ".join(parts)
-
-
 def add_prompt_images(image_entries, label_prefix, metadata, image_labels, image_data_urls):
     date = ""
     if isinstance(metadata, dict):
@@ -799,14 +718,10 @@ def add_prompt_images(image_entries, label_prefix, metadata, image_labels, image
             "data:image/jpeg;base64,"
             + base64.b64encode(image["image_bytes"]).decode("ascii")
         )
-
-
 def get_pano_id(metadata):
     if not isinstance(metadata, dict):
         return ""
     return metadata.get("pano_id") or metadata.get("panoId") or ""
-
-
 def build_pano_url(lat, lng, pano_id=None, heading=None, pitch=0, fov=90):
     if lat is None or lng is None:
         return ""
@@ -820,8 +735,6 @@ def build_pano_url(lat, lng, pano_id=None, heading=None, pitch=0, fov=90):
             + "!2e0!7i16384!8i8192"
         )
     return url
-
-
 def compute_distance_meters(lat1, lng1, lat2, lng2):
     if None in (lat1, lng1, lat2, lng2):
         return None
@@ -833,8 +746,6 @@ def compute_distance_meters(lat1, lng1, lat2, lng2):
         + math.cos(lat1 * rad) * math.cos(lat2 * rad) * math.sin(dlon / 2) ** 2
     )
     return 6371000 * 2 * math.atan2(math.sqrt(a_val), math.sqrt(1 - a_val))
-
-
 def http_request(method, url, headers, payload=None, timeout=30):
     data = None
     if payload is not None:
@@ -848,21 +759,15 @@ def http_request(method, url, headers, payload=None, timeout=30):
         return exc.code, body
     except urllib.error.URLError as exc:
         return None, str(exc)
-
-
 def http_get_json(url, timeout=30):
     req = urllib.request.Request(url)
     with urllib.request.urlopen(req, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
-
-
 def http_post_json(url, payload, headers=None, timeout=60):
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=data, headers=headers or {}, method="POST")
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
-
-
 def fetch_with_retries(
     fn, retries=2, backoff_min=1.0, backoff_max=4.0, retryable_status=None
 ):
@@ -886,8 +791,6 @@ def fetch_with_retries(
             if attempt < retries:
                 sleep_with_backoff(attempt, backoff_min, backoff_max)
     raise last_error
-
-
 def google_fetch_json(url, timeout, retries, backoff_min, backoff_max):
     last_error = None
     for attempt in range(retries + 1):
@@ -916,15 +819,12 @@ def google_fetch_json(url, timeout, retries, backoff_min, backoff_max):
                 sleep_with_backoff(attempt, backoff_min, backoff_max)
                 continue
             return None, last_error
-
         status = data.get("status")
         if status in RETRYABLE_GOOGLE_STATUSES and attempt < retries:
             sleep_with_backoff(attempt, backoff_min, backoff_max)
             continue
         return data, None
     return None, last_error or "Google request failed"
-
-
 def extract_location_payload(obj):
     if not isinstance(obj, dict):
         return obj
@@ -932,8 +832,6 @@ def extract_location_payload(obj):
     if isinstance(data, dict):
         return data
     return obj
-
-
 def extract_coordinates(obj):
     obj = extract_location_payload(obj)
     if not isinstance(obj, dict):
@@ -948,8 +846,6 @@ def extract_coordinates(obj):
     if lat is not None and lon is not None:
         return [lon, lat]
     return None
-
-
 def extract_address(obj):
     obj = extract_location_payload(obj)
     if not isinstance(obj, dict):
@@ -984,8 +880,6 @@ def extract_address(obj):
     if region and "state" not in address:
         address["region"] = normalize_whitespace(region)
     return address
-
-
 def google_geocode_request(params, api_key, timeout, retries, backoff_min, backoff_max):
     query = dict(params)
     query["key"] = api_key
@@ -1003,8 +897,6 @@ def google_geocode_request(params, api_key, timeout, retries, backoff_min, backo
     if not results:
         return None, "Google returned no results"
     return results[0], None
-
-
 def parse_google_address(result):
     components = result.get("address_components") or []
     component_map = {}
@@ -1013,7 +905,6 @@ def parse_google_address(result):
         for component_type in types:
             if component_type not in component_map:
                 component_map[component_type] = component
-
     def get_component(types, use_short=False):
         for component_type in types:
             component = component_map.get(component_type)
@@ -1021,7 +912,6 @@ def parse_google_address(result):
                 key = "short_name" if use_short else "long_name"
                 return normalize_whitespace(component.get(key))
         return ""
-
     street_number = get_component(["street_number"])
     route = get_component(["route"])
     street = " ".join(part for part in [street_number, route] if part).strip()
@@ -1050,8 +940,6 @@ def parse_google_address(result):
         "formatted": normalize_whitespace(result.get("formatted_address")),
         "location": {"lat": lat, "lng": lng} if lat is not None and lng is not None else None,
     }
-
-
 def google_geocode_address(address, api_key, timeout, retries, backoff_min, backoff_max):
     if not address:
         return None, "Missing address for Google geocode"
@@ -1061,8 +949,6 @@ def google_geocode_address(address, api_key, timeout, retries, backoff_min, back
     if err:
         return None, err
     return parse_google_address(result), None
-
-
 def google_reverse_geocode(lat, lon, api_key, timeout, retries, backoff_min, backoff_max):
     result, err = google_geocode_request(
         {"latlng": f"{lat},{lon}"}, api_key, timeout, retries, backoff_min, backoff_max
@@ -1070,8 +956,6 @@ def google_reverse_geocode(lat, lon, api_key, timeout, retries, backoff_min, bac
     if err:
         return None, err
     return parse_google_address(result), None
-
-
 def google_places_text_search(query, api_key, timeout, retries, backoff_min, backoff_max):
     url = (
         "https://maps.googleapis.com/maps/api/place/textsearch/json?query="
@@ -1094,8 +978,6 @@ def google_places_text_search(query, api_key, timeout, retries, backoff_min, bac
     if not location:
         return None, "Places missing location"
     return location, None
-
-
 def compute_heading(from_lat, from_lng, to_lat, to_lng):
     lat1 = math.radians(from_lat)
     lat2 = math.radians(to_lat)
@@ -1104,8 +986,6 @@ def compute_heading(from_lat, from_lng, to_lat, to_lng):
     x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
     bearing = math.degrees(math.atan2(y, x))
     return (bearing + 360) % 360
-
-
 def offset_lat_lng(lat, lng, distance_meters, bearing_degrees):
     if lat is None or lng is None:
         return None, None
@@ -1124,8 +1004,6 @@ def offset_lat_lng(lat, lng, distance_meters, bearing_degrees):
         math.cos(distance_rad) - math.sin(lat1) * math.sin(lat2),
     )
     return math.degrees(lat2), math.degrees(lng2)
-
-
 def fetch_streetview_metadata(
     lat, lng, api_key, radius, source, timeout, retries, backoff_min, backoff_max
 ):
@@ -1137,8 +1015,6 @@ def fetch_streetview_metadata(
     if err:
         return {"status": "ERROR", "error_message": err}
     return data
-
-
 def build_streetview_image_url(
     size, pano_lat, pano_lng, heading, source, api_key, pano_id=None
 ):
@@ -1152,8 +1028,6 @@ def build_streetview_image_url(
         + location_part
         + f"&heading={heading}&pitch=0&fov=90&source={source}&return_error_code=true&key={api_key}"
     )
-
-
 def fetch_streetview_images(
     query_lat,
     query_lng,
@@ -1236,8 +1110,6 @@ def fetch_streetview_images(
         "pano_lat": pano_lat,
         "pano_lng": pano_lng,
     }, None
-
-
 def extract_json(text):
     try:
         return json.loads(text)
@@ -1253,8 +1125,6 @@ def extract_json(text):
         return json.loads(text[start : end + 1])
     except json.JSONDecodeError:
         return {"error": "invalid_json", "raw": text}
-
-
 def build_view_preference(view_ids):
     order = []
     if "default" in view_ids:
@@ -1268,8 +1138,6 @@ def build_view_preference(view_ids):
     if len(order) <= 1:
         return ""
     return "Prefer in this order unless obstructed: " + " > ".join(order) + "."
-
-
 def build_openai_prompt(
     org_name,
     loc_name,
@@ -1332,8 +1200,6 @@ def build_openai_prompt(
         "If all views are obscured or unrelated, set best_view to 'neither' and unsure=true.\n"
         "Be conservative and set unsure=true if you cannot tell. Do not return markdown."
     )
-
-
 def call_openai(api_key, model, prompt, images, timeout):
     content = [{"type": "text", "text": prompt}]
     for image in images:
@@ -1362,8 +1228,6 @@ def call_openai(api_key, model, prompt, images, timeout):
     choice = (response.get("choices") or [{}])[0]
     message = choice.get("message") or {}
     return message.get("content", "")
-
-
 def call_openai_with_retry(
     api_key, model, prompt, images, timeout, retries, backoff_min, backoff_max
 ):
@@ -1398,7 +1262,6 @@ def call_openai_with_retry(
             return None, str(err)
         except Exception as err:
             return None, str(err)
-
         parsed = extract_json(response_text)
         if "error" not in parsed:
             return parsed, None
@@ -1409,8 +1272,6 @@ def call_openai_with_retry(
                 continue
         return None, parsed.get("raw", "")
     return None, "openai_invalid_json"
-
-
 def build_headers(token, is_json):
     headers = {
         "accept": "application/json, text/plain, */*",
@@ -1419,8 +1280,6 @@ def build_headers(token, is_json):
     if is_json:
         headers["content-type"] = "application/json"
     return headers
-
-
 def build_note_headers(token):
     headers = {"Content-Type": "application/json"}
     if token:
@@ -1429,8 +1288,6 @@ def build_note_headers(token):
             value = f"Bearer {value}"
         headers["Authorization"] = value
     return headers
-
-
 def load_csv_rows(path, source):
     last_error = None
     for encoding in ("utf-8-sig", "cp1252"):
@@ -1466,8 +1323,6 @@ def load_csv_rows(path, source):
     if last_error:
         raise last_error
     return []
-
-
 def merge_entry(existing, incoming, conflicts):
     for field in (
         "org",
@@ -1486,7 +1341,6 @@ def merge_entry(existing, incoming, conflicts):
             existing[field] = value
         elif existing[field] != value:
             conflicts.append(f"{field}:{existing[field]}|{value}")
-
     for field in ("lat", "lng"):
         value = incoming.get(field)
         if value is None:
@@ -1495,8 +1349,6 @@ def merge_entry(existing, incoming, conflicts):
             existing[field] = value
         elif existing[field] != value:
             conflicts.append(f"{field}:{existing[field]}|{value}")
-
-
 def load_processed_ids(progress_path):
     if not os.path.exists(progress_path):
         return set()
@@ -1514,8 +1366,6 @@ def load_processed_ids(progress_path):
                     continue
                 processed.add(uuid)
     return processed
-
-
 def load_pending_patch_ids(progress_path):
     if not os.path.exists(progress_path):
         return set()
@@ -1528,8 +1378,6 @@ def load_pending_patch_ids(progress_path):
             if uuid and status == "patch_limit":
                 pending.add(uuid)
     return pending
-
-
 def strip_patch_limit_notes(text):
     if not text:
         return ""
@@ -1544,8 +1392,6 @@ def strip_patch_limit_notes(text):
             continue
         cleaned.append(part)
     return " | ".join(cleaned)
-
-
 def sanitize_cached_payload(payload):
     if not isinstance(payload, dict):
         return None
@@ -1564,8 +1410,6 @@ def sanitize_cached_payload(payload):
                 return None
             address["city"] = city_norm
     return payload
-
-
 def load_cached_patch_payloads(path):
     if not path or not os.path.exists(path):
         return {}
@@ -1604,8 +1448,6 @@ def load_cached_patch_payloads(path):
                 "search_streetview_url": (row.get("search_streetview_url") or "").strip(),
             }
     return cached
-
-
 def load_priority_ids(path):
     if not path or not os.path.exists(path):
         return set()
@@ -1628,8 +1470,6 @@ def load_priority_ids(path):
     if last_error:
         raise last_error
     return set()
-
-
 def build_entry_order(entries, priority_ids, pending_patch_ids):
     uuids = list(entries)
     if not priority_ids and not pending_patch_ids:
@@ -1641,8 +1481,6 @@ def build_entry_order(entries, priority_ids, pending_patch_ids):
     priority_other = [uuid for uuid in uuids if uuid not in pending_set and uuid in priority_set]
     remaining = [uuid for uuid in uuids if uuid not in pending_set and uuid not in priority_set]
     return pending_priority + pending_other + priority_other + remaining
-
-
 def format_google_address(address):
     if not address:
         return ""
@@ -1656,8 +1494,6 @@ def format_google_address(address):
         address.get("postalCode"),
         address.get("country"),
     )
-
-
 def ensure_writer(path, fieldnames, handle_holder):
     if handle_holder.get("writer"):
         return handle_holder["writer"], handle_holder["handle"]
@@ -1669,8 +1505,6 @@ def ensure_writer(path, fieldnames, handle_holder):
     handle_holder["writer"] = writer
     handle_holder["handle"] = handle
     return writer, handle
-
-
 def write_run_state(path, payload):
     if not path:
         return
@@ -1679,8 +1513,6 @@ def write_run_state(path, payload):
             json.dump(payload, handle, ensure_ascii=True, indent=2, sort_keys=True)
     except Exception as exc:
         print(f"[WARN] run state write failed: {exc}", file=sys.stderr)
-
-
 def note_payload(notes_user, note_text):
     today = time.strftime("%Y-%m-%d")
     return {
@@ -1688,16 +1520,12 @@ def note_payload(notes_user, note_text):
         "date": today,
         "note": note_text,
     }
-
-
 def is_auth_error(status, body):
     if status in (401, 403):
         return True
     if isinstance(body, str) and "expired" in body.lower() and "token" in body.lower():
         return True
     return False
-
-
 def normalize_http_body(body, limit=500):
     if body is None:
         return ""
@@ -1705,16 +1533,12 @@ def normalize_http_body(body, limit=500):
     if len(text) > limit:
         return text[:limit] + "..."
     return text
-
-
 def format_http_error(method, url, status, body, limit=500):
     status_label = "no_status" if status is None else str(status)
     body_text = normalize_http_body(body, limit=limit)
     if body_text:
         return f"{method} {url} -> {status_label} {body_text}"
     return f"{method} {url} -> {status_label}"
-
-
 def parse_retry_after(headers):
     if not headers:
         return None
@@ -1725,8 +1549,6 @@ def parse_retry_after(headers):
         return float(value)
     except ValueError:
         return None
-
-
 def sleep_with_backoff(attempt, min_seconds, max_seconds, retry_after=None):
     if retry_after is not None and retry_after > 0:
         time.sleep(retry_after)
@@ -1742,8 +1564,6 @@ def sleep_with_backoff(attempt, min_seconds, max_seconds, retry_after=None):
         return
     exp_cap = min(cap, base * (2 ** attempt))
     sleep_with_jitter(base, exp_cap)
-
-
 def sleep_with_jitter(min_seconds, max_seconds):
     if min_seconds <= 0 and max_seconds <= 0:
         return
@@ -1752,8 +1572,6 @@ def sleep_with_jitter(min_seconds, max_seconds):
     if high <= 0:
         return
     time.sleep(random.uniform(low, high))
-
-
 def main(argv):
     args = parse_args(argv)
     run_started_at = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -1770,14 +1588,11 @@ def main(argv):
     if not token:
         print("Missing token. Provide --token or set DOOBNEEK_JWT/JWT.", file=sys.stderr)
         return 2
-
     missing_rows = load_csv_rows(args.missingstreetview, "missingstreetview")
     address_rows = load_csv_rows(args.improperaddress, "improperaddress")
-
     entries = {}
     entry_sources = {}
     entry_conflicts = {}
-
     for row in missing_rows + address_rows:
         uuid = row["uuid"]
         if uuid not in entries:
@@ -1798,11 +1613,9 @@ def main(argv):
             entry_conflicts[uuid] = []
         entry_sources[uuid].add(row["source"])
         merge_entry(entries[uuid], row, entry_conflicts[uuid])
-
     if not entries:
         print("No rows found in input CSVs.", file=sys.stderr)
         return 1
-
     priority_ids = set()
     if args.patch_limit:
         if args.patch_priority_csv and not os.path.exists(args.patch_priority_csv):
@@ -1811,22 +1624,18 @@ def main(argv):
                 file=sys.stderr,
             )
         priority_ids = load_priority_ids(args.patch_priority_csv)
-
     cached_patch_payloads = {}
     if args.resume and not args.ai_test:
         cached_patch_payloads = load_cached_patch_payloads(args.patched_report_csv)
-
     needs_ai = args.ai_test or any(
         "missingstreetview" in entry_sources[uuid]
         and not entries[uuid].get("streetview_url")
         and uuid not in cached_patch_payloads
         for uuid in entries
     )
-
     if needs_ai and not args.openai_api_key:
         print("Missing OPENAI_API_KEY for Street View analysis.", file=sys.stderr)
         return 2
-
     needs_google = not args.skip_google and any(
         uuid not in cached_patch_payloads for uuid in entries
     )
@@ -1849,13 +1658,11 @@ def main(argv):
                 file=sys.stderr,
             )
             return 2
-
     processed = set()
     if args.resume:
         processed = load_processed_ids(args.progress_csv)
     pending_patch_ids = load_pending_patch_ids(args.progress_csv) if args.resume else set()
     entry_order = build_entry_order(entries, priority_ids, pending_patch_ids)
-
     priority_matches = set()
     priority_remaining = set()
     priority_patch_only = False
@@ -1864,11 +1671,9 @@ def main(argv):
         if args.patch_limit > len(priority_matches):
             priority_patch_only = True
             priority_remaining = set(priority_matches)
-
     progress_holder = {}
     patched_holder = {}
     recommend_holder = {}
-
     totals = {
         "total": 0,
         "patched": 0,
@@ -1881,11 +1686,9 @@ def main(argv):
     patch_attempts = 0
     patch_limit_reached_at = None
     patch_priority_exhausted_at = None
-
     geocode_cache = {}
     reverse_cache = {}
     search_cache = {}
-
     processed_count = 0
     stop_reason = ""
     stop_uuid = ""
@@ -1914,7 +1717,6 @@ def main(argv):
             if args.limit and processed_count >= args.limit:
                 print(f"[LIMIT] Reached limit {args.limit}, stopping.")
                 break
-
             processed_count += 1
             totals["total"] += 1
             entry = entries[uuid]
@@ -1926,7 +1728,6 @@ def main(argv):
             skip_google = args.skip_google or use_cached_payload
             skip_recommendations = use_cached_payload
             payload_precomputed = False
-
             get_url = f"{args.base_url}/{uuid}"
             status, body = http_request(
                 "GET", get_url, headers=build_headers(token, is_json=False)
@@ -1987,7 +1788,6 @@ def main(argv):
                     stop_reason = "error"
                 stop_uuid = uuid
                 break
-    
             try:
                 data = json.loads(body)
             except json.JSONDecodeError:
@@ -2009,7 +1809,6 @@ def main(argv):
                 stop_reason = "error"
                 stop_uuid = uuid
                 break
-    
             address_data = extract_address(data)
             api_street = normalize_whitespace(address_data.get("street", ""))
             api_city = normalize_whitespace(address_data.get("city", ""))
@@ -2018,30 +1817,25 @@ def main(argv):
             )
             api_postal = normalize_whitespace(address_data.get("postalCode", ""))
             api_country = normalize_whitespace(address_data.get("country", ""))
-    
             coords = extract_coordinates(data)
             api_lat = None
             api_lng = None
             if coords:
                 api_lng = parse_float(coords[0])
                 api_lat = parse_float(coords[1])
-    
             csv_lat = entry.get("lat")
             csv_lng = entry.get("lng")
             coords_lat = csv_lat if csv_lat is not None else api_lat
             coords_lng = csv_lng if csv_lng is not None else api_lng
-    
             source_street = pick_preferred_text(entry.get("street"), api_street)
             source_city = pick_preferred_text(entry.get("city"), api_city)
             address_context, floor_num, _ = detect_address_context(source_street)
-    
             normalized_city = normalize_city_name(source_city)
             normalized_street = normalize_street_address(source_street)
             if contains_replacement_char(normalized_city):
                 normalized_city = ""
             if contains_replacement_char(normalized_street):
                 normalized_street = ""
-    
             base_address = {k: v for k, v in address_data.items() if v}
             next_address = dict(base_address)
             change_notes = []
@@ -2055,17 +1849,14 @@ def main(argv):
             ai_parsed = None
             default_streetview_url = ""
             search_streetview_url = ""
-    
             if normalized_city and normalized_city != api_city:
                 next_address["city"] = normalized_city
                 change_notes.append(f"city '{api_city or ''}' -> '{normalized_city}'")
-    
             if normalized_street and normalized_street != api_street:
                 next_address["street"] = normalized_street
                 change_notes.append(
                     f"address '{api_street or ''}' -> '{normalized_street}'"
                 )
-    
             address_for_geocode = build_full_address_from_fields(
                 source_street,
                 source_city,
@@ -2073,7 +1864,6 @@ def main(argv):
                 api_postal or entry.get("postal"),
                 api_country or entry.get("country"),
             )
-    
             google_addr = None
             google_err = None
             if not skip_google:
@@ -2105,7 +1895,6 @@ def main(argv):
                             args.google_backoff_max,
                         )
                         geocode_cache[address_for_geocode] = (google_addr, google_err)
-    
                 if google_err:
                     print(f"[WARN] {uuid}: google {google_err}")
                 elif google_addr:
@@ -2116,7 +1905,6 @@ def main(argv):
                         change_notes.append(
                             f"zip '{api_postal or ''}' -> '{suggested_zip}'"
                         )
-    
                     if api_street and google_addr.get("street"):
                         if is_very_off(
                             api_street,
@@ -2127,7 +1915,6 @@ def main(argv):
                             discrepancy_flags.append(
                                 f"street '{api_street}' vs '{google_addr.get('street')}'"
                             )
-    
                     if api_city and google_addr.get("city"):
                         if is_very_off(
                             normalize_city_compare(api_city),
@@ -2137,7 +1924,6 @@ def main(argv):
                             discrepancy_flags.append(
                                 f"city '{api_city}' vs '{google_addr.get('city')}'"
                             )
-    
                     if api_state and google_addr.get("state"):
                         if (
                             normalize_state_compare(api_state)
@@ -2146,7 +1932,6 @@ def main(argv):
                             discrepancy_flags.append(
                                 f"state '{api_state}' vs '{google_addr.get('state')}'"
                             )
-    
             if not skip_google and coords_lat is not None and coords_lng is not None:
                 if address_for_geocode:
                     if address_for_geocode in geocode_cache:
@@ -2172,7 +1957,6 @@ def main(argv):
                             suggested_address = format_google_address(addr_geo)
                             if suggested_address:
                                 print(f"[SUGGEST] {uuid}: {suggested_address}")
-    
             wants_streetview = "missingstreetview" in entry_sources[uuid] or args.ai_test
             if use_cached_payload:
                 wants_streetview = False
@@ -2181,7 +1965,6 @@ def main(argv):
                 has_streetview = False
             streetview_payload = ""
             view_candidates = []
-    
             if wants_streetview and not has_streetview:
                 if coords_lat is None or coords_lng is None:
                     if address_for_geocode and not skip_google:
@@ -2200,7 +1983,6 @@ def main(argv):
                         if addr_geo and addr_geo.get("location"):
                             coords_lat = addr_geo["location"]["lat"]
                             coords_lng = addr_geo["location"]["lng"]
-    
                 if coords_lat is None or coords_lng is None:
                     ai_status = "missing_coordinates"
                     print(f"[AI] {uuid}: missing coordinates for Street View")
@@ -2209,7 +1991,6 @@ def main(argv):
                     default_streetview_url = build_pano_url(coords_lat, coords_lng)
                     seen_panos = set()
                     fetch_errors = []
-    
                     def build_view_url(pack):
                         pano_id = get_pano_id(pack.get("metadata"))
                         return build_pano_url(
@@ -2218,7 +1999,6 @@ def main(argv):
                             pano_id=pano_id,
                             heading=pack.get("base_heading"),
                         )
-    
                     def build_pano_key(pack):
                         pano_id = get_pano_id(pack.get("metadata"))
                         if pano_id:
@@ -2228,7 +2008,6 @@ def main(argv):
                         if pano_lat is None or pano_lng is None:
                             return ""
                         return f"loc:{pano_lat:.6f},{pano_lng:.6f}"
-    
                     def register_candidate(view_id, label, pack):
                         pano_key = build_pano_key(pack)
                         if pano_key and pano_key in seen_panos:
@@ -2245,7 +2024,6 @@ def main(argv):
                             }
                         )
                         return True
-    
                     def fetch_candidate(
                         view_id, label, query_lat, query_lng, target_lat, target_lng, offsets
                     ):
@@ -2270,7 +2048,6 @@ def main(argv):
                             return None
                         register_candidate(view_id, label, pack)
                         return pack
-    
                     default_pack = fetch_candidate(
                         "default",
                         "perpendicular",
@@ -2282,7 +2059,6 @@ def main(argv):
                     )
                     if default_pack:
                         default_streetview_url = build_view_url(default_pack)
-    
                     search_query = build_search_query(
                         entry.get("org"), entry.get("location"), address_for_geocode
                     )
@@ -2313,7 +2089,6 @@ def main(argv):
                                 if search_location and search_location.get("location"):
                                     search_location = search_location.get("location")
                             search_cache[search_query] = (search_location, search_err)
-    
                     if search_location and search_location.get("lat") is not None:
                         search_lat = search_location.get("lat")
                         search_lng = search_location.get("lng")
@@ -2331,7 +2106,6 @@ def main(argv):
                             search_streetview_url = build_view_url(search_pack)
                     elif search_err:
                         print(f"[AI] {uuid}: {search_err}")
-    
                     if default_pack:
                         base_heading = default_pack.get("base_heading")
                         if base_heading is not None:
@@ -2357,7 +2131,6 @@ def main(argv):
                                         coords_lng,
                                         [0.0],
                                     )
-    
                             back_bearing = (base_heading + 180) % 360
                             for offset_m in args.streetview_stepback_meters:
                                 offset_label = format_distance_label(offset_m)
@@ -2378,7 +2151,6 @@ def main(argv):
                                     coords_lng,
                                     [0.0],
                                 )
-    
                     if not view_candidates:
                         ai_status = "streetview_no_images"
                         if fetch_errors:
@@ -2399,7 +2171,6 @@ def main(argv):
                                 image_labels,
                                 images,
                             )
-    
                         prompt = build_openai_prompt(
                             entry.get("org"),
                             entry.get("location"),
@@ -2425,7 +2196,6 @@ def main(argv):
                         except Exception as exc:
                             parsed = None
                             err = str(exc)
-    
                         if not parsed:
                             ai_status = f"openai_error:{err}"
                             ai_notes = err
@@ -2442,7 +2212,6 @@ def main(argv):
                                 streetview_payload = chosen["url"]
                             elif ai_best_view and ai_best_view != "neither":
                                 ai_status = f"openai_unusable:{ai_best_view}"
-
             if use_cached_payload:
                 change_notes = [cached_note] if cached_note else []
                 payload = dict(cached_payload) if isinstance(cached_payload, dict) else {}
@@ -2456,7 +2225,6 @@ def main(argv):
                 default_streetview_url = cached_patch.get("default_streetview_url", "")
                 search_streetview_url = cached_patch.get("search_streetview_url", "")
                 discrepancy_flags = []
-
             if args.ai_test:
                 print(
                     f"[AI-TEST] {uuid}: status={ai_status} best_view={ai_best_view} "
@@ -2481,16 +2249,13 @@ def main(argv):
                         break
                 priority_remaining.discard(uuid)
                 continue
-    
             if not payload_precomputed:
                 payload = {}
                 if next_address != base_address:
                     payload["address"] = next_address
-
                 if streetview_payload:
                     payload["streetview_url"] = streetview_payload
                     change_notes.append(f"streetview_url set ({ai_best_view})")
-    
             if not payload:
                 print(f"[OK] {uuid}")
                 totals["no_change"] += 1
@@ -2510,7 +2275,6 @@ def main(argv):
                 note = " | ".join(change_notes)
                 patch_status = "dry_run" if args.dry_run else "patched"
                 patch_error_note = ""
-
                 if not args.dry_run:
                     priority_blocked = (
                         priority_patch_only
@@ -2561,7 +2325,6 @@ def main(argv):
                                 patch_status = "error"
                 else:
                     print(f"[PATCH] {uuid}: {note}")
-    
                 if patch_status == "patched":
                     totals["patched"] += 1
                     note_text = f"{note} <<did not revalidate>>"
@@ -2588,14 +2351,12 @@ def main(argv):
                             print(f"[ERROR] {uuid}: {patch_error_note}")
                             totals["errors"] += 1
                             patch_status = "note_error"
-    
                 note_for_reports = note
                 if patch_error_note:
                     if note_for_reports:
                         note_for_reports = f"{note_for_reports} | {patch_error_note}"
                     else:
                         note_for_reports = patch_error_note
-    
                 patched_writer, _ = ensure_writer(
                     args.patched_report_csv, PATCH_FIELDS, patched_holder
                 )
@@ -2616,7 +2377,6 @@ def main(argv):
                         "source": source_label,
                     }
                 )
-    
                 progress_writer, _ = ensure_writer(
                     args.progress_csv, PROGRESS_FIELDS, progress_holder
                 )
@@ -2629,12 +2389,10 @@ def main(argv):
                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     }
                 )
-    
                 if patch_status not in {"patched", "dry_run", "patch_limit"}:
                     stop_reason = patch_status
                     stop_uuid = uuid
                     break
-    
             if not skip_recommendations and (
                 suggested_address
                 or discrepancy_flags
@@ -2659,7 +2417,6 @@ def main(argv):
                         "source": source_label,
                     }
                 )
-
             priority_remaining.discard(uuid)
             if args.sleep > 0:
                 time.sleep(args.sleep)
@@ -2675,7 +2432,6 @@ def main(argv):
         ):
             if handle:
                 handle.close()
-
     print(
         "Done. "
         f"total={totals['total']} "
@@ -2686,7 +2442,6 @@ def main(argv):
         f"auth_errors={totals['auth_errors']} "
         f"ai_errors={totals['ai_errors']}"
     )
-
     run_finished_at = time.strftime("%Y-%m-%d %H:%M:%S")
     run_state = {
         "run_started_at": run_started_at,
@@ -2703,17 +2458,12 @@ def main(argv):
         "interrupted": interrupted,
     }
     write_run_state(args.run_state_path, run_state)
-
     if stop_reason and stop_reason not in {"auth_error", "ai_test"}:
         suffix = f" at {stop_uuid}" if stop_uuid else ""
         print(f"Stopped after {stop_reason}{suffix}. Fix the issue and rerun with --resume.")
-
     if totals["auth_errors"]:
         print("Auth error encountered. Refresh token and rerun with --resume.")
         return 2
-
     return 0 if totals["errors"] == 0 else 1
-
-
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))

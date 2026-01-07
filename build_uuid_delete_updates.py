@@ -3,8 +3,6 @@ import json
 import re
 from pathlib import Path
 from typing import Generator, Tuple
-
-
 USER_MAP = {
     "b388b48e-e5c4-4618-b853-71972a21bdeb": "maddoxg",
     "433d1ddd-0f8d-4eab-a5c5-f803deb930e3": "kayjack",
@@ -26,15 +24,11 @@ USER_MAP = {
     "20d73400-51ea-41c8-be17-372c673c2813": "glongino",
     "b471674a-0d9f-4c32-96e5-dbc9249398d2": "emmab",
 }
-
 USER_MAP_LOWER = {key.lower(): value for key, value in USER_MAP.items()}
-
 UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     re.IGNORECASE,
 )
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build RTDB delete updates for UUID username entries."
@@ -55,20 +49,14 @@ def parse_args() -> argparse.Namespace:
         help="Also delete UUID usernames not present in USER_MAP.",
     )
     return parser.parse_args()
-
-
 def load_json(path: Path) -> object:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
-
-
 def iter_update_map(data: object) -> Generator[Tuple[str, object], None, None]:
     if not isinstance(data, dict):
         raise ValueError("Updates file is not an object.")
     for key, value in data.items():
         yield str(key), value
-
-
 def iter_updates_from_file(path: Path) -> Generator[Tuple[str, object], None, None]:
     data = load_json(path)
     if isinstance(data, dict) and "chunks" in data:
@@ -83,29 +71,21 @@ def iter_updates_from_file(path: Path) -> Generator[Tuple[str, object], None, No
             yield from iter_updates_from_file(chunk_path)
         return
     yield from iter_update_map(data)
-
-
 def iter_updates(input_path: Path) -> Generator[Tuple[str, object], None, None]:
     if input_path.is_dir():
         for file_path in sorted(input_path.glob("*.json")):
             yield from iter_updates_from_file(file_path)
         return
     yield from iter_updates_from_file(input_path)
-
-
 def is_uuid(value: str) -> bool:
     if not value:
         return False
     return bool(UUID_RE.match(value.strip()))
-
-
 def extract_user_from_key(key: str) -> str | None:
     parts = key.strip("/").split("/")
     if len(parts) < 4 or parts[0] != "locationNotes":
         return None
     return parts[2]
-
-
 def build_delete_map(
     updates: Generator[Tuple[str, object], None, None],
     include_unknown: bool,
@@ -116,7 +96,6 @@ def build_delete_map(
         "mapped_deletes": 0,
         "unknown_deletes": 0,
     }
-
     for key, _ in updates:
         stats["seen"] += 1
         user = extract_user_from_key(key)
@@ -130,29 +109,22 @@ def build_delete_map(
         if include_unknown and is_uuid(user):
             deletes[key] = None
             stats["unknown_deletes"] += 1
-
     return deletes, stats
-
-
 def main() -> int:
     args = parse_args()
     input_path = Path(args.input)
     output_path = Path(args.output)
-
     if not input_path.exists():
         print(f"Input not found: {input_path}")
         return 1
-
     deletes, stats = build_delete_map(
         iter_updates(input_path),
         include_unknown=args.include_unknown_uuids,
     )
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(deletes, ensure_ascii=True) + "\n", encoding="utf-8"
     )
-
     print("Done.")
     print(
         f"seen={stats['seen']} "
@@ -161,7 +133,5 @@ def main() -> int:
         f"output={output_path}"
     )
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

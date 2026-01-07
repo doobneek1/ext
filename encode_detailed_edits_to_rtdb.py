@@ -12,7 +12,6 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import quote
-
 DEFAULT_CSV = r"C:\Users\doobneek\Desktop\doobneek-extension\01_11amjan2detailededits.csv"
 DEFAULT_OUTPUT = r"C:\Users\doobneek\Desktop\doobneek-extension\locationNotes_from_01_11amjan2detailededits.json"
 DEFAULT_CHUNK_SIZE_MB = 8.0
@@ -24,18 +23,14 @@ RESOURCE_TABLE_KEYS = (
 )
 CHANGED_AT_KEYS = ("changed_at_ny", "changed_at", "changed_at_local")
 NY_TZ_NAME = "America/New_York"
-
 try:
     from zoneinfo import ZoneInfo
 except Exception:
     ZoneInfo = None
-
 NY_TZ = ZoneInfo(NY_TZ_NAME) if ZoneInfo else None
-
 EMPTYISH = {"", "null", "none", "nan", "n/a", "[]", "{}"}
 ONE_MONTH_MS = 2_592_000_000
 SIX_MONTH_MS = 15_552_000_000
-
 SERVICE_SUFFIX_MAP = {
     ("services", "description"): "description",
     ("services", "additional_info"): "other-info",
@@ -55,7 +50,6 @@ SERVICE_SUFFIX_MAP = {
     ("service_languages", None): "languages",
     ("service_areas", None): "area",
 }
-
 QUESTION_SUFFIX_MAP = {
     ("locations", "name"): "location-name",
     ("locations", "description"): "location-description",
@@ -69,7 +63,6 @@ QUESTION_SUFFIX_MAP = {
     ("phones", None): "phone-number",
     ("physical_addresses", None): "location-address",
 }
-
 LABEL_OVERRIDES = {
     ("services", "additional_info"): "Other info",
     ("services", "who_does_it_serve"): "Who does it serve",
@@ -94,7 +87,6 @@ LABEL_OVERRIDES = {
     ("phones", "number"): "Phone number",
     ("physical_addresses", "address_1"): "Location address",
 }
-
 PRUNE_NOTE_FIELDS = {
     "delta",
     "locationId",
@@ -105,8 +97,6 @@ PRUNE_NOTE_FIELDS = {
     "ts",
     "userName",
 }
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Encode detailed edits CSV into locationNotes JSON for RTDB.",
@@ -220,14 +210,10 @@ def parse_args() -> argparse.Namespace:
         help="RTDB auth token (or set RTDB_TOKEN/FIREBASE_TOKEN env vars).",
     )
     return parser.parse_args()
-
-
 def normalize_id(value: str) -> str:
     if value is None:
         return ""
     return str(value).strip()
-
-
 def is_bad_id(value: str) -> bool:
     text = normalize_id(value)
     if not text:
@@ -237,19 +223,13 @@ def is_bad_id(value: str) -> bool:
     if text.lower() == "null":
         return True
     return False
-
-
 def is_emptyish(value: object) -> bool:
     if value is None:
         return True
     text = str(value).strip().lower()
     return text in EMPTYISH
-
-
 def normalize_value(value: object) -> object:
     return None if is_emptyish(value) else value
-
-
 def get_row_value(row: dict, key: str, *alt_keys: str) -> str:
     if key in row:
         return row.get(key) or ""
@@ -260,8 +240,6 @@ def get_row_value(row: dict, key: str, *alt_keys: str) -> str:
         if row_key.lstrip("\ufeff") == key:
             return row.get(row_key) or ""
     return ""
-
-
 def parse_bool(value: object) -> bool:
     if value is None:
         return False
@@ -269,11 +247,7 @@ def parse_bool(value: object) -> bool:
         return value
     text = str(value).strip().lower()
     return text in {"true", "1", "yes", "y"}
-
-
 TIME_ONLY_RE = re.compile(r"^(?P<a>\d{1,2}):(?P<b>\d{2})\.(?P<frac>\d+)$")
-
-
 def is_ny_dst(local_dt: datetime) -> bool:
     year = local_dt.year
     march = datetime(year, 3, 1)
@@ -284,15 +258,11 @@ def is_ny_dst(local_dt: datetime) -> bool:
     first_sunday_nov = 1 + ((6 - nov.weekday()) % 7)
     dst_end = datetime(year, 11, first_sunday_nov, 2, 0, 0)
     return dst_start <= local_dt < dst_end
-
-
 def coerce_ny_to_utc(local_dt: datetime) -> datetime:
     if NY_TZ:
         return local_dt.replace(tzinfo=NY_TZ).astimezone(timezone.utc)
     offset_hours = -4 if is_ny_dst(local_dt) else -5
     return (local_dt - timedelta(hours=offset_hours)).replace(tzinfo=timezone.utc)
-
-
 def parse_default_date(value: Optional[str]) -> Optional[date]:
     if not value:
         return None
@@ -300,8 +270,6 @@ def parse_default_date(value: Optional[str]) -> Optional[date]:
         return datetime.strptime(value.strip(), "%Y-%m-%d").date()
     except ValueError:
         return None
-
-
 def parse_changed_at(
     value: str,
     default_date: Optional[date] = None,
@@ -353,12 +321,8 @@ def parse_changed_at(
     else:
         dt = dt.astimezone(timezone.utc)
     return dt, False
-
-
 def to_epoch_ms(dt: datetime) -> int:
     return int(dt.timestamp() * 1000)
-
-
 def parse_epoch_ms(value: object) -> Optional[int]:
     if value is None:
         return None
@@ -376,8 +340,6 @@ def parse_epoch_ms(value: object) -> Optional[int]:
             return int(float(text))
         except ValueError:
             return None
-
-
 def to_iso(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
@@ -385,8 +347,6 @@ def to_iso(dt: datetime) -> str:
     if iso.endswith("+00:00"):
         iso = iso.replace("+00:00", "Z")
     return iso
-
-
 def build_summary(label: str, before_val: object, after_val: object) -> str:
     before_text = "" if before_val is None else str(before_val).strip()
     after_text = "" if after_val is None else str(after_val).strip()
@@ -395,24 +355,18 @@ def build_summary(label: str, before_val: object, after_val: object) -> str:
     if before_text and not after_text:
         return f"Cleared {label}"
     return f"Updated {label}"
-
-
 def build_action(before_val: object, after_val: object) -> str:
     if is_emptyish(before_val) and not is_emptyish(after_val):
         return "create"
     if not is_emptyish(before_val) and is_emptyish(after_val):
         return "delete"
     return "update"
-
-
 def build_confirmation_summary(label: str, kind: str) -> str:
     prefix = "Seconded" if kind == "seconded" else "Reconfirmed"
     cleaned = (label or "").strip()
     if cleaned:
         return f"{prefix} {cleaned}"
     return prefix
-
-
 def build_confirmation_note(note: dict, kind: str) -> dict:
     updated = dict(note)
     updated.pop("before", None)
@@ -422,8 +376,6 @@ def build_confirmation_note(note: dict, kind: str) -> dict:
     updated["summary"] = summary
     updated["copyedit"] = True
     return updated
-
-
 def make_note_entry(event: dict, note: dict, anchor: Optional[dict] = None) -> dict:
     return {
         "encoded_key": event["encoded_key"],
@@ -434,8 +386,6 @@ def make_note_entry(event: dict, note: dict, anchor: Optional[dict] = None) -> d
         "row_index": event["row_index"],
         "dropped": False,
     }
-
-
 def build_text_delta_ops(prev_text: str, new_text: str) -> list[list[object]]:
     matcher = difflib.SequenceMatcher(None, prev_text, new_text)
     ops: list[list[object]] = []
@@ -449,18 +399,12 @@ def build_text_delta_ops(prev_text: str, new_text: str) -> list[list[object]]:
         else:
             ops.append(["replace", i1, i2, new_text[j1:j2]])
     return ops
-
-
 def build_text_delta(prev_text: str, new_text: str) -> dict:
     return {"kind": "text-diff-v1", "ops": build_text_delta_ops(prev_text, new_text)}
-
-
 def should_use_delta(new_text: str, delta: dict) -> bool:
     after_size = len(json.dumps(new_text, ensure_ascii=True))
     delta_size = len(json.dumps(delta, ensure_ascii=True))
     return delta_size < after_size
-
-
 def apply_text_delta(prev_text: str, delta: dict) -> Optional[str]:
     if not isinstance(delta, dict) or delta.get("kind") != "text-diff-v1":
         return None
@@ -485,8 +429,6 @@ def apply_text_delta(prev_text: str, delta: dict) -> Optional[str]:
     except Exception:
         return None
     return text
-
-
 def label_from_field(field_name: str, resource_table: str) -> str:
     key = (resource_table, field_name)
     if key in LABEL_OVERRIDES:
@@ -495,24 +437,18 @@ def label_from_field(field_name: str, resource_table: str) -> str:
     if label:
         return label
     return resource_table.replace("_", " ").strip().title()
-
-
 def lookup_service_suffix(resource_table: str, field_name: str) -> Optional[str]:
     key = (resource_table, field_name)
     if key in SERVICE_SUFFIX_MAP:
         return SERVICE_SUFFIX_MAP[key]
     key = (resource_table, None)
     return SERVICE_SUFFIX_MAP.get(key)
-
-
 def lookup_question_suffix(resource_table: str, field_name: str) -> Optional[str]:
     key = (resource_table, field_name)
     if key in QUESTION_SUFFIX_MAP:
         return QUESTION_SUFFIX_MAP[key]
     key = (resource_table, None)
     return QUESTION_SUFFIX_MAP.get(key)
-
-
 def build_page_path(
     resource_table: str,
     field_name: str,
@@ -521,40 +457,28 @@ def build_page_path(
 ) -> Optional[str]:
     if is_bad_id(location_id):
         return None
-
     if not is_bad_id(service_id):
         suffix = lookup_service_suffix(resource_table, field_name)
         if suffix:
             return f"/team/location/{location_id}/services/{service_id}/{suffix}"
         return f"/team/location/{location_id}/services"
-
     if resource_table == "service_at_locations":
         return f"/team/location/{location_id}/services"
-
     question = lookup_question_suffix(resource_table, field_name)
     if question:
         return f"/team/location/{location_id}/questions/{question}"
-
     return f"/team/location/{location_id}"
-
-
 def normalize_base_path(value: str) -> str:
     if not value:
         return ""
     return f"/{value.strip('/')}"
-
-
 def build_update_path(base_path: str, encoded_key: str, user_name: str, date_key: str) -> str:
     base = normalize_base_path(base_path)
     if not base:
         return f"/{encoded_key}/{user_name}/{date_key}"
     return f"{base}/{encoded_key}/{user_name}/{date_key}"
-
-
 def estimate_kv_size(key: str, value: object) -> int:
     return len(json.dumps(key, ensure_ascii=True)) + len(json.dumps(value, ensure_ascii=True)) + 2
-
-
 class UpdateChunkWriter:
     def __init__(
         self,
@@ -573,7 +497,6 @@ class UpdateChunkWriter:
         self.current_roots: set[str] = set()
         self.chunk_index = 0
         self.chunks: list[Path] = []
-
     def add(self, key: str, value: str, root_key: Optional[str] = None) -> None:
         entry_size = estimate_kv_size(key, value)
         would_exceed_size = (
@@ -600,7 +523,6 @@ class UpdateChunkWriter:
         self.current_entries += 1
         if root_key is not None:
             self.current_roots.add(root_key)
-
     def flush(self) -> None:
         if not self.current:
             return
@@ -616,14 +538,10 @@ class UpdateChunkWriter:
         self.current_size = 2
         self.current_entries = 0
         self.current_roots = set()
-
-
 def resolve_token(arg_token: Optional[str]) -> str:
     if arg_token:
         return arg_token
     return os.getenv("RTDB_TOKEN") or os.getenv("FIREBASE_TOKEN") or ""
-
-
 def build_patch_url(db_url: str, token: str) -> str:
     base = db_url.rstrip("/")
     url = f"{base}/.json"
@@ -631,8 +549,6 @@ def build_patch_url(db_url: str, token: str) -> str:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}{urllib.parse.urlencode({'auth': token})}"
     return url
-
-
 def build_shallow_url(db_url: str, path: str, token: str) -> str:
     base = db_url.rstrip("/")
     cleaned = path.strip("/")
@@ -640,8 +556,6 @@ def build_shallow_url(db_url: str, path: str, token: str) -> str:
     if token:
         url = f"{url}&{urllib.parse.urlencode({'auth': token})}"
     return url
-
-
 def patch_payload(url: str, payload: bytes) -> Tuple[Optional[int], str]:
     req = urllib.request.Request(
         url,
@@ -658,8 +572,6 @@ def patch_payload(url: str, payload: bytes) -> Tuple[Optional[int], str]:
         return exc.code, body
     except urllib.error.URLError as exc:
         return None, str(exc)
-
-
 def load_locationnotes_root(json_path: Path) -> dict[str, object]:
     with json_path.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
@@ -672,8 +584,6 @@ def load_locationnotes_root(json_path: Path) -> dict[str, object]:
     if isinstance(data, dict):
         return data
     return {}
-
-
 def extract_locationnotes_root(data: object) -> dict | None:
     if not isinstance(data, dict):
         return None
@@ -685,8 +595,6 @@ def extract_locationnotes_root(data: object) -> dict | None:
         if isinstance(key, str) and key.startswith("%2F") and isinstance(value, dict):
             return data
     return None
-
-
 def flatten_locationnotes_export(
     root: dict, base_path: str
 ) -> tuple[dict[str, object], dict[str, int]]:
@@ -726,8 +634,6 @@ def flatten_locationnotes_export(
                 updates[update_key] = note_value
                 stats["export_entries"] += 1
     return updates, stats
-
-
 def load_updates_source(path: Path) -> dict[str, object]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, dict) and "chunks" in data:
@@ -747,8 +653,6 @@ def load_updates_source(path: Path) -> dict[str, object]:
             updates, _ = flatten_locationnotes_export(locationnotes_root, "/locationNotes")
             return updates
     return data if isinstance(data, dict) else {}
-
-
 def load_existing_updates(source: str) -> dict[str, object]:
     if not source:
         return {}
@@ -763,8 +667,6 @@ def load_existing_updates(source: str) -> dict[str, object]:
                 updates.update(chunk)
         return updates
     return load_updates_source(path)
-
-
 def extract_note_key(key: str, base_path: str) -> str:
     base = normalize_base_path(base_path)
     normalized = f"/{key.strip('/')}"
@@ -773,8 +675,6 @@ def extract_note_key(key: str, base_path: str) -> str:
     if base and normalized == base:
         return ""
     return normalized.lstrip("/")
-
-
 def parse_note_payload(value: object) -> dict | None:
     if isinstance(value, dict):
         return dict(value)
@@ -786,12 +686,8 @@ def parse_note_payload(value: object) -> dict | None:
         if isinstance(parsed, dict):
             return parsed
     return None
-
-
 def note_has_value(note: dict) -> bool:
     return "after" in note or "delta" in note
-
-
 def sanitize_note_for_event(
     note: dict, before_val: object, after_val: object
 ) -> tuple[dict, Optional[int]]:
@@ -818,8 +714,6 @@ def sanitize_note_for_event(
     if "copyedit" not in cleaned:
         cleaned["copyedit"] = False
     return cleaned, reconfirmed_on
-
-
 def decode_note_key(note_key: str) -> tuple[str, str, str]:
     parts = note_key.strip("/").split("/")
     if len(parts) < 3:
@@ -828,8 +722,6 @@ def decode_note_key(note_key: str) -> tuple[str, str, str]:
     user_name = parts[-2]
     encoded_key = "/".join(parts[:-2])
     return encoded_key, user_name, date_key
-
-
 def build_note_signature(note: dict) -> tuple:
     return (
         note.get("resourceTable"),
@@ -838,8 +730,6 @@ def build_note_signature(note: dict) -> tuple:
         note.get("before"),
         note.get("after"),
     )
-
-
 def build_event_from_note(
     encoded_key: str, user_name: str, epoch_ms: int, note: dict, row_index: int
 ) -> dict:
@@ -851,8 +741,6 @@ def build_event_from_note(
         "signature": build_note_signature(note),
         "row_index": row_index,
     }
-
-
 def build_events_from_updates(
     updates: dict[str, object], base_path: str, start_index: int
 ) -> tuple[dict[str, list[dict]], int, dict[str, int]]:
@@ -870,7 +758,6 @@ def build_events_from_updates(
     }
     raw_entries_by_key: dict[str, list[dict]] = {}
     row_index = start_index
-
     for update_key in sorted(updates.keys()):
         stats["existing_updates"] += 1
         note_key = extract_note_key(update_key, base_path)
@@ -897,7 +784,6 @@ def build_events_from_updates(
             }
         )
         stats["existing_entries"] += 1
-
     events_by_key: dict[str, list[dict]] = {}
     for encoded_key, raw_entries in raw_entries_by_key.items():
         raw_entries.sort(key=lambda item: (item["epoch_ms"], item["row_index"]))
@@ -905,7 +791,6 @@ def build_events_from_updates(
         edit_events: list[dict] = []
         events_by_epoch: dict[int, list[dict]] = {}
         reconfirmed_queue: list[dict] = []
-
         for entry in raw_entries:
             note = entry["note"]
             if not note_has_value(note):
@@ -946,11 +831,9 @@ def build_events_from_updates(
                     }
                 )
             prev_after_value = after_val
-
         for event in edit_events:
             events_by_key.setdefault(encoded_key, []).append(event)
             stats["existing_events"] += 1
-
         for reconfirmed in reconfirmed_queue:
             row_index += 1
             synthetic_note = dict(reconfirmed["note"])
@@ -966,7 +849,6 @@ def build_events_from_updates(
                 }
             )
             stats["existing_reconfirmed"] += 1
-
         for entry in raw_entries:
             note = entry["note"]
             if note_has_value(note):
@@ -1010,10 +892,7 @@ def build_events_from_updates(
                 }
             )
             stats["existing_confirmations"] += 1
-
     return events_by_key, row_index, stats
-
-
 def build_pagepath_report(entries_by_key: dict[str, list[dict]]) -> dict:
     items: list[dict] = []
     for encoded_key, entries in entries_by_key.items():
@@ -1048,8 +927,6 @@ def build_pagepath_report(entries_by_key: dict[str, list[dict]]) -> dict:
         )
     items.sort(key=lambda item: item["pagePath"])
     return {"baseUrl": "https://gogetta.nyc", "items": items}
-
-
 def fetch_locationnotes_keys(db_url: str, token: str) -> list[str]:
     url = build_shallow_url(db_url, "locationNotes", token)
     try:
@@ -1070,8 +947,6 @@ def fetch_locationnotes_keys(db_url: str, token: str) -> list[str]:
     if not isinstance(data, dict):
         return []
     return [key for key in data.keys() if isinstance(key, str)]
-
-
 def derive_cleanup_keys(
     root: dict[str, object], assume_invocations: bool
 ) -> Tuple[list[str], list[str]]:
@@ -1088,8 +963,6 @@ def derive_cleanup_keys(
         elif isinstance(value, dict) and "invocations" in value:
             invocation_keys.append(key)
     return encoded_keys, invocation_keys
-
-
 def iter_patch_chunks(
     items: list[tuple[str, object, Optional[str]]],
     chunk_size_bytes: int,
@@ -1123,8 +996,6 @@ def iter_patch_chunks(
             roots.add(root_key)
     if chunk:
         yield chunk
-
-
 def cleanup_locationnotes(
     db_url: str,
     token: str,
@@ -1150,13 +1021,11 @@ def cleanup_locationnotes(
     if not encoded_keys and not invocation_keys:
         print("Cleanup: no matching locationNotes entries found.")
         return True
-
     items: list[tuple[str, object, Optional[str]]] = []
     for key in encoded_keys:
         items.append((f"{base_path}/{key}", None, key))
     for key in invocation_keys:
         items.append((f"{base_path}/{key}/invocations", None, key))
-
     url = build_patch_url(db_url, token)
     total_updates = len(items)
     print(
@@ -1175,26 +1044,20 @@ def cleanup_locationnotes(
             return False
     print("Cleanup done.")
     return True
-
-
 def main() -> int:
     args = parse_args()
     csv_path = Path(args.csv)
     output_path = Path(args.output)
-
     if not csv_path.exists():
         print(f"CSV not found: {csv_path}")
         return 1
-
     default_date = parse_default_date(args.default_date)
     if args.default_date and not default_date:
         print("Invalid --default-date. Expected YYYY-MM-DD.")
         return 2
-
     if args.upload and args.output_mode != "updates":
         print("Upload is only supported with --output-mode updates.")
         return 2
-
     if args.cleanup_locationnotes:
         if not args.db_url:
             print("Missing --db-url for cleanup.")
@@ -1218,12 +1081,10 @@ def main() -> int:
             return 3
         if args.cleanup_only:
             return 0
-
     notes = {}
     updates = None
     chunk_writer = None
     chunk_size_bytes = 0
-
     if args.output_mode == "updates":
         max_entries = max(0, args.chunk_max_entries or 0)
         max_roots = max(0, args.chunk_max_roots or 0)
@@ -1246,7 +1107,6 @@ def main() -> int:
             )
         else:
             updates = {}
-
     stats = {
         "rows": 0,
         "added": 0,
@@ -1276,7 +1136,6 @@ def main() -> int:
     }
     events_by_key: dict[str, list[dict]] = {}
     event_counter = 0
-
     if args.merge_existing:
         existing_updates = load_existing_updates(args.merge_existing)
         if existing_updates:
@@ -1287,31 +1146,26 @@ def main() -> int:
                 events_by_key.setdefault(key, []).extend(events)
             for key, value in existing_stats.items():
                 stats[key] = stats.get(key, 0) + value
-
     with open(csv_path, newline="", encoding="cp1252", errors="replace") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
             stats["rows"] += 1
             if args.limit and stats["rows"] > args.limit:
                 break
-
             resource_table = get_row_value(
                 row, "resource_table", *RESOURCE_TABLE_KEYS[1:]
             ).strip()
             field_name = (row.get("field_name") or "").strip()
             location_id = normalize_id(row.get("location_id"))
             service_id = normalize_id(row.get("service_id"))
-
             if is_bad_id(location_id):
                 stats["skipped_ids"] += 1
                 continue
-
             before_raw = row.get("previous_value")
             after_raw = row.get("replacement_value")
             if is_emptyish(before_raw) and is_emptyish(after_raw):
                 stats["skipped_empty"] += 1
                 continue
-
             changed_at_raw = get_row_value(row, "changed_at_ny", *CHANGED_AT_KEYS[1:])
             dt, time_only = parse_changed_at(
                 changed_at_raw,
@@ -1325,24 +1179,19 @@ def main() -> int:
                     stats["time_only_skipped"] += 1
                 stats["skipped_time"] += 1
                 continue
-
             page_path = build_page_path(resource_table, field_name, location_id, service_id)
             if not page_path:
                 stats["skipped_no_page"] += 1
                 continue
-
             before_val = normalize_value(before_raw)
             after_val = normalize_value(after_raw)
             label = label_from_field(field_name, resource_table)
             summary = build_summary(label, before_val, after_val)
             action = build_action(before_raw, after_raw)
-
             user_name = (row.get("editor") or "").strip() or "unknown"
             copyedit = parse_bool(row.get("copyedit_flag"))
-
             encoded_key = quote(page_path, safe="")
             base_epoch_ms = to_epoch_ms(dt)
-
             note = {
                 "type": "edit",
                 "field": field_name,
@@ -1366,7 +1215,6 @@ def main() -> int:
                 "row_index": event_counter,
             }
             events_by_key.setdefault(encoded_key, []).append(event)
-
     entries: list[dict] = []
     for encoded_key, events in events_by_key.items():
         events.sort(key=lambda item: (item["epoch_ms"], item["row_index"]))
@@ -1376,7 +1224,6 @@ def main() -> int:
         anchor_user = None
         user_seconded_entries: dict[str, dict] = {}
         user_reconfirm_entries: dict[str, dict] = {}
-
         for event in events:
             signature = event["signature"]
             if current_signature is None or signature != current_signature:
@@ -1388,10 +1235,8 @@ def main() -> int:
                 user_seconded_entries = {}
                 user_reconfirm_entries = {}
                 continue
-
             if anchor_epoch_ms is None or anchor_entry is None or anchor_user is None:
                 continue
-
             delta_ms = event["epoch_ms"] - anchor_epoch_ms
             if delta_ms <= SIX_MONTH_MS:
                 if event["user_name"] == anchor_user:
@@ -1402,11 +1247,9 @@ def main() -> int:
                             anchor_entry["note"]["reconfirmedOn"] = event["epoch_ms"]
                             stats["reconfirmed_on"] += 1
                     continue
-
                 if delta_ms < ONE_MONTH_MS:
                     stats["consolidated"] += 1
                     continue
-
                 existing_entry = user_seconded_entries.get(event["user_name"])
                 if existing_entry:
                     stats["consolidated"] += 1
@@ -1415,7 +1258,6 @@ def main() -> int:
                         existing_entry["note"]["reconfirmedOn"] = event["epoch_ms"]
                         stats["reconfirmed_on"] += 1
                     continue
-
                 note = build_confirmation_note(event["note"], "seconded")
                 entry = make_note_entry(event, note, anchor=anchor_entry)
                 entry["note"]["prevTimestamp"] = anchor_epoch_ms
@@ -1425,7 +1267,6 @@ def main() -> int:
                 user_seconded_entries[event["user_name"]] = entry
                 stats["seconded"] += 1
                 continue
-
             note = build_confirmation_note(event["note"], "reconfirmed")
             entry = make_note_entry(event, note, anchor=anchor_entry)
             entry["note"]["prevTimestamp"] = anchor_epoch_ms
@@ -1438,10 +1279,8 @@ def main() -> int:
             entries.append(entry)
             user_reconfirm_entries[event["user_name"]] = entry
             stats["reconfirmations"] += 1
-
     entries = [entry for entry in entries if not entry["dropped"]]
     stats["added"] = len(entries)
-
     used_date_keys: dict[tuple[str, str], set[str]] = {}
     for entry in entries:
         encoded_key = entry["encoded_key"]
@@ -1463,16 +1302,13 @@ def main() -> int:
         if epoch_ms != base_epoch_ms:
             entry["epoch_ms"] = epoch_ms
         entry["date_key"] = date_key
-
     for entry in entries:
         anchor = entry.get("anchor")
         if anchor and "prevTimestamp" in entry["note"]:
             entry["note"]["prevTimestamp"] = anchor["epoch_ms"]
-
     entries_by_key: dict[str, list[dict]] = {}
     for entry in entries:
         entries_by_key.setdefault(entry["encoded_key"], []).append(entry)
-
     for key_entries in entries_by_key.values():
         key_entries.sort(key=lambda item: (item["epoch_ms"], item["row_index"]))
         prev_entry = None
@@ -1505,7 +1341,6 @@ def main() -> int:
             if has_after:
                 prev_after_value = current_after
             prev_entry = entry
-
     if args.pagepath_report:
         report_path = Path(args.pagepath_report)
         report_data = build_pagepath_report(entries_by_key)
@@ -1513,24 +1348,20 @@ def main() -> int:
             json.dumps(report_data, ensure_ascii=True, indent=2) + "\n",
             encoding="utf-8",
         )
-
     for entry in entries:
         note_payload = json.dumps(entry["note"], ensure_ascii=True)
         encoded_key = entry["encoded_key"]
         user_name = entry["user_name"]
         date_key = entry["date_key"]
-
         if args.output_mode == "nested":
             user_map = notes.get(encoded_key)
             if not isinstance(user_map, dict):
                 user_map = {}
                 notes[encoded_key] = user_map
-
             date_map = user_map.get(user_name)
             if not isinstance(date_map, dict):
                 date_map = {}
                 user_map[user_name] = date_map
-
             date_map[date_key] = note_payload
         else:
             update_path = build_update_path(
@@ -1540,7 +1371,6 @@ def main() -> int:
                 chunk_writer.add(update_path, note_payload, root_key=encoded_key)
             else:
                 updates[update_path] = note_payload
-
     if args.output_mode == "nested":
         output_path.write_text(
             json.dumps(notes, ensure_ascii=True, indent=2) + "\n",
@@ -1563,7 +1393,6 @@ def main() -> int:
                 json.dumps(updates, ensure_ascii=True, indent=2) + "\n",
                 encoding="utf-8",
             )
-
         if args.upload:
             if not args.db_url:
                 print("Missing --db-url for upload.")
@@ -1586,7 +1415,6 @@ def main() -> int:
                     print(f"Upload failed: {body}")
                     return 3
             print("Upload done.")
-
     if stats["time_only"] and not default_date:
         print("Detected time-only changed_at values. Re-run with --default-date YYYY-MM-DD.")
     print("Done.")
@@ -1594,7 +1422,5 @@ def main() -> int:
         print(f"{key}: {value}")
     print(f"Output: {output_path}")
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

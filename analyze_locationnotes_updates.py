@@ -5,8 +5,6 @@ import re
 import urllib.parse
 from pathlib import Path
 from typing import Generator, Tuple
-
-
 USER_MAP = {
     "b388b48e-e5c4-4618-b853-71972a21bdeb": "maddoxg",
     "433d1ddd-0f8d-4eab-a5c5-f803deb930e3": "kayjack",
@@ -28,15 +26,11 @@ USER_MAP = {
     "20d73400-51ea-41c8-be17-372c673c2813": "glongino",
     "b471674a-0d9f-4c32-96e5-dbc9249398d2": "emmab",
 }
-
 USER_MAP_LOWER = {key.lower(): value for key, value in USER_MAP.items()}
-
 UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     re.IGNORECASE,
 )
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -68,20 +62,14 @@ def parse_args() -> argparse.Namespace:
         help="Optional path to write a JSON report.",
     )
     return parser.parse_args()
-
-
 def load_json(path: Path) -> object:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
-
-
 def iter_update_map(data: object) -> Generator[Tuple[str, object], None, None]:
     if not isinstance(data, dict):
         raise ValueError("Updates file is not an object.")
     for key, value in data.items():
         yield str(key), value
-
-
 def iter_updates_from_file(path: Path) -> Generator[Tuple[str, object], None, None]:
     data = load_json(path)
     if isinstance(data, dict) and "chunks" in data:
@@ -96,16 +84,12 @@ def iter_updates_from_file(path: Path) -> Generator[Tuple[str, object], None, No
             yield from iter_updates_from_file(chunk_path)
         return
     yield from iter_update_map(data)
-
-
 def iter_updates(input_path: Path) -> Generator[Tuple[str, object], None, None]:
     if input_path.is_dir():
         for file_path in sorted(input_path.glob("*.json")):
             yield from iter_updates_from_file(file_path)
         return
     yield from iter_updates_from_file(input_path)
-
-
 def parse_locationnotes_key(key: str) -> Tuple[str, str, str] | None:
     if not key:
         return None
@@ -121,8 +105,6 @@ def parse_locationnotes_key(key: str) -> Tuple[str, str, str] | None:
     timestamp = parts[-1]
     node = "/".join(parts[1:-2])
     return node, user, timestamp
-
-
 def normalize_target(target: str) -> str | None:
     if not target:
         return None
@@ -143,8 +125,6 @@ def normalize_target(target: str) -> str | None:
     if text.startswith("/"):
         return text
     return text
-
-
 def choose_encoded_sample(existing: str, candidate: str) -> str:
     if not existing:
         return candidate
@@ -153,8 +133,6 @@ def choose_encoded_sample(existing: str, candidate: str) -> str:
     if candidate_encoded and not existing_encoded:
         return candidate
     return existing
-
-
 def collect_details_for_key(
     input_path: Path, target_decoded: str
 ) -> Tuple[int, set[str], set[str]]:
@@ -173,15 +151,12 @@ def collect_details_for_key(
         users.add(user)
         timestamps.add(timestamp)
     return total, users, timestamps
-
-
 def main() -> int:
     args = parse_args()
     input_path = Path(args.input)
     if not input_path.exists():
         print(f"Input not found: {input_path}")
         return 1
-
     target_decoded = normalize_target(args.target)
     counts: dict[str, int] = {}
     encoded_samples: dict[str, str] = {}
@@ -192,7 +167,6 @@ def main() -> int:
     target_users: set[str] = set()
     target_timestamps: set[str] = set()
     target_count = 0
-
     for key, _ in iter_updates(input_path):
         total_updates += 1
         parsed = parse_locationnotes_key(key)
@@ -205,26 +179,22 @@ def main() -> int:
         encoded_samples[decoded] = choose_encoded_sample(
             encoded_samples.get(decoded, ""), node
         )
-
         user_lower = user.lower()
         if UUID_RE.match(user_lower):
             if user_lower in USER_MAP_LOWER:
                 uuid_mapped[user_lower] = uuid_mapped.get(user_lower, 0) + 1
             else:
                 uuid_unmapped[user_lower] = uuid_unmapped.get(user_lower, 0) + 1
-
         if target_decoded and decoded == target_decoded:
             target_count += 1
             target_users.add(user)
             target_timestamps.add(timestamp)
-
     top_n = max(int(args.top or 0), 0)
     top_items = (
         sorted(counts.items(), key=lambda item: item[1], reverse=True)[:top_n]
         if top_n
         else []
     )
-
     top_detail = None
     if top_items:
         top_key = top_items[0][0]
@@ -249,7 +219,6 @@ def main() -> int:
                 "unique_timestamps": len(detail_timestamps),
                 "users": sorted(detail_users),
             }
-
     report = {
         "input": str(input_path),
         "total_updates": total_updates,
@@ -272,7 +241,6 @@ def main() -> int:
             "unmapped_unique": sorted(uuid_unmapped.keys()),
         },
     }
-
     if target_decoded:
         report["target"] = {
             "decoded": target_decoded,
@@ -282,36 +250,30 @@ def main() -> int:
             "unique_timestamps": len(target_timestamps),
             "users": sorted(target_users),
         }
-
     print(
         f"Updates: total={total_updates} non_locationnotes={non_locationnotes} "
         f"unique_nodes={len(counts)}"
     )
-
     if top_items:
         print("Top nodes by username/timestamp combos:")
         for key, count in top_items:
             encoded = urllib.parse.quote(key, safe="")
             print(f"- {count} combos: {encoded} ({key})")
-
     if target_decoded:
         print(
             f"Target: {urllib.parse.quote(target_decoded, safe='')} "
             f"count={target_count} unique_users={len(target_users)} "
             f"unique_timestamps={len(target_timestamps)}"
         )
-
     print(
         "UUID users: "
         f"mapped_total={sum(uuid_mapped.values())} "
         f"unmapped_total={sum(uuid_unmapped.values())}"
     )
-
     if uuid_unmapped:
         print("Unmapped UUID usernames:")
         for user_id in sorted(uuid_unmapped.keys()):
             print(f"- {user_id}")
-
     if args.report:
         report_path = Path(args.report)
         report_path.write_text(
@@ -319,9 +281,6 @@ def main() -> int:
             encoding="utf-8",
         )
         print(f"Report: {report_path}")
-
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -1,6 +1,5 @@
 (function () {
   'use strict';
-
   const OPTION_SELECTOR = 'button.Option, .Option[role="button"]';
   const CHECK_ICON_SELECTOR = 'svg.fa-check, svg[data-icon="check"]';
   const PROOFS_REQUIRED_PATH = /\/documents\/proofs-required\/?$/i;
@@ -13,23 +12,18 @@
   const NONE_CLEAR_ATTR = 'data-gghost-proofs-none-clear';
   const NONE_CLEARED_ATTR = 'data-dnk-none-cleared';
   const CUSTOM_PROOF_INPUT_ID = 'proofs-required-custom-form';
-
   const textMeasureCanvas = document.createElement('canvas');
   const textMeasureContext = textMeasureCanvas.getContext('2d');
-
   function isProofsRequiredPage() {
     if (!HOST_RE.test(location.hostname)) return false;
     return PROOFS_REQUIRED_PATH.test(location.pathname);
   }
-
   function normalizeLabel(text) {
     return (text || '').replace(/\s+/g, ' ').trim().toLowerCase();
   }
-
   function getLabelNode(button) {
     return button ? button.querySelector('.w-100') : null;
   }
-
   function getOptionLabelRaw(button) {
     const labelNode = getLabelNode(button);
     if (labelNode) {
@@ -39,11 +33,9 @@
     }
     return (button?.textContent || '').replace(/\s+/g, ' ').trim();
   }
-
   function hasCheckIcon(button) {
     return Boolean(button && button.querySelector(CHECK_ICON_SELECTOR));
   }
-
   function isOptionChecked(button) {
     if (!button) return false;
     const ariaPressed = button.getAttribute('aria-pressed');
@@ -52,16 +44,13 @@
     if (button.classList.contains('Option-active')) return true;
     return hasCheckIcon(button);
   }
-
   function isNoneButton(button) {
     return normalizeLabel(getOptionLabelRaw(button)) === NONE_LABEL;
   }
-
   function isAddAnotherButton(button) {
     const label = normalizeLabel(getOptionLabelRaw(button));
     return label.includes('add another');
   }
-
   function ensureStyles() {
     if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement('style');
@@ -94,7 +83,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
 `;
     (document.head || document.documentElement).appendChild(style);
   }
-
   function ensureLabelClass(button) {
     const labelNode = getLabelNode(button);
     if (!labelNode) return null;
@@ -103,22 +91,18 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     }
     return labelNode;
   }
-
   function removePenIcons() {
     const pens = document.querySelectorAll('.dnk-proofs-pen');
     pens.forEach((pen) => pen.remove());
   }
-
   function markNoneClear() {
     document.documentElement.setAttribute(NONE_CLEAR_ATTR, 'true');
   }
-
   function clearNoneClear() {
     document.documentElement.removeAttribute(NONE_CLEAR_ATTR);
     const noneButton = findNoneButton();
     if (noneButton) setNoneCleared(noneButton, false);
   }
-
   function setNoneCleared(button, cleared) {
     if (!button) return;
     if (cleared) {
@@ -128,12 +112,10 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
       button.removeAttribute(NONE_CLEARED_ATTR);
     }
   }
-
   function findNoneButton() {
     const options = Array.from(document.querySelectorAll(OPTION_SELECTOR));
     return options.find((button) => isNoneButton(button)) || null;
   }
-
   function measureTextWidth(text, font) {
     if (!textMeasureContext) return (text || '').length * 8;
     textMeasureContext.font = font;
@@ -144,7 +126,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     }
     return max;
   }
-
   function adjustTextareaSize(textarea, labelNode) {
     if (!textarea || !labelNode) return;
     const computed = getComputedStyle(textarea);
@@ -165,7 +146,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
     textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
   }
-
   function finalizeEdit(button, labelNode, textarea) {
     if (!labelNode || !textarea) return;
     const original = textarea.dataset.originalLabel || '';
@@ -174,24 +154,19 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     if (button) button.classList.remove(EDITING_CLASS);
     queueProofsOverrideRefresh();
   }
-
   function startEditing(button) {
     if (!button || button.classList.contains(EDITING_CLASS)) return;
     if (!isProofsRequiredPage()) return;
     if (isNoneButton(button)) return;
-
     commitAllEdits();
-
     const labelNode = ensureLabelClass(button);
     if (!labelNode) return;
     const currentText = (labelNode.textContent || '').replace(/\s+/g, ' ').trim();
-
     const textarea = document.createElement('textarea');
     textarea.className = TEXTAREA_CLASS;
     textarea.value = currentText;
     textarea.rows = 1;
     textarea.dataset.originalLabel = currentText;
-
     textarea.addEventListener('input', () => adjustTextareaSize(textarea, labelNode));
     textarea.addEventListener('mousedown', (event) => event.stopPropagation());
     textarea.addEventListener('click', (event) => event.stopPropagation());
@@ -207,18 +182,15 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
         textarea.blur();
       }
     });
-
     labelNode.textContent = '';
     labelNode.appendChild(textarea);
     button.classList.add(EDITING_CLASS);
-
     requestAnimationFrame(() => {
       adjustTextareaSize(textarea, labelNode);
       textarea.focus();
       textarea.select();
     });
   }
-
   function commitAllEdits() {
     const editors = Array.from(document.querySelectorAll(`.${TEXTAREA_CLASS}`));
     for (const editor of editors) {
@@ -227,7 +199,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
       finalizeEdit(button, labelNode, editor);
     }
   }
-
   function writeProofsOverride(labels) {
     const payload = Array.isArray(labels) ? labels : [];
     try {
@@ -235,14 +206,11 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
       document.documentElement.setAttribute('data-dnk-proofs-override-at', String(Date.now()));
     } catch {}
   }
-
   let proofsOverrideQueued = false;
-
   function updateProofsOverrideFromDom() {
     const labels = collectCheckedLabels();
     writeProofsOverride(labels ?? []);
   }
-
   function queueProofsOverrideRefresh() {
     if (proofsOverrideQueued) return;
     proofsOverrideQueued = true;
@@ -251,18 +219,15 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
       updateProofsOverrideFromDom();
     });
   }
-
   function isElementVisible(element) {
     if (!element) return false;
     const rect = element.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0;
   }
-
   function collectCheckedLabels() {
     const options = Array.from(document.querySelectorAll(OPTION_SELECTOR));
     let sawNone = false;
     const labels = [];
-
     for (const option of options) {
       if (!isElementVisible(option)) continue;
       if (!hasCheckIcon(option)) continue;
@@ -275,7 +240,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
       }
       labels.push(raw);
     }
-
     const shouldClear = document.documentElement.hasAttribute(NONE_CLEAR_ATTR);
     if (!labels.length && (sawNone || shouldClear)) {
       if (shouldClear) document.documentElement.removeAttribute(NONE_CLEAR_ATTR);
@@ -287,7 +251,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     }
     return null;
   }
-
   function commitActiveEditsFromClick(event) {
     const editors = Array.from(document.querySelectorAll(`.${TEXTAREA_CLASS}`));
     if (!editors.length) return false;
@@ -306,7 +269,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     }
     return true;
   }
-
   function onOptionClick(event) {
     if (!isProofsRequiredPage()) return;
     if (event.button !== 0) return;
@@ -331,7 +293,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     }
     if (event?.target?.closest?.(`.${TEXTAREA_CLASS}`)) return;
     if (commitActiveEditsFromClick(event)) return;
-
     if (isNoneButton(button)) {
       if (hasCheckIcon(button)) {
         event.preventDefault();
@@ -345,7 +306,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
       setNoneCleared(button, false);
       return;
     }
-
     if (!isAddAnotherButton(button)) {
       const label = getOptionLabelRaw(button);
       const prompt = isChecked ? `Remove "${label}"?` : `Select "${label}"?`;
@@ -357,14 +317,11 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
         return;
       }
     }
-
     clearNoneClear();
     queueProofsOverrideRefresh();
   }
-
   const observedButtons = new WeakSet();
   const observedOkButtons = new WeakSet();
-
   function attachOption(button) {
     ensureLabelClass(button);
     removePenIcons();
@@ -388,7 +345,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
       startEditing(button);
     }, true);
   }
-
   function attachOkButton() {
     if (!isProofsRequiredPage()) return;
     const buttons = Array.from(document.querySelectorAll('button'));
@@ -404,7 +360,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
       updateProofsOverrideFromDom();
     }, true);
   }
-
   function attachCustomProofInput() {
     if (!isProofsRequiredPage()) return;
     const input = document.getElementById(CUSTOM_PROOF_INPUT_ID);
@@ -419,7 +374,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
       event.stopImmediatePropagation();
     }, true);
   }
-
   function syncOptions() {
     if (!isProofsRequiredPage()) return;
     ensureStyles();
@@ -429,7 +383,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     attachOkButton();
     attachCustomProofInput();
   }
-
   function startObserver() {
     if (!document.body) return;
     const observer = new MutationObserver(() => {
@@ -437,7 +390,6 @@ button.Option[${NONE_CLEARED_ATTR}="true"] svg[data-icon="check"] {
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
-
   if (window.__doobneekProofsRequiredClickHandler) return;
   window.__doobneekProofsRequiredClickHandler = true;
   syncOptions();

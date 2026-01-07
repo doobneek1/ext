@@ -1,7 +1,6 @@
 -- Auto-generated from locations_text_phone_patched.csv
 -- NOTE: update `updated_at` column names if your schema differs.
 -- Optional: add a time window filter inside cleanup_edits if needed.
-
 -- Query 1: preview/export the restore plan
 WITH patched AS (
   SELECT DISTINCT * FROM (VALUES
@@ -2537,7 +2536,6 @@ resolved AS (
     s.id AS service_id,
     p.id AS phone_id
   FROM metadata m
-
   LEFT JOIN accessibility_for_disabilities afd
     ON m.resource_table = 'accessibility_for_disabilities'
    AND m.resource_id = afd.id
@@ -2568,7 +2566,6 @@ resolved AS (
   LEFT JOIN event_related_info eri
     ON m.resource_table = 'event_related_info'
    AND m.resource_id = eri.id
-
   LEFT JOIN services s ON (
        (m.resource_table = 'services' AND m.resource_id = s.id)
     OR sl.service_id   = s.id
@@ -2581,10 +2578,8 @@ resolved AS (
     OR p.service_id    = s.id
     OR eri.service_id  = s.id
   )
-
   LEFT JOIN service_at_locations sal
     ON sal.service_id = s.id
-
   LEFT JOIN locations l ON (
        (m.resource_table = 'locations' AND m.resource_id = l.id)
     OR sal.location_id  = l.id
@@ -2592,7 +2587,6 @@ resolved AS (
     OR eri.location_id  = l.id
     OR afd.location_id  = l.id
   )
-
   WHERE m.created_at IS NOT NULL
 )
 ,
@@ -2691,7 +2685,6 @@ updates AS (
   FROM prev_set
   WHERE prev_set_at IS NOT NULL
 )
-
 SELECT
   resource_table,
   resource_id::text AS resource_id,
@@ -2704,8 +2697,6 @@ SELECT
 FROM updates
 JOIN prev_set USING (resource_table, resource_id, field_name, location_id, service_id, phone_id)
 ORDER BY cleanup_at DESC;
-
-
 -- Query 2: write updates (run as admin)
 WITH patched AS (
   SELECT DISTINCT * FROM (VALUES
@@ -5241,7 +5232,6 @@ resolved AS (
     s.id AS service_id,
     p.id AS phone_id
   FROM metadata m
-
   LEFT JOIN accessibility_for_disabilities afd
     ON m.resource_table = 'accessibility_for_disabilities'
    AND m.resource_id = afd.id
@@ -5272,7 +5262,6 @@ resolved AS (
   LEFT JOIN event_related_info eri
     ON m.resource_table = 'event_related_info'
    AND m.resource_id = eri.id
-
   LEFT JOIN services s ON (
        (m.resource_table = 'services' AND m.resource_id = s.id)
     OR sl.service_id   = s.id
@@ -5285,10 +5274,8 @@ resolved AS (
     OR p.service_id    = s.id
     OR eri.service_id  = s.id
   )
-
   LEFT JOIN service_at_locations sal
     ON sal.service_id = s.id
-
   LEFT JOIN locations l ON (
        (m.resource_table = 'locations' AND m.resource_id = l.id)
     OR sal.location_id  = l.id
@@ -5296,7 +5283,6 @@ resolved AS (
     OR eri.location_id  = l.id
     OR afd.location_id  = l.id
   )
-
   WHERE m.created_at IS NOT NULL
 )
 ,

@@ -7,13 +7,10 @@ import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator, Optional, Tuple
-
-
 UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     re.IGNORECASE,
 )
-
 USER_MAP = {
     "b388b48e-e5c4-4618-b853-71972a21bdeb": "maddoxg",
     "433d1ddd-0f8d-4eab-a5c5-f803deb930e3": "kayjack",
@@ -35,15 +32,11 @@ USER_MAP = {
     "20d73400-51ea-41c8-be17-372c673c2813": "glongino",
     "b471674a-0d9f-4c32-96e5-dbc9249398d2": "emmab",
 }
-
 USER_MAP_LOWER = {key.lower(): value for key, value in USER_MAP.items()}
-
 ALLOWED_FIELDS = {
     "services.description",
     "event_related_info.information",
 }
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build a similarity index for locationNotes edits.",
@@ -149,8 +142,6 @@ def parse_args() -> argparse.Namespace:
         help="Save checkpoint every N matched events (default: 2000).",
     )
     return parser.parse_args()
-
-
 def parse_epoch_ms(value: object) -> Optional[int]:
     if value is None:
         return None
@@ -168,8 +159,6 @@ def parse_epoch_ms(value: object) -> Optional[int]:
             return int(float(text))
         except ValueError:
             return None
-
-
 def map_user(value: object) -> str:
     if value is None:
         return ""
@@ -178,19 +167,13 @@ def map_user(value: object) -> str:
         return ""
     mapped = USER_MAP.get(text) or USER_MAP_LOWER.get(text.lower())
     return mapped or text
-
-
 def normalize_base_path(value: str) -> str:
     if not value:
         return ""
     return f"/{value.strip('/')}"
-
-
 def load_json(path: Path) -> object:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
-
-
 def extract_locationnotes_root(data: object) -> Optional[dict]:
     if not isinstance(data, dict):
         return None
@@ -202,8 +185,6 @@ def extract_locationnotes_root(data: object) -> Optional[dict]:
         if isinstance(key, str) and key.startswith("%2F") and isinstance(value, dict):
             return data
     return None
-
-
 def iter_entries_from_nested(
     root: dict,
 ) -> Generator[Tuple[str, str, str, object], None, None]:
@@ -219,15 +200,11 @@ def iter_entries_from_nested(
                 if timestamp == "_meta":
                     continue
                 yield encoded_key, user, str(timestamp), payload
-
-
 def iter_update_map(data: object) -> Generator[Tuple[str, object], None, None]:
     if not isinstance(data, dict):
         raise ValueError("Updates data is not an object.")
     for key, value in data.items():
         yield str(key), value
-
-
 def iter_updates_from_file(path: Path) -> Generator[Tuple[str, object], None, None]:
     data = load_json(path)
     if isinstance(data, dict) and "chunks" in data:
@@ -242,16 +219,12 @@ def iter_updates_from_file(path: Path) -> Generator[Tuple[str, object], None, No
             yield from iter_updates_from_file(chunk_path)
         return
     yield from iter_update_map(data)
-
-
 def iter_updates(input_path: Path) -> Generator[Tuple[str, object], None, None]:
     if input_path.is_dir():
         for file_path in sorted(input_path.glob("*.json")):
             yield from iter_updates_from_file(file_path)
         return
     yield from iter_updates_from_file(input_path)
-
-
 def extract_note_key(key: str, base_path: str) -> str:
     base = normalize_base_path(base_path)
     normalized = f"/{key.strip('/')}"
@@ -260,8 +233,6 @@ def extract_note_key(key: str, base_path: str) -> str:
     if base and normalized == base:
         return ""
     return normalized.lstrip("/")
-
-
 def decode_note_key(note_key: str) -> Tuple[str, str, str]:
     parts = note_key.strip("/").split("/")
     if len(parts) < 3:
@@ -270,8 +241,6 @@ def decode_note_key(note_key: str) -> Tuple[str, str, str]:
     user_name = parts[-2]
     encoded_key = "/".join(parts[:-2])
     return encoded_key, user_name, date_key
-
-
 def parse_note_payload(value: object) -> Optional[dict]:
     if isinstance(value, dict):
         return dict(value)
@@ -283,8 +252,6 @@ def parse_note_payload(value: object) -> Optional[dict]:
         if isinstance(parsed, dict):
             return parsed
     return None
-
-
 def load_entries(
     input_path: Path, base_path: str
 ) -> Generator[Tuple[str, str, int, dict], None, None]:
@@ -303,7 +270,6 @@ def load_entries(
                     continue
                 yield encoded_key, user, epoch_ms, note
             return
-
     update_iter = iter_updates(input_path) if input_path.is_dir() else iter_updates_from_file(input_path)
     for key, payload in update_iter:
         note_key = extract_note_key(key, base_path)
@@ -317,8 +283,6 @@ def load_entries(
         if note is None:
             continue
         yield encoded_key, user, epoch_ms, note
-
-
 def apply_text_delta(prev_text: str, delta: dict) -> Optional[str]:
     if not isinstance(delta, dict) or delta.get("kind") != "text-diff-v1":
         return None
@@ -343,8 +307,6 @@ def apply_text_delta(prev_text: str, delta: dict) -> Optional[str]:
     except Exception:
         return None
     return text
-
-
 def build_field_key(note: dict) -> str:
     resource_table = str(note.get("resourceTable") or "").strip()
     field = str(note.get("field") or "").strip()
@@ -353,8 +315,6 @@ def build_field_key(note: dict) -> str:
     if resource_table:
         return resource_table
     return field or "unknown"
-
-
 def event_key_for(
     epoch_ms: int,
     user: str,
@@ -369,8 +329,6 @@ def event_key_for(
     if service_id:
         parts.append(service_id)
     return "|".join(parts)
-
-
 def extract_location_id(path: str) -> str:
     parts = path.strip("/").split("/")
     for idx, part in enumerate(parts[:-1]):
@@ -379,8 +337,6 @@ def extract_location_id(path: str) -> str:
             if UUID_RE.match(candidate):
                 return candidate
     return ""
-
-
 def extract_service_id(path: str) -> str:
     parts = path.strip("/").split("/")
     for idx, part in enumerate(parts[:-1]):
@@ -389,15 +345,11 @@ def extract_service_id(path: str) -> str:
             if UUID_RE.match(candidate):
                 return candidate
     return ""
-
-
 URL_RE = re.compile(r"https?://\S+")
 EMAIL_RE = re.compile(r"\b[\w\.-]+@[\w\.-]+\.\w+\b")
 PHONE_RE = re.compile(r"\b(?:\+?1[\s\-\(\)]*)?(?:\(?\d{3}\)?[\s\-\)]*)\d{3}[\s\-]*\d{4}\b")
 TAG_RE = re.compile(r"<[^>]+>")
 WHITESPACE_RE = re.compile(r"\s+")
-
-
 def normalize_similarity_text(text: str) -> str:
     cleaned = html.unescape(text or "")
     cleaned = TAG_RE.sub(" ", cleaned)
@@ -409,29 +361,19 @@ def normalize_similarity_text(text: str) -> str:
     cleaned = PHONE_RE.sub("<PHONE>", cleaned)
     cleaned = WHITESPACE_RE.sub(" ", cleaned).strip()
     return cleaned
-
-
 def default_checkpoint_path(output: str) -> str:
     return f"{output}.checkpoint.json"
-
-
 def default_events_cache_path(output: str) -> str:
     return f"{output}.events.json"
-
-
 def load_checkpoint(path: Path) -> dict:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         return {}
     return data
-
-
 def save_checkpoint(path: Path, payload: dict) -> None:
     tmp_path = path.with_suffix(path.suffix + ".tmp")
     tmp_path.write_text(json.dumps(payload, ensure_ascii=True) + "\n", encoding="utf-8")
     tmp_path.replace(path)
-
-
 def load_events_cache(path: Path) -> list[dict]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(payload, dict):
@@ -441,8 +383,6 @@ def load_events_cache(path: Path) -> list[dict]:
     if isinstance(payload, list):
         return payload
     return []
-
-
 def save_events_cache(path: Path, events: list[dict]) -> None:
     payload = {
         "schemaVersion": "1.1",
@@ -451,8 +391,6 @@ def save_events_cache(path: Path, events: list[dict]) -> None:
     tmp_path = path.with_suffix(path.suffix + ".tmp")
     tmp_path.write_text(json.dumps(payload, ensure_ascii=True) + "\n", encoding="utf-8")
     tmp_path.replace(path)
-
-
 def normalize_cached_events(events: list[dict]) -> list[dict]:
     normalized: list[dict] = []
     for event in events:
@@ -475,11 +413,9 @@ def normalize_cached_events(events: list[dict]) -> list[dict]:
                 if encoded_key:
                     decoded = urllib.parse.unquote(str(encoded_key))
                     location_id = extract_location_id(decoded)
-
         normalized_text = event.get("normalizedText")
         if normalized_text is None:
             normalized_text = ""
-
         normalized_event = {
             "timestampMs": timestamp_ms,
             "locationId": location_id,
@@ -487,7 +423,6 @@ def normalize_cached_events(events: list[dict]) -> list[dict]:
             "user": user,
             "normalizedText": normalized_text,
         }
-
         service_id = str(event.get("serviceId") or "")
         if not service_id and field_key.startswith("services."):
             page_path = event.get("pagePath")
@@ -500,11 +435,8 @@ def normalize_cached_events(events: list[dict]) -> list[dict]:
                     service_id = extract_service_id(decoded)
         if service_id:
             normalized_event["serviceId"] = service_id
-
         normalized.append(normalized_event)
     return normalized
-
-
 def build_checkpoint_payload(
     last_index: int, matches: dict, seen_pairs: set[tuple[str, str]]
 ) -> dict:
@@ -513,15 +445,12 @@ def build_checkpoint_payload(
         "matches": matches,
         "seenPairs": [f"{a}|{b}" for a, b in sorted(seen_pairs)],
     }
-
-
 def main() -> int:
     args = parse_args()
     input_path = Path(args.input)
     if not input_path.exists():
         print(f"Input not found: {input_path}")
         return 1
-
     checkpoint_path = Path(
         args.checkpoint or default_checkpoint_path(args.output)
     )
@@ -533,7 +462,6 @@ def main() -> int:
         resume_enabled = checkpoint_path.exists() or events_cache_path.exists()
         if resume_enabled:
             print("Auto-resume enabled (cache/checkpoint detected).")
-
     events: list[dict] = []
     if resume_enabled and events_cache_path.exists():
         events = load_events_cache(events_cache_path)
@@ -555,7 +483,6 @@ def main() -> int:
             )
             if args.progress_every and entries_seen % args.progress_every == 0:
                 print(f"Scanned {entries_seen} entries...")
-
         events_seen = 0
         for encoded_key, entries in entries_by_key.items():
             entries.sort(key=lambda item: item["epoch_ms"])
@@ -563,7 +490,6 @@ def main() -> int:
             location_id = extract_location_id(decoded_path)
             service_id = extract_service_id(decoded_path)
             field_states: dict[str, dict] = {}
-
             for entry in entries:
                 note = entry["note"]
                 field_key = build_field_key(note)
@@ -602,16 +528,13 @@ def main() -> int:
                 events_seen += 1
                 if args.progress_every and events_seen % args.progress_every == 0:
                     print(f"Built {events_seen} events...")
-
         events.sort(key=lambda item: item["timestampMs"])
         save_events_cache(events_cache_path, events)
         print(f"Wrote events cache: {events_cache_path} ({len(events)} events)")
-
     buckets: dict[int, list[int]] = {}
     matches: dict[str, dict] = {field_key: {} for field_key in ALLOWED_FIELDS}
     seen_pairs: set[tuple[str, str]] = set()
     bucket_size = max(10, args.bucket_size)
-
     start_index = 0
     if resume_enabled and checkpoint_path.exists():
         checkpoint = load_checkpoint(checkpoint_path)
@@ -639,7 +562,6 @@ def main() -> int:
                 buckets.setdefault(bucket, []).append(idx)
                 if args.progress_every and (idx + 1) % args.progress_every == 0:
                     print(f"Rebuilt buckets for {idx + 1} events...")
-
     processed_since_checkpoint = 0
     total_events = len(events)
     last_completed_index = start_index - 1
@@ -653,18 +575,15 @@ def main() -> int:
                 buckets.setdefault(bucket, []).append(idx)
                 last_completed_index = idx
                 continue
-
             bucket = target_len // bucket_size
         candidate_indices: list[int] = []
         for offset in (-1, 0, 1):
             candidate_indices.extend(buckets.get(bucket + offset, []))
         if args.max_candidates and len(candidate_indices) > args.max_candidates:
             candidate_indices = candidate_indices[-args.max_candidates :]
-
         best = None
         best_ratio = 0.0
         best_source = None
-
         for cand_idx in candidate_indices:
             source = events[cand_idx]
             if not source["locationId"] or source["locationId"] == event["locationId"]:
@@ -690,7 +609,6 @@ def main() -> int:
                 best = ratio
             if best_ratio >= 1.0:
                 break
-
             if best is not None and best_ratio >= args.min_similarity and best_source:
                 pair_key = (best_source["locationId"], event["locationId"])
                 if pair_key not in seen_pairs:
@@ -732,10 +650,8 @@ def main() -> int:
                     )
                     matches[field_key][event_key] = match_info
                     seen_pairs.add(pair_key)
-
             buckets.setdefault(bucket, []).append(idx)
             last_completed_index = idx
-
             processed_since_checkpoint += 1
             if args.checkpoint_every and processed_since_checkpoint >= args.checkpoint_every:
                 checkpoint_payload = build_checkpoint_payload(
@@ -744,7 +660,6 @@ def main() -> int:
                 save_checkpoint(checkpoint_path, checkpoint_payload)
                 processed_since_checkpoint = 0
                 print(f"Checkpoint saved at index {idx} -> {checkpoint_path}")
-
             if args.progress_every and (idx + 1) % args.progress_every == 0:
                 percent = (idx + 1) / total_events * 100 if total_events else 100
                 print(f"Matched {idx + 1}/{total_events} events ({percent:.1f}%)")
@@ -770,7 +685,6 @@ def main() -> int:
                 f"{last_completed_index} -> {checkpoint_path}"
             )
         raise
-
     output = {
         "schemaVersion": "1.1",
         "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -783,13 +697,10 @@ def main() -> int:
             "autoThreshold": args.auto_threshold,
         },
     }
-
     Path(args.output).write_text(
         json.dumps(output, ensure_ascii=True, indent=2) + "\n", encoding="utf-8"
     )
     print(f"Wrote similarity index: {args.output}")
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

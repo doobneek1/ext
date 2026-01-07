@@ -1,7 +1,6 @@
 (() => {
   if (window.__gghostTeamMapPinsBootstrap) return;
   window.__gghostTeamMapPinsBootstrap = true;
-
   const API_BASE = 'https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations';
   const SERVICE_API_BASE = 'https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/services';
   const CLOSE_LOCATION_EVENT = 'COVID19';
@@ -84,7 +83,6 @@
     adult: ['adult', 'adults', 'working age'],
     senior: ['senior', 'seniors', 'elder', 'elderly', 'older adult', 'aging']
   };
-
   const debugState = {
     active: false,
     mapReady: false,
@@ -96,7 +94,6 @@
     lastMapCapture: null,
     lastMapCaptureSource: null
   };
-
   const state = {
     active: false,
     map: null,
@@ -119,7 +116,6 @@
     preferredMarkerListener: null,
     pendingPreferredCenter: null
   };
-
   const searchState = {
     observer: null,
     input: null,
@@ -142,7 +138,6 @@
     savedQueryApplied: false,
     loadedSettings: false
   };
-
   const notesState = {
     overlay: null,
     header: null,
@@ -151,12 +146,10 @@
     cache: new Map(),
     pending: new Map()
   };
-
   const siteVisitState = {
     cache: new Map(),
     pending: new Map()
   };
-
   const updatesState = {
     container: null,
     panel: null,
@@ -165,7 +158,6 @@
     open: false,
     lastSignature: null
   };
-
   const recenterState = {
     outsideNyc: false,
     initialCenterChecked: false,
@@ -175,14 +167,12 @@
     captureExpiresAt: 0,
     button: null
   };
-
   const geoOverrideState = {
     installed: false,
     original: null,
     watchers: new Map(),
     watchId: 0
   };
-
   const statsWriteInFlight = new Map();
   const statsWriteOk = new Set();
   const statsQueue = [];
@@ -190,17 +180,14 @@
   let firebaseWriteDisabled = false;
   let firebaseWriteDisableLogged = false;
   let firebaseWriteMissingTokenLogged = false;
-
   window.__gghostTeamMapPinsStatus = debugState;
   window.__gghostTeamMapPinsBlockFullStory = BLOCK_FULLSTORY;
   initMinimapBridge();
   installPageLocationCacheBridge();
   installGeolocationOverride();
-
   function isTeamMapPage() {
     return HOST_RE.test(location.hostname) && PATH_RE.test(location.pathname);
   }
-
   function hookHistory() {
     if (window.__gghostTeamMapPinsHistoryWrapped) return;
     window.__gghostTeamMapPinsHistoryWrapped = true;
@@ -217,7 +204,6 @@
     };
     window.addEventListener('popstate', onChange);
   }
-
   function handleLocationChange() {
     if (isTeamMapPage()) {
       start();
@@ -225,7 +211,6 @@
       stop();
     }
   }
-
   function start() {
     if (state.active) return;
     state.active = true;
@@ -248,7 +233,6 @@
       });
     });
   }
-
   function stop() {
     state.active = false;
     debugState.active = false;
@@ -274,30 +258,24 @@
     clearMarkers();
     removeUpdatesOverlay();
   }
-
   function initMinimapBridge() {
     if (window.__gghostMinimapBridge) return;
     window.__gghostMinimapBridge = true;
     window.addEventListener('gghost-minimap-focus', handleMinimapFocus);
     window.addEventListener('gghost-minimap-clear', handleMinimapClear);
   }
-
   function installPageLocationCacheBridge() {
     if (window.__gghostPageLocationCacheBridge) return;
     window.__gghostPageLocationCacheBridge = true;
-
     const apiRe = /https:\/\/w6pkliozjh\.execute-api\.us-east-1\.amazonaws\.com\/prod\/locations\/([a-f0-9-]+)/i;
-
     const getCurrentLocationUuid = () => {
       const match = location.pathname.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,36})/i);
       return match ? match[1] : null;
     };
-
     const shouldCache = (uuid) => {
       const pageUuid = getCurrentLocationUuid();
       return pageUuid && uuid && pageUuid.toLowerCase() === uuid.toLowerCase();
     };
-
     const writeCache = (uuid, data) => {
       if (!uuid || !data || typeof data !== 'object') return;
       try {
@@ -310,14 +288,12 @@
         // ignore storage failures
       }
     };
-
     const handlePayload = (uuid, data) => {
       if (!shouldCache(uuid)) return;
       const dataId = String(data?.id || '').toLowerCase();
       if (dataId && dataId !== uuid.toLowerCase()) return;
       writeCache(uuid, data);
     };
-
     if (!window.__gghostLocationCacheFetchWrapped) {
       window.__gghostLocationCacheFetchWrapped = true;
       const originalFetch = window.fetch;
@@ -339,7 +315,6 @@
         };
       }
     }
-
     if (!window.__gghostLocationCacheXhrWrapped && window.XMLHttpRequest) {
       window.__gghostLocationCacheXhrWrapped = true;
       const proto = window.XMLHttpRequest.prototype;
@@ -373,7 +348,6 @@
       };
     }
   }
-
   function handleMinimapFocus(event) {
     const detail = event?.detail || {};
     const lat = Number(detail.lat);
@@ -399,7 +373,6 @@
       }));
     }
   }
-
   function handleMinimapClear() {
     state.pendingFocus = null;
     if (state.searchMarker) {
@@ -407,7 +380,6 @@
       state.searchMarker = null;
     }
   }
-
   function coerceLatLng(value) {
     if (!value || typeof value !== 'object') return null;
     const lat = Number(value.lat ?? value.latitude);
@@ -416,7 +388,6 @@
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
     return { lat, lng };
   }
-
   function readPreferredCenter() {
     try {
       const raw = localStorage.getItem(PREFERRED_CENTER_STORAGE_KEY);
@@ -427,7 +398,6 @@
       return null;
     }
   }
-
   function readPreferredCenterAddress() {
     try {
       const raw = localStorage.getItem(PREFERRED_CENTER_STORAGE_KEY);
@@ -438,7 +408,6 @@
       return '';
     }
   }
-
   function savePreferredCenter(lat, lng, address = null) {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
     try {
@@ -453,7 +422,6 @@
       return false;
     }
   }
-
   function isPreferredOverrideEnabled() {
     try {
       return localStorage.getItem(PREFERRED_CENTER_OVERRIDE_KEY) === 'true';
@@ -461,7 +429,6 @@
       return false;
     }
   }
-
   function setPreferredOverrideEnabled(enabled) {
     try {
       if (enabled) {
@@ -478,30 +445,25 @@
       applyPreferredOverride();
     }
   }
-
   function getPreferredCenter() {
     const stored = readPreferredCenter();
     if (stored && isWithinNycBounds(stored.lat, stored.lng)) return stored;
     return MIDTOWN_CENTER;
   }
-
   function getPreferredOverrideCenter() {
     if (!isPreferredOverrideEnabled()) return null;
     const stored = readPreferredCenter();
     if (stored && isWithinNycBounds(stored.lat, stored.lng)) return stored;
     return null;
   }
-
   function clearPreferredGeolocationWatches() {
     geoOverrideState.watchers.forEach((timerId) => clearInterval(timerId));
     geoOverrideState.watchers.clear();
   }
-
   function getPreferredOverrideCoords() {
     if (!isTeamMapPage()) return null;
     return getPreferredOverrideCenter();
   }
-
   function buildGeoPosition(lat, lng) {
     return {
       coords: {
@@ -516,7 +478,6 @@
       timestamp: Date.now()
     };
   }
-
   function installGeolocationOverride() {
     if (geoOverrideState.installed) return;
     const geo = navigator.geolocation;
@@ -529,7 +490,6 @@
     if (!original.getCurrentPosition && !original.watchPosition) return;
     geoOverrideState.original = original;
     geoOverrideState.installed = true;
-
     if (original.getCurrentPosition) {
       try {
         geo.getCurrentPosition = function (success, error, options) {
@@ -544,7 +504,6 @@
         // ignore if geolocation is read-only
       }
     }
-
     if (original.watchPosition) {
       try {
         geo.watchPosition = function (success, error, options) {
@@ -567,7 +526,6 @@
         // ignore if geolocation is read-only
       }
     }
-
     if (original.clearWatch) {
       try {
         geo.clearWatch = function (id) {
@@ -583,14 +541,12 @@
       }
     }
   }
-
   function isWithinNycBounds(lat, lng) {
     return lat >= NYC_BOUNDS.south
       && lat <= NYC_BOUNDS.north
       && lng >= NYC_BOUNDS.west
       && lng <= NYC_BOUNDS.east;
   }
-
   function getMapCenterLatLng(map) {
     if (!map?.getCenter) return null;
     const center = map.getCenter();
@@ -600,7 +556,6 @@
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
     return { lat, lng };
   }
-
   function startInitialCenterGuard() {
     if (isPreferredOverrideEnabled()) {
       recenterState.initialCenterChecked = true;
@@ -614,7 +569,6 @@
     recenterState.outsideNyc = false;
     updateRecenterButtonVisibility();
   }
-
   function maybeGuardInitialCenter() {
     if (isPreferredOverrideEnabled()) {
       recenterState.initialCenterChecked = true;
@@ -640,7 +594,6 @@
       recenterToPreferred({ dropPin: false, triggerClick: false });
     }
   }
-
   function recenterToPreferred(options = {}) {
     const target = getPreferredCenter();
     recenterToLocation(target.lat, target.lng, {
@@ -649,12 +602,10 @@
       triggerClick: options.triggerClick === true
     });
   }
-
   function queuePreferredLocationCapture() {
     recenterState.captureNextLocation = true;
     recenterState.captureExpiresAt = Date.now() + RECENTER_CAPTURE_TTL_MS;
   }
-
   function shouldCapturePreferredLocation(detail) {
     if (detail?.savePreference === true) return true;
     if (!recenterState.captureNextLocation) return false;
@@ -665,7 +616,6 @@
     }
     return true;
   }
-
   function maybeCapturePreferredLocation(lat, lng, detail) {
     if (!shouldCapturePreferredLocation(detail)) return;
     if (!isWithinNycBounds(lat, lng)) {
@@ -677,7 +627,6 @@
     recenterState.captureNextLocation = false;
     recenterState.captureExpiresAt = 0;
   }
-
   function focusMinimapSearchInput() {
     const input = document.querySelector('input[placeholder="Search place or address..."]');
     if (!input) return;
@@ -686,7 +635,6 @@
       input.select();
     }
   }
-
   function setPreferredMarker(position) {
     if (!state.map || !window.google?.maps?.Marker) return false;
     const icon = buildSearchMarkerIcon();
@@ -719,7 +667,6 @@
     }
     return true;
   }
-
   function removePreferredMarker() {
     if (state.preferredMarkerListener) {
       state.preferredMarkerListener.remove();
@@ -730,7 +677,6 @@
       state.preferredMarker = null;
     }
   }
-
   function applyPreferredOverride({ recenter = true } = {}) {
     const overrideCenter = getPreferredOverrideCenter();
     if (!overrideCenter) {
@@ -756,7 +702,6 @@
     state.pendingPreferredCenter = overrideCenter;
     return true;
   }
-
   function applyPendingPreferredCenter() {
     const pending = state.pendingPreferredCenter;
     if (!pending) return;
@@ -764,7 +709,6 @@
     setPreferredMarker(pending);
     recenterToLocation(pending.lat, pending.lng, { dropPin: false, triggerClick: false });
   }
-
   function clearPreferredCenterData() {
     try {
       localStorage.removeItem(PREFERRED_CENTER_STORAGE_KEY);
@@ -778,20 +722,17 @@
     recenterState.outsideNyc = center ? !isWithinNycBounds(center.lat, center.lng) : false;
     updateRecenterButtonVisibility();
   }
-
   function setRecenterOverlayMessage(text, isError) {
     const message = document.getElementById(RECENTER_OVERLAY_MESSAGE_ID);
     if (!message) return;
     message.textContent = text || '';
     message.style.color = isError ? '#b91c1c' : '#0f172a';
   }
-
   function setRecenterOverlayClearVisibility(visible) {
     const clear = document.getElementById(RECENTER_OVERLAY_CLEAR_ID);
     if (!clear) return;
     clear.style.display = visible ? '' : 'none';
   }
-
   function setRecenterOverlayBusy(isBusy) {
     const submit = document.getElementById(RECENTER_OVERLAY_SUBMIT_ID);
     const cancel = document.getElementById(RECENTER_OVERLAY_CANCEL_ID);
@@ -802,11 +743,9 @@
     if (clear) clear.disabled = !!isBusy;
     if (input) input.disabled = !!isBusy;
   }
-
   function ensureRecenterOverlay() {
     let overlay = document.getElementById(RECENTER_OVERLAY_ID);
     if (overlay) return overlay;
-
     overlay = document.createElement('div');
     overlay.id = RECENTER_OVERLAY_ID;
     Object.assign(overlay.style, {
@@ -818,7 +757,6 @@
       justifyContent: 'center',
       zIndex: 10000
     });
-
     const panel = document.createElement('div');
     Object.assign(panel.style, {
       background: '#ffffff',
@@ -828,7 +766,6 @@
       boxShadow: '0 12px 30px rgba(0, 0, 0, 0.25)',
       fontFamily: 'sans-serif'
     });
-
     const title = document.createElement('div');
     title.textContent = 'Re-center to NYC address';
     Object.assign(title.style, {
@@ -836,7 +773,6 @@
       fontWeight: '600',
       marginBottom: '10px'
     });
-
     const input = document.createElement('input');
     input.id = RECENTER_OVERLAY_INPUT_ID;
     input.type = 'text';
@@ -850,7 +786,6 @@
       border: '1px solid #cbd5f5',
       borderRadius: '6px'
     });
-
     const message = document.createElement('div');
     message.id = RECENTER_OVERLAY_MESSAGE_ID;
     Object.assign(message.style, {
@@ -859,7 +794,6 @@
       fontSize: '12px',
       color: '#0f172a'
     });
-
     const buttonRow = document.createElement('div');
     Object.assign(buttonRow.style, {
       display: 'flex',
@@ -867,7 +801,6 @@
       gap: '8px',
       marginTop: '12px'
     });
-
     const cancel = document.createElement('button');
     cancel.id = RECENTER_OVERLAY_CANCEL_ID;
     cancel.type = 'button';
@@ -880,7 +813,6 @@
       cursor: 'pointer'
     });
     cancel.addEventListener('click', hideRecenterOverlay);
-
     const clear = document.createElement('button');
     clear.id = RECENTER_OVERLAY_CLEAR_ID;
     clear.type = 'button';
@@ -898,7 +830,6 @@
       event.preventDefault();
       handleRecenterOverlayClear();
     });
-
     const submit = document.createElement('button');
     submit.id = RECENTER_OVERLAY_SUBMIT_ID;
     submit.type = 'button';
@@ -912,18 +843,15 @@
       cursor: 'pointer'
     });
     submit.addEventListener('click', handleRecenterOverlaySubmit);
-
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
         handleRecenterOverlaySubmit();
       }
     });
-
     overlay.addEventListener('click', (event) => {
       if (event.target === overlay) hideRecenterOverlay();
     });
-
     buttonRow.appendChild(cancel);
     buttonRow.appendChild(clear);
     buttonRow.appendChild(submit);
@@ -935,7 +863,6 @@
     document.body.appendChild(overlay);
     return overlay;
   }
-
   function showRecenterOverlay(options = {}) {
     const overlay = ensureRecenterOverlay();
     overlay.style.display = 'flex';
@@ -948,7 +875,6 @@
       input.focus();
     }
   }
-
   function hideRecenterOverlay() {
     const overlay = document.getElementById(RECENTER_OVERLAY_ID);
     if (!overlay) return;
@@ -957,12 +883,10 @@
     setRecenterOverlayMessage('', false);
     setRecenterOverlayClearVisibility(false);
   }
-
   function handleRecenterOverlayClear() {
     clearPreferredCenterData();
     hideRecenterOverlay();
   }
-
   function geocodeAddress(address) {
     return new Promise((resolve, reject) => {
       if (!window.google?.maps?.Geocoder) {
@@ -979,7 +903,6 @@
       });
     });
   }
-
   function recenterToLocation(lat, lng, options = {}) {
     const focus = {
       lat,
@@ -994,7 +917,6 @@
       state.pendingFocus = focus;
     }
   }
-
   function handleRecenterOverlaySubmit() {
     const input = document.getElementById(RECENTER_OVERLAY_INPUT_ID);
     const address = input ? input.value.trim() : '';
@@ -1029,7 +951,6 @@
         setRecenterOverlayBusy(false);
       });
   }
-
   function ensureRecenterButton() {
     if (recenterState.button) return recenterState.button;
     const button = document.createElement('button');
@@ -1054,7 +975,6 @@
     recenterState.button = button;
     return button;
   }
-
   function updateRecenterButtonVisibility() {
     if (isPreferredOverrideEnabled()) {
       if (recenterState.button) {
@@ -1071,13 +991,11 @@
     const button = ensureRecenterButton();
     button.style.display = '';
   }
-
   function removeRecenterButton() {
     if (!recenterState.button) return;
     recenterState.button.remove();
     recenterState.button = null;
   }
-
   function resetRecenterState() {
     recenterState.outsideNyc = false;
     recenterState.initialCenterChecked = false;
@@ -1090,18 +1008,15 @@
     removeRecenterButton();
     hideRecenterOverlay();
   }
-
   function handleRecenterClick() {
     showRecenterOverlay({ allowClear: isPreferredOverrideEnabled() });
   }
-
   function applyPendingMinimapFocus() {
     if (!state.pendingFocus) return;
     const focus = state.pendingFocus;
     state.pendingFocus = null;
     focusMapAndDropPin(focus);
   }
-
   function focusMapAndDropPin(focus) {
     if (!state.map || !window.google?.maps?.Marker) return false;
     const position = { lat: focus.lat, lng: focus.lng };
@@ -1139,7 +1054,6 @@
     }
     return true;
   }
-
   function triggerMapClickAt(position) {
     if (!state.map || !window.google?.maps?.event || !window.google?.maps?.LatLng) return false;
     const latLng = position instanceof google.maps.LatLng
@@ -1148,7 +1062,6 @@
     window.google.maps.event.trigger(state.map, 'click', { latLng });
     return true;
   }
-
   function ensureMapsReady() {
     if (window.google && window.google.maps && window.google.maps.Map) {
       return Promise.resolve(true);
@@ -1168,7 +1081,6 @@
       }, 250);
     });
   }
-
   function hookMapPrototype() {
     const MapCtor = window.google?.maps?.Map;
     const proto = MapCtor?.prototype;
@@ -1184,7 +1096,6 @@
     ['setCenter', 'setZoom', 'setOptions', 'fitBounds', 'panTo', 'setMapTypeId'].forEach(wrap);
     proto.__gghostPatched = true;
   }
-
   function hookMapsEventSystem() {
     const eventApi = window.google?.maps?.event;
     if (!eventApi || eventApi.__gghostPatched) return;
@@ -1204,7 +1115,6 @@
     }
     eventApi.__gghostPatched = true;
   }
-
   function hookMapConstructor() {
     if (!window.google || !window.google.maps || !window.google.maps.Map) return;
     const MapCtor = window.google.maps.Map;
@@ -1225,7 +1135,6 @@
     WrappedMap.__gghostWrapped = true;
     window.google.maps.Map = WrappedMap;
   }
-
   function tryCaptureMap(map, source) {
     if (!map) return;
     if (window.__gghostTeamMapInstance !== map) {
@@ -1234,7 +1143,6 @@
       debugState.lastMapCaptureSource = source || null;
     }
   }
-
   function findExistingMap() {
     if (!window.google || !window.google.maps || !window.google.maps.Map) return null;
     const MapCtor = window.google.maps.Map;
@@ -1253,7 +1161,6 @@
     }
     return null;
   }
-
   async function findMapFromGmpElement() {
     const gmpMap = document.querySelector('gmp-map');
     if (!gmpMap) return null;
@@ -1271,7 +1178,6 @@
     }
     return null;
   }
-
   async function tryAttachExisting() {
     debugState.lastAttachAttempt = new Date().toISOString();
     const existing = findExistingMap();
@@ -1286,7 +1192,6 @@
     }
     return false;
   }
-
   function attachMap(map, source) {
     if (!map || state.map === map) return;
     detachMap();
@@ -1318,7 +1223,6 @@
     scheduleFetch();
     applyPendingMinimapFocus();
   }
-
   function detachMap() {
     state.listeners.forEach(listener => listener.remove());
     state.listeners = [];
@@ -1329,14 +1233,12 @@
     removePreferredMarker();
     state.map = null;
   }
-
   function attachInfoWindowCloseListener() {
     if (!state.infoWindow || state.infoWindow.__gghostCloseListener) return;
     state.infoWindow.__gghostCloseListener = state.infoWindow.addListener('closeclick', () => {
       closeNotesOverlay();
     });
   }
-
   function scheduleFetch() {
     if (!state.active || !state.map) return;
     if (state.pendingTimer) clearTimeout(state.pendingTimer);
@@ -1345,7 +1247,6 @@
       fetchLocations();
     }, 300);
   }
-
   async function fetchLocations() {
     const map = state.map;
     if (!map) return;
@@ -1389,13 +1290,11 @@
       console.warn('[gghost-team-map] Failed to fetch locations', err);
     }
   }
-
   function computeRadiusMeters(center, bounds) {
     const ne = bounds.getNorthEast && bounds.getNorthEast();
     if (!ne) return null;
     return haversineMeters(center.lat(), center.lng(), ne.lat(), ne.lng());
   }
-
   function haversineMeters(lat1, lon1, lat2, lon2) {
     const rad = Math.PI / 180;
     const dLat = (lat2 - lat1) * rad;
@@ -1404,7 +1303,6 @@
       + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
     return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
-
   function updateMarkers(locations) {
     const forceDomMarkers = window.__gghostTeamMapPinsDom === true
       || localStorage.getItem('gghostTeamMapPinsDom') === 'true';
@@ -1467,11 +1365,9 @@
     scheduleSearchDecorate();
     updateUpdatesOverlay(locations);
   }
-
   function ensureUpdatesOverlay() {
     if (updatesState.container || !isTeamMapPage()) return;
     if (!document.body) return;
-
     const container = document.createElement('div');
     container.id = UPDATES_OVERLAY_ID;
     container.dataset.open = updatesState.open ? 'true' : 'false';
@@ -1483,7 +1379,6 @@
       fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif',
       color: '#1f1f1f'
     });
-
     const toggle = document.createElement('button');
     toggle.id = UPDATES_TOGGLE_ID;
     toggle.type = 'button';
@@ -1500,7 +1395,6 @@
       cursor: 'pointer',
       boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
     });
-
     const panel = document.createElement('div');
     panel.id = UPDATES_PANEL_ID;
     Object.assign(panel.style, {
@@ -1515,48 +1409,38 @@
       overflowY: 'auto',
       display: updatesState.open ? 'block' : 'none'
     });
-
     const header = document.createElement('div');
     header.textContent = 'Update activity';
     header.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 6px;';
-
     const summary = document.createElement('div');
     summary.textContent = 'Waiting for map data...';
     summary.style.cssText = 'font-size: 12px; color: #555; margin-bottom: 8px;';
-
     const chart = document.createElement('div');
     chart.style.minHeight = '120px';
-
     panel.appendChild(header);
     panel.appendChild(summary);
     panel.appendChild(chart);
-
     const setOpenState = (open) => {
       updatesState.open = open;
       container.dataset.open = open ? 'true' : 'false';
       toggle.textContent = open ? 'x' : 'PIN';
       panel.style.display = open ? 'block' : 'none';
     };
-
     toggle.addEventListener('click', () => {
       setOpenState(container.dataset.open !== 'true');
     });
-
     container.appendChild(toggle);
     container.appendChild(panel);
     document.body.appendChild(container);
-
     updatesState.container = container;
     updatesState.panel = panel;
     updatesState.summary = summary;
     updatesState.chart = chart;
   }
-
   function updateUpdatesOverlay(locations) {
     if (!Array.isArray(locations)) return;
     ensureUpdatesOverlay();
     if (!updatesState.container || !updatesState.summary || !updatesState.chart) return;
-
     const dates = [];
     locations.forEach((loc) => {
       const updatedAt = getLocationUpdateDate(loc);
@@ -1564,15 +1448,12 @@
       const d = new Date(updatedAt);
       if (!Number.isNaN(d.getTime())) dates.push(d);
     });
-
     const buckets = buildAdaptiveMonthBuckets(dates, 12);
     const signature = buckets.map(b => `${b.key}:${b.count}`).join('|');
     if (signature && signature === updatesState.lastSignature) return;
     updatesState.lastSignature = signature || null;
-
     updatesState.summary.textContent = `${dates.length} of ${locations.length} locations have update dates.`;
     updatesState.chart.textContent = '';
-
     if (buckets.length < 2) {
       const empty = document.createElement('div');
       empty.textContent = 'Not enough update data yet.';
@@ -1580,14 +1461,12 @@
       updatesState.chart.appendChild(empty);
       return;
     }
-
     updatesState.chart.appendChild(renderUpdateChartSVG(buckets, {
       width: 320,
       height: 140,
       pad: 28
     }));
   }
-
   function removeUpdatesOverlay() {
     if (updatesState.container) {
       updatesState.container.remove();
@@ -1598,7 +1477,6 @@
     updatesState.chart = null;
     updatesState.lastSignature = null;
   }
-
   function showInfo(marker) {
     if (!state.infoWindow || !state.map) return;
     const loc = marker.__gghostLoc;
@@ -1622,7 +1500,6 @@
       marker.setIcon(buildMarkerIcon(fresh, { siteVisitPending: marker.__gghostSiteVisitPending === true }));
     });
   }
-
   function buildInfoContent(loc) {
     const wrapper = document.createElement('div');
     wrapper.style.maxWidth = '260px';
@@ -1634,20 +1511,16 @@
     const website = loc?.url || loc?.Organization?.url || '';
     const phone = getLocationPhone(loc);
     const streetviewUrl = loc?.streetview_url || '';
-
     const fields = [
       buildFieldChip('Organization', orgName, locationId ? buildLocationQuestionUrl(locationId, 'organization-name') : null, getOrgUpdatedAt(loc), { allowEmpty: true, emptyLabel: 'Add organization' }),
       buildFieldChip('Location name', locationName, locationId ? buildLocationQuestionUrl(locationId, 'location-name') : null, getLocationNameUpdatedAt(loc), { allowEmpty: true, emptyLabel: 'Add location name' }),
       buildFieldChip('Address', address, locationId ? buildLocationQuestionUrl(locationId, 'location-address') : null, getAddressUpdatedAt(loc), { allowEmpty: true, emptyLabel: 'Add address' })
     ].filter(Boolean);
-
     fields.forEach(chip => wrapper.appendChild(chip));
-
     if (phone) {
       const row = buildFieldChip('Phone', phone, locationId ? buildLocationQuestionUrl(locationId, 'phone-number') : null, null);
       if (row) wrapper.appendChild(row);
     }
-
     if (website) {
       const row = buildFieldChip('Website', website, locationId ? buildLocationQuestionUrl(locationId, 'website') : null, getWebsiteUpdatedAt(loc));
       const link = document.createElement('a');
@@ -1659,32 +1532,25 @@
       row.appendChild(link);
       wrapper.appendChild(row);
     }
-
     const services = Array.isArray(loc?.Services)
       ? loc.Services
       : (Array.isArray(loc?.services) ? loc.services : []);
     const servicesSection = buildServicesSection(services, locationId);
     if (servicesSection) wrapper.appendChild(servicesSection);
-
     const preview = buildStreetViewPreview(streetviewUrl, getLocationLatLng(loc));
     if (preview && locationId) {
       const row = buildStreetViewFrame('Street View', buildLocationQuestionUrl(locationId, 'street-view'), getStreetViewUpdatedAt(loc));
       row.appendChild(preview);
       wrapper.appendChild(row);
     }
-
     const notesButton = buildNotesButton(loc);
     if (notesButton) wrapper.appendChild(notesButton);
-
     const closureSection = buildClosureSection(loc, locationId);
     if (closureSection) wrapper.appendChild(closureSection);
-
     const showMoreButton = buildShowMoreButton(locationId);
     if (showMoreButton) wrapper.appendChild(showMoreButton);
-
     return wrapper;
   }
-
   function buildShowMoreButton(locationId) {
     if (!locationId) return null;
     const row = document.createElement('div');
@@ -1709,12 +1575,10 @@
     row.appendChild(btn);
     return row;
   }
-
   function updateInfoWindowContent(loc) {
     if (!state.infoWindow || !state.map) return;
     state.infoWindow.setContent(buildInfoContent(loc));
   }
-
   function buildClosureSection(loc, locationId) {
     const closureInfo = getLocationClosureInfo(loc);
     if (!closureInfo.isClosed) return null;
@@ -1725,33 +1589,27 @@
     section.style.borderRadius = '6px';
     section.style.padding = '6px';
     section.style.fontSize = '11px';
-
     const header = document.createElement('div');
     header.textContent = 'Closed (COVID19)';
     header.style.fontWeight = '600';
     header.style.marginBottom = '4px';
     header.style.color = '#7a1f1f';
-
     const summary = document.createElement('div');
     summary.textContent = closureInfo.userName
       ? `Closed by ${closureInfo.userName}.`
       : 'This location is marked closed.';
     summary.style.marginBottom = '4px';
-
     const closedAt = closureInfo.closedAt;
     const closedAtRow = document.createElement('div');
     closedAtRow.textContent = closedAt ? `Closed at ${new Date(closedAt).toLocaleString()}.` : '';
     closedAtRow.style.marginBottom = closedAt ? '4px' : '0';
-
     const message = document.createElement('div');
     message.textContent = closureInfo.message || '(No message provided)';
     message.style.marginBottom = '6px';
-
     const buttonRow = document.createElement('div');
     buttonRow.style.display = 'flex';
     buttonRow.style.gap = '6px';
     buttonRow.style.justifyContent = 'flex-end';
-
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
     editBtn.textContent = 'Edit message';
@@ -1762,7 +1620,6 @@
     editBtn.style.padding = '3px 6px';
     editBtn.style.cursor = 'pointer';
     editBtn.style.fontSize = '11px';
-
     const reopenBtn = document.createElement('button');
     reopenBtn.type = 'button';
     reopenBtn.textContent = 'Reopen location';
@@ -1773,7 +1630,6 @@
     reopenBtn.style.padding = '3px 6px';
     reopenBtn.style.cursor = 'pointer';
     reopenBtn.style.fontSize = '11px';
-
     const setBusy = (busy) => {
       editBtn.disabled = busy;
       reopenBtn.disabled = busy;
@@ -1781,7 +1637,6 @@
       editBtn.style.opacity = opacity;
       reopenBtn.style.opacity = opacity;
     };
-
     editBtn.addEventListener('click', async (evt) => {
       evt.stopPropagation();
       const nextMessage = window.prompt('Update closure message', closureInfo.message || '');
@@ -1807,7 +1662,6 @@
         setBusy(false);
       }
     });
-
     reopenBtn.addEventListener('click', async (evt) => {
       evt.stopPropagation();
       setBusy(true);
@@ -1825,7 +1679,6 @@
         setBusy(false);
       }
     });
-
     buttonRow.appendChild(editBtn);
     buttonRow.appendChild(reopenBtn);
     section.appendChild(header);
@@ -1835,7 +1688,6 @@
     section.appendChild(buttonRow);
     return section;
   }
-
   function getNotesTitle(loc) {
     const orgName = String(loc?.Organization?.name || '').trim();
     const locationName = String(loc?.name || '').trim();
@@ -1844,7 +1696,6 @@
     }
     return orgName || locationName || 'Location notes';
   }
-
   function buildNotesButton(loc) {
     const uuid = getLocationUuid(loc);
     if (!uuid) return null;
@@ -1870,7 +1721,6 @@
     row.appendChild(btn);
     return row;
   }
-
   function openNotesOverlay(uuid, title) {
     if (!uuid) return;
     const overlay = ensureNotesOverlay();
@@ -1888,7 +1738,6 @@
       renderNotesOverlay(notes);
     });
   }
-
   function closeNotesOverlay(remove = false) {
     if (!notesState.overlay) return;
     notesState.activeUuid = null;
@@ -1900,7 +1749,6 @@
       notesState.body = null;
     }
   }
-
   function ensureNotesOverlay() {
     if (notesState.overlay && document.contains(notesState.overlay)) return notesState.overlay;
     const overlay = document.createElement('div');
@@ -1921,7 +1769,6 @@
       overflow: 'hidden',
       fontSize: '13px'
     });
-
     const header = document.createElement('div');
     Object.assign(header.style, {
       display: 'flex',
@@ -1932,7 +1779,6 @@
       borderBottom: '1px solid #ccc',
       fontWeight: '600'
     });
-
     const title = document.createElement('span');
     title.textContent = 'Location notes';
     const closeBtn = document.createElement('button');
@@ -1945,7 +1791,6 @@
     closeBtn.addEventListener('click', () => closeNotesOverlay());
     header.appendChild(title);
     header.appendChild(closeBtn);
-
     const body = document.createElement('div');
     Object.assign(body.style, {
       padding: '8px',
@@ -1953,7 +1798,6 @@
       maxHeight: '360px',
       whiteSpace: 'pre-wrap'
     });
-
     overlay.appendChild(header);
     overlay.appendChild(body);
     document.body.appendChild(overlay);
@@ -1962,7 +1806,6 @@
     notesState.body = body;
     return overlay;
   }
-
   function renderNotesOverlay(notes) {
     if (!notesState.body) return;
     notesState.body.replaceChildren();
@@ -1992,7 +1835,6 @@
       notesState.body.appendChild(row);
     });
   }
-
   function loadNotesForUuid(uuid) {
     if (!uuid) return Promise.resolve(null);
     const cached = getCachedNotes(uuid);
@@ -2017,7 +1859,6 @@
     notesState.pending.set(uuid, fetchPromise);
     return fetchPromise;
   }
-
   function getCachedNotes(uuid) {
     const cached = notesState.cache.get(uuid);
     if (!cached) return null;
@@ -2027,7 +1868,6 @@
     }
     return cached.notes;
   }
-
   function parseNotesPayload(data) {
     if (!data || typeof data !== 'object') return [];
     const notes = [];
@@ -2044,7 +1884,6 @@
     notes.sort((a, b) => new Date(a.date) - new Date(b.date));
     return notes;
   }
-
   function normalizeNoteValue(value) {
     if (typeof value === 'string') return value.trim();
     if (value && typeof value === 'object') {
@@ -2053,18 +1892,15 @@
     }
     return '';
   }
-
   function getLocationTitle(loc) {
     return loc?.name || loc?.Organization?.name || loc?.slug || '';
   }
-
   function normalizeCityName(value) {
     const text = String(value || '').trim();
     if (!text) return '';
     const lower = text.toLowerCase();
     return lower.replace(/(^|[\s-])([a-z])/g, (match, sep, letter) => `${sep}${letter.toUpperCase()}`);
   }
-
   function normalizeLocationCity(loc) {
     if (!loc || typeof loc !== 'object') return;
     if (loc.address && typeof loc.address === 'object' && loc.address.city) {
@@ -2078,7 +1914,6 @@
       physical.city = normalizeCityName(physical.city);
     }
   }
-
   function getLocationAddress(loc) {
     const address = loc?.PhysicalAddresses?.[0];
     if (address) {
@@ -2100,7 +1935,6 @@
       raw.postalCode || raw.postal_code
     ].filter(Boolean).join(', ');
   }
-
   function normalizeEventRelatedInfos(source) {
     if (!source) return [];
     if (Array.isArray(source)) return source;
@@ -2116,7 +1950,6 @@
     }
     return [];
   }
-
   function pickUserNameFromValue(value) {
     if (!value) return '';
     if (typeof value === 'string') return value.trim();
@@ -2134,7 +1967,6 @@
     }
     return '';
   }
-
   function coerceTimestamp(value) {
     if (value == null) return null;
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -2144,7 +1976,6 @@
     if (!Number.isNaN(parsed)) return parsed;
     return null;
   }
-
   function getLocationClosureInfo(loc) {
     const infos = normalizeEventRelatedInfos(loc);
     const entry = infos.find((info) => {
@@ -2177,7 +2008,6 @@
     const isClosed = !!entry && message !== '';
     return { isClosed, message, userName, closedAt, entry };
   }
-
   function getLocationPhone(loc) {
     const direct = [
       loc?.phone,
@@ -2187,7 +2017,6 @@
       loc?.phone_raw
     ].find((value) => typeof value === 'string' && value.trim());
     if (direct) return String(direct).trim();
-
     const candidates = Array.isArray(loc?.Phones) ? loc.Phones : Array.isArray(loc?.phones) ? loc.phones : [];
     for (const entry of candidates) {
       const value = entry?.number || entry?.phoneNumber || entry?.phone || entry?.number_full || entry?.phone_raw;
@@ -2195,7 +2024,6 @@
     }
     return '';
   }
-
   function applyLocationClosureUpdate(loc, information) {
     if (!loc || typeof loc !== 'object') return;
     const existing = normalizeEventRelatedInfos(loc);
@@ -2215,7 +2043,6 @@
     }
     loc.EventRelatedInfos = filtered;
   }
-
   function refreshMarkerForLocation(loc) {
     if (!loc) return;
     const locId = getLocationId(loc, null);
@@ -2225,7 +2052,6 @@
     marker.__gghostLoc = loc;
     marker.setIcon(buildMarkerIcon(loc, { siteVisitPending: marker.__gghostSiteVisitPending === true }));
   }
-
   async function patchLocationClosure(locationId, information) {
     if (!locationId) throw new Error('Missing location id.');
     const url = `${API_BASE}/${locationId}`;
@@ -2256,7 +2082,6 @@
     }
     throw new Error(lastError || 'Failed to update location closure.');
   }
-
   function getLocationPostalCode(loc) {
     const address = loc?.PhysicalAddresses?.[0];
     if (address?.postal_code) {
@@ -2270,7 +2095,6 @@
     const match = value.match(/\d{5}/);
     return match ? match[0] : value;
   }
-
   function getLocationLatLng(loc) {
     const coords = loc?.position?.coordinates;
     if (Array.isArray(coords) && coords.length >= 2) {
@@ -2283,15 +2107,12 @@
     if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
     return null;
   }
-
   function getLocationId(loc, position) {
     return loc?.id || loc?.location_id || loc?.slug || (position ? `${position.lat},${position.lng}` : null);
   }
-
   function getFirebaseBaseUrl() {
     return window.gghost?.baseURL || FIREBASE_BASE_URL;
   }
-
   function getFirebaseAuthToken() {
     const gghost = window.gghost;
     if (gghost && typeof gghost.getFirebaseAuthToken === 'function') {
@@ -2309,7 +2130,6 @@
     }
     return null;
   }
-
   function withFirebaseAuth(url) {
     const gghost = window.gghost;
     if (gghost && typeof gghost.withFirebaseAuth === 'function') return gghost.withFirebaseAuth(url);
@@ -2318,7 +2138,6 @@
     const joiner = url.includes('?') ? '&' : '?';
     return `${url}${joiner}auth=${encodeURIComponent(token)}`;
   }
-
   function disableFirebaseWrites(reason) {
     firebaseWriteDisabled = true;
     if (!firebaseWriteDisableLogged) {
@@ -2326,7 +2145,6 @@
       firebaseWriteDisableLogged = true;
     }
   }
-
   function getLocationUuid(loc) {
     const candidates = [loc?.id, loc?.location_id, loc?.uuid, loc?.slug];
     for (const candidate of candidates) {
@@ -2336,7 +2154,6 @@
     }
     return null;
   }
-
   function coerceStatTimestamp(value) {
     if (value == null) return null;
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -2346,7 +2163,6 @@
     if (!Number.isNaN(parsed)) return parsed;
     return null;
   }
-
   function buildStatKey(prefix, value) {
     const ts = coerceStatTimestamp(value);
     if (Number.isFinite(ts)) return `${prefix}${ts}`;
@@ -2357,13 +2173,11 @@
     if (!safe) return null;
     return `${prefix}${safe}`;
   }
-
   function enqueueStatsWrite(task) {
     if (typeof task !== 'function') return;
     statsQueue.push(task);
     pumpStatsQueue();
   }
-
   function pumpStatsQueue() {
     while (statsActiveCount < STATS_WRITE_MAX_CONCURRENCY && statsQueue.length) {
       const task = statsQueue.shift();
@@ -2377,7 +2191,6 @@
         });
     }
   }
-
   async function writeLocationStatEntry(uuid, key, payload) {
     if (!uuid || !key || !payload) return;
     if (firebaseWriteDisabled) return;
@@ -2393,7 +2206,6 @@
     const cacheKey = `${uuid}::${key}`;
     if (statsWriteOk.has(cacheKey)) return;
     if (statsWriteInFlight.has(cacheKey)) return statsWriteInFlight.get(cacheKey);
-
     const url = withFirebaseAuth(`${getFirebaseBaseUrl()}locationNotes/${uuid}/stats/${key}.json`);
     const req = fetch(url, {
       method: 'PUT',
@@ -2410,11 +2222,9 @@
     }).finally(() => {
       statsWriteInFlight.delete(cacheKey);
     });
-
     statsWriteInFlight.set(cacheKey, req);
     return req;
   }
-
   function getLocationUpdateDate(data) {
     if (!data || typeof data !== 'object') return null;
     const dates = [
@@ -2448,12 +2258,10 @@
     });
     return pickLatestDate(dates);
   }
-
   function recordLocationStatsFromPayload(uuid, data, meta = {}) {
     if (!uuid || !data || typeof data !== 'object') return;
     const lastValidated = data.last_validated_at || data.lastValidated || null;
     const updatedAt = getLocationUpdateDate(data);
-
     if (lastValidated) {
       const key = buildStatKey('v_', lastValidated);
       if (key) {
@@ -2475,7 +2283,6 @@
       }
     }
   }
-
   function recordLocationStatsFromLocations(locations) {
     if (!Array.isArray(locations) || !locations.length) return;
     locations.forEach((loc) => {
@@ -2484,32 +2291,26 @@
       recordLocationStatsFromPayload(uuid, loc, { source: 'team-map' });
     });
   }
-
   function monthKey(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }
-
   function monthKeyFromParts(y, m) {
     const mm = String(m + 1).padStart(2, '0');
     return `${y}-${mm}`;
   }
-
   function parseMonthKey(k) {
     const [y, m] = k.split('-').map(Number);
     return { y, m: m - 1 };
   }
-
   function incMonth(y, m, n = 1) {
     const d = new Date(y, m + n, 1);
     return { y: d.getFullYear(), m: d.getMonth() };
   }
-
   function monthsBetween(aKey, bKey) {
     const a = parseMonthKey(aKey);
     const b = parseMonthKey(bKey);
     return (b.y - a.y) * 12 + (b.m - a.m);
   }
-
   function formatMonthShort(k) {
     const { y, m } = parseMonthKey(k);
     return new Date(y, m, 1).toLocaleDateString('en-US', {
@@ -2517,21 +2318,17 @@
       year: '2-digit'
     });
   }
-
   function buildAdaptiveMonthBuckets(dates, limit = 12) {
     if (!Array.isArray(dates) || dates.length === 0) return [];
-
     const counts = new Map();
     for (const d of dates) {
       const k = monthKey(d);
       counts.set(k, (counts.get(k) || 0) + 1);
     }
-
     const keys = Array.from(counts.keys()).sort();
     const firstKey = keys[0];
     const lastKey = keys[keys.length - 1];
     const span = monthsBetween(firstKey, lastKey) + 1;
-
     let startKey;
     let endKey;
     if (span <= limit) {
@@ -2543,7 +2340,6 @@
       startKey = monthKeyFromParts(start.y, start.m);
       endKey = lastKey;
     }
-
     const ks = [];
     let cur = parseMonthKey(startKey);
     const end = parseMonthKey(endKey);
@@ -2552,22 +2348,18 @@
       if (cur.y === end.y && cur.m === end.m) break;
       cur = incMonth(cur.y, cur.m, 1);
     }
-
     return ks.map(k => ({ key: k, count: counts.get(k) || 0 }));
   }
-
   function renderUpdateChartSVG(buckets, opts = {}) {
     const w = opts.width || 320;
     const h = opts.height || 120;
     const pad = opts.pad || 24;
     const max = Math.max(1, ...buckets.map(b => b.count));
     const ns = 'http://www.w3.org/2000/svg';
-
     const svg = document.createElementNS(ns, 'svg');
     svg.setAttribute('width', w);
     svg.setAttribute('height', h);
     svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-
     const axis = document.createElementNS(ns, 'line');
     axis.setAttribute('x1', pad);
     axis.setAttribute('y1', h - pad);
@@ -2576,14 +2368,12 @@
     axis.setAttribute('stroke', '#ddd');
     axis.setAttribute('stroke-width', '1');
     svg.appendChild(axis);
-
     const bw = (w - pad * 2) / buckets.length;
     const points = buckets.map((b, i) => {
       const x = pad + i * bw + bw / 2;
       const y = h - pad - Math.round(((h - pad * 2) * b.count) / max);
       return [x, y];
     });
-
     const path = document.createElementNS(ns, 'path');
     const d = points
       .map((p, i) => (i === 0 ? `M ${p[0]} ${p[1]}` : `L ${p[0]} ${p[1]}`))
@@ -2593,7 +2383,6 @@
     path.setAttribute('stroke', '#2563eb');
     path.setAttribute('stroke-width', '2');
     svg.appendChild(path);
-
     for (let i = 0; i < points.length; i++) {
       const [x, y] = points[i];
       const bucket = buckets[i];
@@ -2607,11 +2396,9 @@
       c.appendChild(title);
       svg.appendChild(c);
     }
-
     const first = buckets[0]?.key || '';
     const last = buckets[buckets.length - 1]?.key || '';
     const total = buckets.reduce((sum, b) => sum + b.count, 0);
-
     const label = document.createElementNS(ns, 'text');
     label.setAttribute('x', pad);
     label.setAttribute('y', pad - 8);
@@ -2619,7 +2406,6 @@
     label.setAttribute('fill', '#333');
     label.textContent = `Updates by month (loaded) - total ${total}`;
     svg.appendChild(label);
-
     const leftLabel = document.createElementNS(ns, 'text');
     leftLabel.setAttribute('x', pad);
     leftLabel.setAttribute('y', h - 6);
@@ -2627,7 +2413,6 @@
     leftLabel.setAttribute('fill', '#666');
     leftLabel.textContent = formatMonthShort(first);
     svg.appendChild(leftLabel);
-
     const rightLabel = document.createElementNS(ns, 'text');
     rightLabel.setAttribute('x', w - pad);
     rightLabel.setAttribute('y', h - 6);
@@ -2636,10 +2421,8 @@
     rightLabel.setAttribute('fill', '#666');
     rightLabel.textContent = formatMonthShort(last);
     svg.appendChild(rightLabel);
-
     return svg;
   }
-
   function buildMarkerIcon(loc, options = {}) {
     const bucket = getRecencyBucket(getLocationRecencyDate(loc));
     const color = getRecencyMarkerColor(bucket);
@@ -2648,7 +2431,6 @@
     const closureInfo = getLocationClosureInfo(loc);
     return buildSvgMarkerIcon(theme, color, size, { ...options, closed: closureInfo.isClosed });
   }
-
   function buildSearchMarkerIcon() {
     const sizePx = 24;
     const svg = `
@@ -2663,12 +2445,10 @@
       anchor: new google.maps.Point(sizePx / 2, sizePx)
     };
   }
-
   function buildMarkerZIndex(loc) {
     const count = getServiceCount(loc);
     return 1000000 + count;
   }
-
   function getCachedSiteVisitDone(uuid) {
     if (!uuid) return null;
     const cached = siteVisitState.cache.get(uuid);
@@ -2679,12 +2459,10 @@
     }
     return cached.done;
   }
-
   function setCachedSiteVisitDone(uuid, done) {
     if (!uuid || typeof done !== 'boolean') return;
     siteVisitState.cache.set(uuid, { done, timestamp: Date.now() });
   }
-
   function parseBooleanValue(value) {
     if (value === true || value === false) return value;
     if (typeof value === 'string') {
@@ -2694,7 +2472,6 @@
     }
     return null;
   }
-
   async function fetchSiteVisitDone(uuid) {
     const url = `${getFirebaseBaseUrl()}siteVisits/${uuid}/meta/done.json`;
     try {
@@ -2710,7 +2487,6 @@
       return null;
     }
   }
-
   function resolveSiteVisitDone(uuid) {
     const cached = getCachedSiteVisitDone(uuid);
     if (cached !== null) return Promise.resolve(cached);
@@ -2721,7 +2497,6 @@
     siteVisitState.pending.set(uuid, fetchPromise);
     return fetchPromise;
   }
-
   function applySiteVisitIndicator(marker, loc) {
     if (!marker || !loc) return;
     const uuid = getLocationUuid(loc);
@@ -2739,7 +2514,6 @@
       updateMarkerSiteVisit(marker, marker.__gghostLoc || loc, done === false);
     });
   }
-
   function updateMarkerSiteVisit(marker, loc, pending) {
     if (!marker || !loc) return;
     if (marker.__gghostSiteVisitPending === pending) return;
@@ -2747,12 +2521,10 @@
     const icon = buildMarkerIcon(loc, { siteVisitPending: pending });
     marker.setIcon(icon);
   }
-
   function clearMarkers() {
     state.markers.forEach(marker => marker.setMap(null));
     state.markers.clear();
   }
-
   function applyDefaultMarkerHiding(map) {
     if (!map || map.__gghostHideApplied) return;
     map.__gghostHideApplied = true;
@@ -2764,7 +2536,6 @@
     map.setOptions({ styles: existing.concat(hidePoi), clickableIcons: false });
     injectHideMarkerStyles();
   }
-
   function injectHideMarkerStyles() {
     const styleId = 'gghost-hide-default-markers';
     if (document.getElementById(styleId)) return;
@@ -2784,7 +2555,6 @@
     `;
     document.head.appendChild(style);
   }
-
   function patchFullStory() {
     if (window.__gghostTeamMapPinsFullStoryPatched) return;
     window.__gghostTeamMapPinsFullStoryPatched = true;
@@ -2809,7 +2579,6 @@
       };
     }
   }
-
   function initSearchBridge() {
     if (searchState.observer) return;
     loadSearchSettings();
@@ -2824,7 +2593,6 @@
     attachSearchUiListeners();
     scheduleSearchDecorate();
   }
-
   function detachSearchBridge() {
     if (searchState.observer) {
       searchState.observer.disconnect();
@@ -2845,7 +2613,6 @@
     searchState.decoratePending = false;
     searchState.savedQueryApplied = false;
   }
-
   function attachSearchInput() {
     const input = document.querySelector(SEARCH_INPUT_SELECTOR);
     if (!input) return;
@@ -2867,7 +2634,6 @@
     applySavedSearchQuery(input);
     updateClearButtonState();
   }
-
   function scheduleSearchDecorate() {
     if (searchState.decoratePending) return;
     searchState.decoratePending = true;
@@ -2876,7 +2642,6 @@
       decorateSearchResults();
     });
   }
-
   function decorateSearchResults() {
     const input = searchState.input || document.querySelector(SEARCH_INPUT_SELECTOR);
     if (!input) return;
@@ -2898,7 +2663,6 @@
     const items = document.querySelectorAll(SEARCH_RESULT_SELECTOR);
     items.forEach(item => decorateSearchItem(item, query));
   }
-
   function decorateSearchItem(item, query) {
     if (!item) return;
     const text = normalizeSearchText(item.textContent || '');
@@ -2913,7 +2677,6 @@
     item.dataset.gghostLocationScore = String(Math.round(match.score));
     attachSearchResultInteractions(item);
   }
-
   function refreshSearchEntries(locations) {
     if (!Array.isArray(locations)) {
       state.searchEntries = [];
@@ -3016,7 +2779,6 @@
     });
     state.searchEntries = entries;
   }
-
   function findBestLocationMatch(itemText, query) {
     if (!state.searchEntries.length || !itemText) return null;
     const normalizedItem = normalizeSearchText(itemText);
@@ -3033,7 +2795,6 @@
     if (!best || best.score < SEARCH_MATCH_MIN_SCORE) return null;
     return best;
   }
-
   function scoreLocationQuery(itemText, query, entry, centerPoint) {
     const fields = [entry.org, entry.name, entry.slug, entry.address].filter(Boolean);
     let score = 0;
@@ -3068,7 +2829,6 @@
     }
     return score;
   }
-
   function scoreTokenOverlap(source, target) {
     const tokens = normalizeSearchText(source).split(' ').filter(Boolean);
     if (!tokens.length || !target) return 0;
@@ -3079,14 +2839,12 @@
     if (!matches) return 0;
     return 60 + Math.round((matches / tokens.length) * 15);
   }
-
   function normalizeSearchText(value) {
     return String(value || '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, ' ')
       .trim();
   }
-
   function stripHtml(value) {
     return String(value || '')
       .replace(/<[^>]*>/g, ' ')
@@ -3094,7 +2852,6 @@
       .replace(/\s+/g, ' ')
       .trim();
   }
-
   function collectStringValues(obj) {
     if (!obj || typeof obj !== 'object') return [];
     const values = [];
@@ -3104,7 +2861,6 @@
     });
     return values;
   }
-
   function loadSearchSettings() {
     if (searchState.loadedSettings) return;
     searchState.loadedSettings = true;
@@ -3128,7 +2884,6 @@
       // ignore storage errors
     }
   }
-
   function saveSearchFilters() {
     try {
       localStorage.setItem(SEARCH_FILTERS_STORAGE_KEY, JSON.stringify(searchState.filters || DEFAULT_SEARCH_FILTERS));
@@ -3136,7 +2891,6 @@
       // ignore storage failures
     }
   }
-
   function saveSearchQuery(value) {
     try {
       if (!value) {
@@ -3150,7 +2904,6 @@
       // ignore storage failures
     }
   }
-
   function applySavedSearchQuery(input) {
     if (!input || searchState.savedQueryApplied) return;
     if (!searchState.savedQuery) return;
@@ -3159,12 +2912,10 @@
     input.value = searchState.savedQuery;
     scheduleSearchDecorate();
   }
-
   function shouldIgnoreSearchUiMutations(mutations) {
     if (!mutations || !mutations.length) return false;
     return mutations.every((mutation) => isSearchUiMutation(mutation));
   }
-
   function isSearchUiMutation(mutation) {
     if (!mutation) return true;
     if (isSearchUiNode(mutation.target)) return true;
@@ -3176,7 +2927,6 @@
     }
     return true;
   }
-
   function isSearchUiNode(node) {
     if (!node) return false;
     const element = node.nodeType === 1 ? node : node.parentElement;
@@ -3191,7 +2941,6 @@
     if (notesState.overlay && notesState.overlay.contains(element)) return true;
     return false;
   }
-
   function attachSearchUiListeners() {
     if (searchState.closeFilterHandler) return;
     searchState.closeFilterHandler = (event) => {
@@ -3216,7 +2965,6 @@
     window.addEventListener('scroll', searchState.viewportHandler, true);
     window.addEventListener('resize', searchState.viewportHandler);
   }
-
   function cleanupSearchUi() {
     hideSearchOverlay(true);
     hideCustomResults();
@@ -3240,7 +2988,6 @@
     searchState.filterControls = null;
     searchState.clearButton = null;
   }
-
   function ensureSearchUi() {
     const input = searchState.input || document.querySelector(SEARCH_INPUT_SELECTOR);
     if (!input) return;
@@ -3251,7 +2998,6 @@
     ensureFilterButton(group);
     ensureCustomResultsContainer();
   }
-
   function ensureFilterButton(group) {
     if (!group) return;
     if (searchState.filterButton && document.contains(searchState.filterButton)) {
@@ -3300,7 +3046,6 @@
     searchState.filterButtonWrap = wrap;
     updateFilterButtonState();
   }
-
   function ensureClearButton(group) {
     if (!group) return;
     if (searchState.clearButton && document.contains(searchState.clearButton)) {
@@ -3366,7 +3111,6 @@
     searchState.clearButtonWrap = wrap;
     updateClearButtonState();
   }
-
   function toggleFilterPanel() {
     const panel = ensureFilterPanel();
     if (!panel) return;
@@ -3374,7 +3118,6 @@
     panel.style.display = isOpen ? 'none' : 'block';
     if (!isOpen) positionFilterPanel();
   }
-
   function ensureFilterPanel() {
     if (searchState.filterPanel && document.contains(searchState.filterPanel)) {
       return searchState.filterPanel;
@@ -3385,7 +3128,6 @@
     searchState.filterPanel = panel;
     return panel;
   }
-
   function buildFilterPanel() {
     const panel = document.createElement('div');
     panel.dataset.gghostSearchUi = 'true';
@@ -3400,7 +3142,6 @@
     panel.style.width = '260px';
     panel.style.fontSize = '12px';
     panel.style.color = '#1f1f1f';
-
     const buildRow = (labelText, control) => {
       const row = document.createElement('div');
       row.style.marginBottom = '8px';
@@ -3413,7 +3154,6 @@
       row.appendChild(control);
       panel.appendChild(row);
     };
-
     const fieldSelect = document.createElement('select');
     fieldSelect.style.width = '100%';
     fieldSelect.style.padding = '4px 6px';
@@ -3429,7 +3169,6 @@
       updateSearchFilters({ field: fieldSelect.value });
     });
     buildRow('Search field', fieldSelect);
-
     const taxonomyInput = document.createElement('input');
     taxonomyInput.type = 'text';
     taxonomyInput.placeholder = 'e.g. employment';
@@ -3441,7 +3180,6 @@
       updateSearchFilters({ taxonomy: taxonomyInput.value });
     });
     buildRow('Taxonomy contains', taxonomyInput);
-
     const serviceInput = document.createElement('input');
     serviceInput.type = 'text';
     serviceInput.placeholder = 'e.g. resume';
@@ -3453,7 +3191,6 @@
       updateSearchFilters({ service: serviceInput.value });
     });
     buildRow('Service contains', serviceInput);
-
     const ageSelect = document.createElement('select');
     ageSelect.style.width = '100%';
     ageSelect.style.padding = '4px 6px';
@@ -3469,7 +3206,6 @@
       updateSearchFilters({ age: ageSelect.value });
     });
     buildRow('Age focus', ageSelect);
-
     const actions = document.createElement('div');
     actions.style.display = 'flex';
     actions.style.gap = '6px';
@@ -3506,7 +3242,6 @@
     actions.appendChild(resetBtn);
     actions.appendChild(closeBtn);
     panel.appendChild(actions);
-
     searchState.filterControls = {
       fieldSelect,
       taxonomyInput,
@@ -3515,7 +3250,6 @@
     };
     return panel;
   }
-
   function positionFilterPanel() {
     const panel = searchState.filterPanel;
     const group = searchState.inputGroup;
@@ -3535,7 +3269,6 @@
     panel.style.left = `${Math.round(left)}px`;
     panel.style.top = `${Math.round(top)}px`;
   }
-
   function ensureCustomResultsContainer() {
     if (searchState.resultsContainer && document.contains(searchState.resultsContainer)) {
       return searchState.resultsContainer;
@@ -3559,7 +3292,6 @@
     searchState.resultsContainer = container;
     return container;
   }
-
   function positionSearchResultsContainer() {
     const container = searchState.resultsContainer;
     const group = searchState.inputGroup;
@@ -3581,14 +3313,12 @@
     container.style.left = `${Math.round(left)}px`;
     container.style.top = `${Math.round(top)}px`;
   }
-
   function updateSearchFilters(next) {
     Object.assign(searchState.filters, next || {});
     updateFilterButtonState();
     saveSearchFilters();
     scheduleSearchDecorate();
   }
-
   function resetSearchFilters() {
     Object.assign(searchState.filters, DEFAULT_SEARCH_FILTERS);
     if (searchState.filterControls) {
@@ -3601,7 +3331,6 @@
     saveSearchFilters();
     scheduleSearchDecorate();
   }
-
   function updateFilterButtonState() {
     const btn = searchState.filterButton;
     if (!btn) return;
@@ -3609,7 +3338,6 @@
     btn.style.fontWeight = active ? '600' : '500';
     btn.style.color = active ? '#0d6efd' : '#333';
   }
-
   function updateClearButtonState() {
     const btn = searchState.clearButton;
     if (!btn) return;
@@ -3619,7 +3347,6 @@
       searchState.clearButtonWrap.style.display = hasValue ? 'flex' : 'none';
     }
   }
-
   function areFiltersActive() {
     const filters = searchState.filters || DEFAULT_SEARCH_FILTERS;
     if (filters.field !== 'org') return true;
@@ -3628,13 +3355,11 @@
     if (filters.age && filters.age !== 'any') return true;
     return false;
   }
-
   function shouldUseCustomResults() {
     const filters = searchState.filters || DEFAULT_SEARCH_FILTERS;
     if (filters.field !== 'org') return true;
     return hasCustomFilters(filters);
   }
-
   function hasCustomFilters(filters) {
     if (!filters) return false;
     if (filters.taxonomy) return true;
@@ -3642,7 +3367,6 @@
     if (filters.age && filters.age !== 'any') return true;
     return false;
   }
-
   function toggleNativeSearchResults(visible) {
     const items = document.querySelectorAll(SEARCH_RESULT_SELECTOR);
     items.forEach((item) => {
@@ -3650,7 +3374,6 @@
       setElementVisibility(item, visible);
     });
   }
-
   function setElementVisibility(element, visible) {
     if (!element) return;
     if (element.__gghostOriginalDisplay === undefined) {
@@ -3658,7 +3381,6 @@
     }
     element.style.display = visible ? element.__gghostOriginalDisplay : 'none';
   }
-
   function renderCustomResults(query, rawQuery) {
     hideSearchOverlay();
     const container = ensureCustomResultsContainer();
@@ -3695,14 +3417,12 @@
     container.style.display = 'block';
     positionSearchResultsContainer();
   }
-
   function hideCustomResults() {
     const container = searchState.resultsContainer;
     if (!container) return;
     container.style.display = 'none';
     container.replaceChildren();
   }
-
   function buildCustomResults(query, filters, rawQuery) {
     const center = state.map?.getCenter?.();
     const centerPoint = center ? { lat: center.lat(), lng: center.lng() } : null;
@@ -3738,7 +3458,6 @@
     }
     return results;
   }
-
   function attachSearchResultInteractions(item) {
     if (!item || item.__gghostSearchDecorated) return;
     item.__gghostSearchDecorated = true;
@@ -3763,7 +3482,6 @@
       event.stopPropagation();
     });
   }
-
   function showSearchOverlayForItem(item) {
     const locId = item?.dataset?.gghostLocationId;
     if (!locId) return;
@@ -3788,7 +3506,6 @@
       positionSearchOverlay(overlay, item);
     });
   }
-
   function ensureSearchOverlay() {
     if (searchState.overlay && document.contains(searchState.overlay)) return searchState.overlay;
     const overlay = document.createElement('div');
@@ -3815,7 +3532,6 @@
     searchState.overlay = overlay;
     return overlay;
   }
-
   function buildSearchOverlayLoading() {
     const wrapper = document.createElement('div');
     wrapper.style.padding = '6px';
@@ -3824,7 +3540,6 @@
     wrapper.textContent = 'Loading details...';
     return wrapper;
   }
-
   function positionSearchOverlay(overlay, anchor) {
     if (!overlay || !anchor) return;
     const rect = anchor.getBoundingClientRect();
@@ -3842,21 +3557,18 @@
     overlay.style.left = `${Math.round(left)}px`;
     overlay.style.top = `${Math.round(top)}px`;
   }
-
   function scheduleHideSearchOverlay() {
     clearSearchOverlayTimer();
     searchState.overlayHideTimer = setTimeout(() => {
       hideSearchOverlay();
     }, SEARCH_OVERLAY_HIDE_DELAY_MS);
   }
-
   function clearSearchOverlayTimer() {
     if (searchState.overlayHideTimer) {
       clearTimeout(searchState.overlayHideTimer);
       searchState.overlayHideTimer = null;
     }
   }
-
   function hideSearchOverlay(force) {
     clearSearchOverlayTimer();
     if (!searchState.overlay) return;
@@ -3867,12 +3579,10 @@
       searchState.overlay = null;
     }
   }
-
   function getSearchEntryById(locationId) {
     if (!locationId) return null;
     return state.searchEntries.find(entry => entry.id === locationId) || null;
   }
-
   function buildCustomResultLabel(entry) {
     if (!entry) return 'Unknown';
     const primary = entry.orgValue || entry.nameValue || entry.slugValue || 'Unknown';
@@ -3880,7 +3590,6 @@
     const address = entry.addressValue ? ` | ${entry.addressValue}` : '';
     return `${primary}${secondary ? ` - ${secondary}` : ''}${address}`;
   }
-
   function matchesCustomFilters(entry, filters) {
     if (!entry) return false;
     const taxonomyFilter = normalizeSearchText(filters?.taxonomy || '');
@@ -3900,7 +3609,6 @@
     }
     return true;
   }
-
   function matchesAgeFilter(entry, ageFilter) {
     const keywords = AGE_GROUP_KEYWORDS[ageFilter] || [];
     if (!keywords.length) return true;
@@ -3908,7 +3616,6 @@
     if (!haystack) return false;
     return keywords.some(keyword => haystack.includes(keyword));
   }
-
   function scoreCustomEntry(entry, query, filters, centerPoint, options = {}) {
     let score = 0;
     if (options.zipOnly && options.zipQuery) {
@@ -3933,7 +3640,6 @@
     }
     return score;
   }
-
   function getSearchFieldsForEntry(entry, field) {
     if (!entry) return [];
     if (field === 'org') {
@@ -3963,7 +3669,6 @@
       ...entry.eventTexts
     ].filter(Boolean);
   }
-
   function scoreFieldMatch(query, field) {
     if (!query || !field) return 0;
     if (field === query) return 100;
@@ -3971,20 +3676,17 @@
     if (field.includes(query)) return 75;
     return scoreTokenOverlap(query, field);
   }
-
   function extractNumericTokens(value) {
     if (!value) return [];
     const tokens = String(value).match(/\d+/g);
     if (!tokens) return [];
     return tokens.map(token => token.trim()).filter(Boolean);
   }
-
   function extractZipQuery(value) {
     if (!value) return '';
     const match = String(value).match(/\b(\d{5})\b/);
     return match ? match[1] : '';
   }
-
   function buildFieldChip(label, value, editUrl, updatedAt, options = {}) {
     const trimmed = String(value || '').trim();
     if (!trimmed && !options.allowEmpty) return null;
@@ -4019,7 +3721,6 @@
     row.appendChild(btn);
     return row;
   }
-
   function buildStreetViewFrame(label, editUrl, updatedAt) {
     const palette = getRecencyStyles(updatedAt);
     const row = document.createElement('div');
@@ -4045,7 +3746,6 @@
     }
     return row;
   }
-
   function getServiceAuthTokens() {
     const tokens = [];
     const gghost = window.gghost;
@@ -4057,7 +3757,6 @@
     if (!tokens.length) tokens.push(null);
     return tokens;
   }
-
   async function deleteServiceById(serviceId) {
     if (!serviceId) throw new Error('Missing service id.');
     const url = `${SERVICE_API_BASE}/${serviceId}`;
@@ -4078,7 +3777,6 @@
     }
     throw new Error(lastError || 'Failed to delete service.');
   }
-
   function buildServicesSection(services, locationId) {
     if (!Array.isArray(services) || services.length === 0) return null;
     const section = document.createElement('div');
@@ -4213,14 +3911,12 @@
     section.appendChild(list);
     return section;
   }
-
   function getRecencyStyles(dateStr) {
     const bucket = getRecencyBucket(dateStr);
     if (bucket === 'green') return { background: '#d4edda', color: '#1c512c', border: '#b9dfc3' };
     if (bucket === 'orange') return { background: '#fff3cd', color: '#7c5a00', border: '#f2d17d' };
     return { background: '#f8d7da', color: '#842029', border: '#f0aab4' };
   }
-
   function getRecencyBucket(dateStr) {
     if (!dateStr) return 'red';
     const then = new Date(dateStr);
@@ -4230,13 +3926,11 @@
     if (diffMonths <= RECENCY_THRESHOLDS.orangeMonths) return 'orange';
     return 'red';
   }
-
   function getRecencyMarkerColor(bucket) {
     if (bucket === 'green') return '#2ecc71';
     if (bucket === 'orange') return '#f39c12';
     return '#e74c3c';
   }
-
   function getLocationRecencyDate(loc) {
     const dates = [
       loc?.updatedAt,
@@ -4258,7 +3952,6 @@
     });
     return pickLatestDate(dates);
   }
-
   function pickLatestDate(dates) {
     let latest = null;
     let latestTs = -Infinity;
@@ -4273,17 +3966,14 @@
     });
     return latest;
   }
-
   function getServiceCount(loc) {
     const services = Array.isArray(loc?.Services) ? loc.Services : (Array.isArray(loc?.services) ? loc.services : []);
     return Math.max(services.length, 1);
   }
-
   function getMarkerSizePx(loc) {
     const count = getServiceCount(loc);
     return 14 + Math.min(18, Math.round(Math.sqrt(count) * 4));
   }
-
   function getThemeCategory(loc) {
     const raw = [
       loc?.name,
@@ -4299,7 +3989,6 @@
     const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
     return best && best[1] > 0 ? best[0] : 'default';
   }
-
   function countKeywords(text, keywords) {
     let count = 0;
     keywords.forEach(word => {
@@ -4307,7 +3996,6 @@
     });
     return count;
   }
-
   function buildSvgMarkerIcon(theme, color, sizePx, options = {}) {
     const shell = getThemeSvgShell(theme, color);
     const symbol = getThemeSvgSymbol(theme);
@@ -4332,7 +4020,6 @@
       anchor: new google.maps.Point(sizePx / 2, sizePx / 2)
     };
   }
-
   function getThemeSvgShell(theme, color) {
     if (theme === 'hospital') {
       return `<rect x="4" y="4" width="24" height="24" rx="6" fill="${color}" stroke="#ffffff" stroke-width="2"/>`;
@@ -4342,7 +4029,6 @@
     }
     return `<circle cx="16" cy="16" r="14" fill="${color}" stroke="#ffffff" stroke-width="2"/>`;
   }
-
   function getThemeSvgSymbol(theme) {
     if (theme === 'church') {
       return '<path fill="#ffffff" d="M15 7h2v6h4v2h-4v6h-2v-6h-4v-2h4z"/>';
@@ -4355,17 +4041,14 @@
     }
     return '';
   }
-
   function buildLocationQuestionUrl(locationId, question) {
     if (!locationId || !question) return '';
     return `https://gogetta.nyc/team/location/${locationId}/questions/${question}`;
   }
-
   function buildServiceUrl(locationId, serviceId) {
     if (!locationId || !serviceId) return '';
     return `https://gogetta.nyc/team/location/${locationId}/services/${serviceId}`;
   }
-
   function requestServiceTaxonomyOverlay(locationId, serviceId) {
     if (!locationId || !serviceId) return false;
     window.dispatchEvent(new CustomEvent(SERVICE_TAXONOMY_EVENT, {
@@ -4373,7 +4056,6 @@
     }));
     return true;
   }
-
   async function copyToClipboard(value) {
     const text = String(value || '').trim();
     if (!text) return false;
@@ -4402,21 +4084,17 @@
       return false;
     }
   }
-
   function normalizeWebsiteUrl(url) {
     if (!url) return '';
     if (/^https?:\/\//i.test(url)) return url;
     return `https://${url}`;
   }
-
   function getLocationNameUpdatedAt(loc) {
     return loc?.updatedAt || loc?.createdAt || null;
   }
-
   function getOrgUpdatedAt(loc) {
     return loc?.Organization?.updatedAt || loc?.Organization?.createdAt || loc?.updatedAt || null;
   }
-
   function getAddressUpdatedAt(loc) {
     const address = loc?.PhysicalAddresses?.[0];
     if (address?.updatedAt || address?.createdAt) {
@@ -4428,15 +4106,12 @@
     }
     return loc?.updatedAt || null;
   }
-
   function getWebsiteUpdatedAt(loc) {
     return loc?.updatedAt || loc?.Organization?.updatedAt || null;
   }
-
   function getStreetViewUpdatedAt(loc) {
     return loc?.updatedAt || null;
   }
-
   function getServiceUpdatedAt(service) {
     if (!service) return null;
     const dates = [
@@ -4451,7 +4126,6 @@
     ];
     return pickLatestDate(dates);
   }
-
   function buildStreetViewPreview(url, position) {
     const isImageUrl = url
       && (/\/maps\/api\/streetview/i.test(url) || /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url));
@@ -4481,10 +4155,8 @@
     pano.setVisible(true);
     return container;
   }
-
   const detailsCache = new Map();
   const DETAILS_TTL_MS = 5 * 60 * 1000;
-
   async function resolveLocationDetails(locationId, fallback) {
     if (!locationId) return fallback;
     const now = Date.now();
