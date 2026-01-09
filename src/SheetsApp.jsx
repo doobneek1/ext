@@ -31,6 +31,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import NoteAddIcon from "@mui/icons-material/NoteAdd";
+import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import { fetchAuthSession } from "aws-amplify/auth";
 import HeadCells from "./components/EntryCells/HeadCells.jsx";
@@ -203,6 +204,34 @@ const COLUMN_ORDER = [
   "email",
   "gogetta"
 ];
+const COLUMN_LABELS = {
+  organization: "Organization",
+  location: "Location",
+  services: "Services",
+  notes: "Notes",
+  claim: "Claim",
+  revalidated: "Revalidated",
+  address: "Address",
+  website: "Website",
+  phones: "Phones",
+  email: "Email",
+  gogetta: "Gogetta"
+};
+const COLUMN_LABELS_SHORT = {
+  organization: "Org",
+  location: "Loc",
+  services: "Svcs",
+  notes: "Notes",
+  claim: "Claim",
+  revalidated: "Rev",
+  address: "Addr",
+  website: "Web",
+  phones: "Phone",
+  email: "Email",
+  gogetta: "Go"
+};
+const DEFAULT_ROW_HEIGHT = 120;
+const MOBILE_ROW_HEIGHT = 160;
 const DEFAULT_COLUMN_WIDTHS = {
   organization: "12%",
   location: "10%",
@@ -246,11 +275,12 @@ const SheetsCell = ({
         display: "flex",
         alignItems: isCollapsed ? "center" : "stretch",
         justifyContent: isCollapsed ? "center" : "flex-start",
-        padding: isCollapsed ? 0 : "6px 8px",
+        padding: isCollapsed ? 0 : "4px 6px",
         overflow: "hidden",
         boxSizing: "border-box",
         flexShrink: 0,
         flexGrow: 0,
+        height: "100%",
         ...(isCollapsed && {
           backgroundColor: "transparent",
           borderLeft: `1px solid ${theme.palette.divider}`
@@ -267,9 +297,72 @@ const SheetsCell = ({
     </TableCell>
   );
 };
+const OverflowCell = ({ row, columnKey, onOpenDetail, children }) => {
+  const contentRef = React.useRef(null);
+  const [isOverflowing, setIsOverflowing] = React.useState(false);
+  const measureOverflow = React.useCallback(() => {
+    const node = contentRef.current;
+    if (!node) return;
+    const next =
+      node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1;
+    setIsOverflowing(next);
+  }, []);
+  React.useEffect(() => {
+    measureOverflow();
+  }, [measureOverflow, children]);
+  React.useEffect(() => {
+    const node = contentRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return undefined;
+    const resizeObserver = new ResizeObserver(() => measureOverflow());
+    resizeObserver.observe(node);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [measureOverflow]);
+  return (
+    <Box sx={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+      <Box
+        ref={contentRef}
+        sx={{
+          width: "100%",
+          height: "100%",
+          overflow: "hidden",
+          pr: isOverflowing ? 3 : 0,
+          pb: isOverflowing ? 3 : 0
+        }}
+      >
+        {children}
+      </Box>
+      {isOverflowing ? (
+        <Tooltip title="Open full record" arrow>
+          <IconButton
+            size="small"
+            onClick={() => onOpenDetail(row, columnKey)}
+            aria-label={`Open ${COLUMN_LABELS[columnKey] || columnKey} details`}
+            sx={{
+              position: "absolute",
+              right: 4,
+              bottom: 4,
+              backgroundColor: "background.paper",
+              border: "1px solid",
+              borderColor: "divider",
+              boxShadow: 1,
+              "&:hover": {
+                backgroundColor: "background.paper"
+              }
+            }}
+          >
+            <AddIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ) : null}
+    </Box>
+  );
+};
 const SheetsApp = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const rowHeight = isMobile ? MOBILE_ROW_HEIGHT : DEFAULT_ROW_HEIGHT;
   const { user: firebaseUser } = useAuthState();
   const cacheKey = React.useMemo(() => buildCacheKey(), []);
   const localCacheKey = React.useMemo(() => `sheetsCache:${cacheKey}`, [cacheKey]);
@@ -294,6 +387,11 @@ const SheetsApp = () => {
     focusId: null,
     locationName: ""
   });
+  const [detailModal, setDetailModal] = React.useState({
+    open: false,
+    row: null,
+    focusKey: null
+  });
   const [noteModal, setNoteModal] = React.useState({
     open: false,
     locationId: null,
@@ -306,7 +404,11 @@ const SheetsApp = () => {
   const [phoneDrafts, setPhoneDrafts] = React.useState({});
   const [savingAddressIds, setSavingAddressIds] = React.useState(new Set());
   const [savingPhoneIds, setSavingPhoneIds] = React.useState(new Set());
+  const [bottomScrollWidth, setBottomScrollWidth] = React.useState(0);
   const tableContainerRef = React.useRef(null);
+  const bottomScrollbarRef = React.useRef(null);
+  const detailSectionRefs = React.useRef(new Map());
+  const syncLockRef = React.useRef(false);
   const columnWidthsRef = React.useRef(DEFAULT_COLUMN_WIDTHS);
   const addressDefaultsRef = React.useRef({});
   const phoneDefaultsRef = React.useRef({});
@@ -558,6 +660,13 @@ const SheetsApp = () => {
       node.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [serviceModal.open, serviceModal.focusId]);
+  React.useEffect(() => {
+    if (!detailModal.open || !detailModal.focusKey) return;
+    const node = detailSectionRefs.current.get(detailModal.focusKey);
+    if (node && node.scrollIntoView) {
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [detailModal.open, detailModal.focusKey]);
   const rows = React.useMemo(() => {
     const mapped = locations.map((loc) => {
       const address = Array.isArray(loc?.PhysicalAddresses) ? loc.PhysicalAddresses[0] : null;
@@ -579,6 +688,45 @@ const SheetsApp = () => {
     mapped.sort((a, b) => (b.lastValidatedTs || 0) - (a.lastValidatedTs || 0));
     return mapped;
   }, [locations, notesById]);
+  const updateBottomScrollWidth = React.useCallback(() => {
+    const node = tableContainerRef.current;
+    if (!node) return;
+    const nextWidth = Math.max(node.scrollWidth, node.clientWidth);
+    setBottomScrollWidth(nextWidth);
+  }, []);
+  React.useEffect(() => {
+    updateBottomScrollWidth();
+  }, [updateBottomScrollWidth, collapsedColumns, rows.length, isMobile]);
+  React.useEffect(() => {
+    const tableNode = tableContainerRef.current;
+    const bottomNode = bottomScrollbarRef.current;
+    if (!tableNode || !bottomNode) return undefined;
+    const syncScroll = (source, target) => {
+      if (syncLockRef.current) return;
+      syncLockRef.current = true;
+      target.scrollLeft = source.scrollLeft;
+      window.requestAnimationFrame(() => {
+        syncLockRef.current = false;
+      });
+    };
+    const syncFromTable = () => syncScroll(tableNode, bottomNode);
+    const syncFromBottom = () => syncScroll(bottomNode, tableNode);
+    tableNode.addEventListener("scroll", syncFromTable);
+    bottomNode.addEventListener("scroll", syncFromBottom);
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => updateBottomScrollWidth());
+    if (resizeObserver) {
+      const tableElement = tableNode.querySelector("table");
+      resizeObserver.observe(tableElement || tableNode);
+    }
+    return () => {
+      tableNode.removeEventListener("scroll", syncFromTable);
+      bottomNode.removeEventListener("scroll", syncFromBottom);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, [updateBottomScrollWidth]);
   const handleSaveAddress = async (row) => {
     const draft = addressDrafts[row.id] ?? "";
     if (!row.address) {
@@ -681,10 +829,138 @@ const SheetsApp = () => {
       locationName: row.locationName
     });
   };
+  const handleOpenDetail = React.useCallback((row, columnKey) => {
+    setDetailModal({ open: true, row, focusKey: columnKey });
+  }, []);
+  const handleCloseDetail = React.useCallback(() => {
+    setDetailModal({ open: false, row: null, focusKey: null });
+  }, []);
+  const renderDetailValue = (row, columnKey) => {
+    const notes = row.notes || {};
+    const latestNote = notes.latestNote || "";
+    const latestUser = notes.latestUser || "";
+    const addressSuffix = [
+      row.address?.city,
+      row.address?.state_province,
+      row.address?.postal_code
+    ]
+      .filter(Boolean)
+      .join(", ");
+    switch (columnKey) {
+      case "organization":
+        return <Typography variant="body2">{row.organization || "--"}</Typography>;
+      case "location":
+        return <Typography variant="body2">{row.locationName || "--"}</Typography>;
+      case "services":
+        return row.services.length ? (
+          <Stack spacing={1}>
+            {row.services.map((service, index) => (
+              <Box key={service?.id || `detail-service-${index}`}>
+                <Typography variant="subtitle2">{service?.name || "Untitled service"}</Typography>
+                {service?.description ? (
+                  <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                    {service.description}
+                  </Typography>
+                ) : null}
+                {service?.Taxonomies?.length ? (
+                  <Typography variant="caption" color="text.secondary">
+                    Taxonomies: {service.Taxonomies.map((tax) => tax?.name).filter(Boolean).join(", ")}
+                  </Typography>
+                ) : null}
+              </Box>
+            ))}
+          </Stack>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            No services
+          </Typography>
+        );
+      case "notes":
+        return notes.notes?.length ? (
+          <Stack spacing={1}>
+            {notes.notes.map((entry, index) => (
+              <Box key={`detail-note-${row.id}-${index}`}>
+                <Typography variant="caption" sx={{ fontWeight: index === 0 ? 600 : 400 }}>
+                  {entry.user || "unknown"} {entry.dateLabel ? `- ${entry.dateLabel}` : ""}
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                  {entry.note}
+                </Typography>
+              </Box>
+            ))}
+          </Stack>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            No notes yet
+          </Typography>
+        );
+      case "claim":
+        return <Typography variant="body2">{latestUser || "--"}</Typography>;
+      case "revalidated":
+        return <Typography variant="body2">{isRevalidatedNote(latestNote) ? "Yes" : "No"}</Typography>;
+      case "address": {
+        const addressParts = [row.address?.address_1, row.address?.address_2, addressSuffix].filter(Boolean);
+        return (
+          <Typography variant="body2">{addressParts.length ? addressParts.join(", ") : "--"}</Typography>
+        );
+      }
+      case "website":
+        return row.website ? (
+          <Link href={normalizeUrl(row.website)} target="_blank" rel="noreferrer">
+            {row.website}
+          </Link>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            --
+          </Typography>
+        );
+      case "phones":
+        return row.phones.length ? (
+          <Stack spacing={0.5}>
+            {row.phones.map((phone, index) => (
+              <Typography key={phone?.id || `detail-phone-${index}`} variant="body2">
+                {phone?.number || "--"}
+              </Typography>
+            ))}
+          </Stack>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            --
+          </Typography>
+        );
+      case "email":
+        return row.email ? (
+          <Link href={`mailto:${row.email}`}>{row.email}</Link>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            --
+          </Typography>
+        );
+      case "gogetta":
+        return (
+          <Link href={`https://gogetta.nyc/team/location/${row.id}`} target="_blank" rel="noreferrer">
+            Open in Gogetta
+          </Link>
+        );
+      default:
+        return <Typography variant="body2">--</Typography>;
+    }
+  };
   const cacheLabel = cacheInfo?.fetchedAt ? formatCacheTimestamp(cacheInfo.fetchedAt) : null;
   return (
-    <Box sx={{ px: { xs: 1.5, md: 3 }, py: { xs: 2, md: 3 } }}>
-      <Stack spacing={2}>
+    <Box
+      sx={{
+        px: { xs: 1.5, md: 3 },
+        pt: { xs: 2, md: 3 },
+        pb: 0,
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        boxSizing: "border-box"
+      }}
+    >
+      <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems={{ xs: "flex-start", md: "center" }}>
           <Box sx={{ flex: 1 }}>
             <Typography variant="h4" sx={{ fontWeight: 700 }}>
@@ -719,43 +995,20 @@ const SheetsApp = () => {
           </Stack>
         </Stack>
         {error && <Alert severity="error">{error}</Alert>}
-        <Paper elevation={2} sx={{ overflow: "hidden" }}>
-          <TableContainer ref={tableContainerRef} sx={{ maxHeight: "70vh" }}>
-            <Table stickyHeader sx={{ minWidth: 1200 }}>
-              <TableHead sx={{ display: "block" }}>
-                <TableRow sx={{ display: "flex" }}>
+        <Paper elevation={2} sx={{ overflow: "hidden", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <TableContainer
+            ref={tableContainerRef}
+            sx={{ flex: 1, minHeight: 0, overflow: "auto" }}
+          >
+            <Table stickyHeader component="table" sx={{ minWidth: 1200 }}>
+              <TableHead component="thead" sx={{ display: "block" }}>
+                <TableRow component="tr" sx={{ display: "flex" }}>
                   {COLUMN_ORDER.map((key) => {
-                    const labelMap = {
-                      organization: "Organization",
-                      location: "Location",
-                      services: "Services",
-                      notes: "Notes",
-                      claim: "Claim",
-                      revalidated: "Revalidated",
-                      address: "Address",
-                      website: "Website",
-                      phones: "Phones",
-                      email: "Email",
-                      gogetta: "Gogetta"
-                    };
-                    const shortMap = {
-                      organization: "Org",
-                      location: "Loc",
-                      services: "Svcs",
-                      notes: "Notes",
-                      claim: "Claim",
-                      revalidated: "Rev",
-                      address: "Addr",
-                      website: "Web",
-                      phones: "Phone",
-                      email: "Email",
-                      gogetta: "Go"
-                    };
                     return (
                       <HeadCells
                         key={key}
-                        messageCollapsed={shortMap[key] || labelMap[key] || key}
-                        messageExpanded={labelMap[key] || key}
+                        messageCollapsed={COLUMN_LABELS_SHORT[key] || COLUMN_LABELS[key] || key}
+                        messageExpanded={COLUMN_LABELS[key] || key}
                         type={key}
                         columnWidthsRef={columnWidthsRef}
                         DEFAULT_COLUMN_WIDTHS={DEFAULT_COLUMN_WIDTHS}
@@ -771,9 +1024,9 @@ const SheetsApp = () => {
                   })}
                 </TableRow>
               </TableHead>
-              <TableBody sx={{ display: "block" }}>
+              <TableBody component="tbody" sx={{ display: "block" }}>
                 {loading && !rows.length ? (
-                  <TableRow sx={{ display: "flex" }}>
+                  <TableRow component="tr" sx={{ display: "flex" }}>
                     <TableCell colSpan={COLUMN_ORDER.length} sx={{ width: "100%" }}>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <CircularProgress size={20} />
@@ -799,12 +1052,16 @@ const SheetsApp = () => {
                   const isSavingAddress = savingAddressIds.has(row.id);
                   return (
                     <TableRow
+                      component="tr"
                       key={row.id}
                       sx={{
                         display: "flex",
                         alignItems: "stretch",
                         borderBottom: "1px solid",
-                        borderColor: "divider"
+                        borderColor: "divider",
+                        height: rowHeight,
+                        minHeight: rowHeight,
+                        maxHeight: rowHeight
                       }}
                     >
                       <SheetsCell
@@ -814,9 +1071,11 @@ const SheetsApp = () => {
                         tableContainerRef={tableContainerRef}
                         isMobile={isMobile}
                       >
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {row.organization || "--"}
-                        </Typography>
+                        <OverflowCell row={row} columnKey="organization" onOpenDetail={handleOpenDetail}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {row.organization || "--"}
+                          </Typography>
+                        </OverflowCell>
                       </SheetsCell>
                       <SheetsCell
                         columnKey="location"
@@ -825,7 +1084,9 @@ const SheetsApp = () => {
                         tableContainerRef={tableContainerRef}
                         isMobile={isMobile}
                       >
-                        <Typography variant="body2">{row.locationName || "--"}</Typography>
+                        <OverflowCell row={row} columnKey="location" onOpenDetail={handleOpenDetail}>
+                          <Typography variant="body2">{row.locationName || "--"}</Typography>
+                        </OverflowCell>
                       </SheetsCell>
                       <SheetsCell
                         columnKey="services"
@@ -834,30 +1095,32 @@ const SheetsApp = () => {
                         tableContainerRef={tableContainerRef}
                         isMobile={isMobile}
                       >
-                        <Stack spacing={0.5} sx={{ width: "100%", maxHeight: 120, overflowY: "auto" }}>
-                          {row.services.length ? (
-                            row.services.map((service, index) => (
-                              <Button
-                                key={service?.id || `${row.id}-service-${index}`}
-                                size="small"
-                                variant="outlined"
-                                sx={{ justifyContent: "flex-start", textTransform: "none" }}
-                                onClick={() => handleOpenServiceModal(row, service)}
-                              >
-                                {service?.name || "Untitled service"}
-                              </Button>
-                            ))
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">
-                              No services
-                            </Typography>
-                          )}
-                          {row.services.length > 3 && (
-                            <Typography variant="caption" color="text.secondary">
-                              +{row.services.length - 3} more
-                            </Typography>
-                          )}
-                        </Stack>
+                        <OverflowCell row={row} columnKey="services" onOpenDetail={handleOpenDetail}>
+                          <Stack spacing={0.5} sx={{ width: "100%", overflow: "hidden" }}>
+                            {row.services.length ? (
+                              row.services.map((service, index) => (
+                                <Button
+                                  key={service?.id || `${row.id}-service-${index}`}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ justifyContent: "flex-start", textTransform: "none" }}
+                                  onClick={() => handleOpenServiceModal(row, service)}
+                                >
+                                  {service?.name || "Untitled service"}
+                                </Button>
+                              ))
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">
+                                No services
+                              </Typography>
+                            )}
+                            {row.services.length > 3 && (
+                              <Typography variant="caption" color="text.secondary">
+                                +{row.services.length - 3} more
+                              </Typography>
+                            )}
+                          </Stack>
+                        </OverflowCell>
                       </SheetsCell>
                       <SheetsCell
                         columnKey="notes"
@@ -866,35 +1129,37 @@ const SheetsApp = () => {
                         tableContainerRef={tableContainerRef}
                         isMobile={isMobile}
                       >
-                        <Stack spacing={0.5} sx={{ width: "100%" }}>
-                          <Box sx={{ maxHeight: 120, overflowY: "auto", pr: 0.5 }}>
-                            {notes.notes?.length ? (
-                              notes.notes.map((entry, index) => (
-                                <Box key={`${row.id}-note-${index}`} sx={{ mb: 0.5 }}>
-                                  <Typography variant="caption" sx={{ fontWeight: index === 0 ? 600 : 400 }}>
-                                    {entry.user || "unknown"} {entry.dateLabel ? `- ${entry.dateLabel}` : ""}
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                                    {entry.note}
-                                  </Typography>
-                                </Box>
-                              ))
-                            ) : (
-                              <Typography variant="caption" color="text.secondary">
-                                No notes yet
-                              </Typography>
-                            )}
-                          </Box>
-                          <Button
-                            size="small"
-                            variant="text"
-                            startIcon={<NoteAddIcon fontSize="small" />}
-                            sx={{ alignSelf: "flex-start", textTransform: "none" }}
-                            onClick={() => handleOpenNotes(row)}
-                          >
-                            Add note
-                          </Button>
-                        </Stack>
+                        <OverflowCell row={row} columnKey="notes" onOpenDetail={handleOpenDetail}>
+                          <Stack spacing={0.5} sx={{ width: "100%", overflow: "hidden" }}>
+                            <Box sx={{ overflow: "hidden" }}>
+                              {notes.notes?.length ? (
+                                notes.notes.map((entry, index) => (
+                                  <Box key={`${row.id}-note-${index}`} sx={{ mb: 0.5 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: index === 0 ? 600 : 400 }}>
+                                      {entry.user || "unknown"} {entry.dateLabel ? `- ${entry.dateLabel}` : ""}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                                      {entry.note}
+                                    </Typography>
+                                  </Box>
+                                ))
+                              ) : (
+                                <Typography variant="caption" color="text.secondary">
+                                  No notes yet
+                                </Typography>
+                              )}
+                            </Box>
+                            <Button
+                              size="small"
+                              variant="text"
+                              startIcon={<NoteAddIcon fontSize="small" />}
+                              sx={{ alignSelf: "flex-start", textTransform: "none" }}
+                              onClick={() => handleOpenNotes(row)}
+                            >
+                              Add note
+                            </Button>
+                          </Stack>
+                        </OverflowCell>
                       </SheetsCell>
                       <SheetsCell
                         columnKey="claim"
@@ -903,7 +1168,9 @@ const SheetsApp = () => {
                         tableContainerRef={tableContainerRef}
                         isMobile={isMobile}
                       >
-                        <Typography variant="body2">{latestUser || "--"}</Typography>
+                        <OverflowCell row={row} columnKey="claim" onOpenDetail={handleOpenDetail}>
+                          <Typography variant="body2">{latestUser || "--"}</Typography>
+                        </OverflowCell>
                       </SheetsCell>
                       <SheetsCell
                         columnKey="revalidated"
@@ -912,7 +1179,9 @@ const SheetsApp = () => {
                         tableContainerRef={tableContainerRef}
                         isMobile={isMobile}
                       >
-                        <Checkbox checked={isRevalidated} disabled />
+                        <OverflowCell row={row} columnKey="revalidated" onOpenDetail={handleOpenDetail}>
+                          <Checkbox checked={isRevalidated} disabled />
+                        </OverflowCell>
                       </SheetsCell>
                       <SheetsCell
                         columnKey="address"
@@ -921,36 +1190,38 @@ const SheetsApp = () => {
                         tableContainerRef={tableContainerRef}
                         isMobile={isMobile}
                       >
-                        <Stack spacing={0.5} sx={{ width: "100%" }}>
-                          <TextField
-                            value={addressDraft}
-                            onChange={(event) =>
-                              setAddressDrafts((prev) => ({ ...prev, [row.id]: event.target.value }))
-                            }
-                            size="small"
-                            fullWidth
-                            placeholder="Address line 1"
-                            InputProps={{
-                              endAdornment: addressSuffix ? (
-                                <InputAdornment position="end">
-                                  <Typography variant="caption" color="text.secondary">
-                                    {addressSuffix}
-                                  </Typography>
-                                </InputAdornment>
-                              ) : null
-                            }}
-                          />
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={isSavingAddress ? <CircularProgress size={14} /> : <SaveIcon fontSize="small" />}
-                            disabled={!addressDirty || isSavingAddress}
-                            onClick={() => handleSaveAddress(row)}
-                            sx={{ alignSelf: "flex-start", textTransform: "none" }}
-                          >
-                            Save address
-                          </Button>
-                        </Stack>
+                        <OverflowCell row={row} columnKey="address" onOpenDetail={handleOpenDetail}>
+                          <Stack spacing={0.5} sx={{ width: "100%", overflow: "hidden" }}>
+                            <TextField
+                              value={addressDraft}
+                              onChange={(event) =>
+                                setAddressDrafts((prev) => ({ ...prev, [row.id]: event.target.value }))
+                              }
+                              size="small"
+                              fullWidth
+                              placeholder="Address line 1"
+                              InputProps={{
+                                endAdornment: addressSuffix ? (
+                                  <InputAdornment position="end">
+                                    <Typography variant="caption" color="text.secondary">
+                                      {addressSuffix}
+                                    </Typography>
+                                  </InputAdornment>
+                                ) : null
+                              }}
+                            />
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={isSavingAddress ? <CircularProgress size={14} /> : <SaveIcon fontSize="small" />}
+                              disabled={!addressDirty || isSavingAddress}
+                              onClick={() => handleSaveAddress(row)}
+                              sx={{ alignSelf: "flex-start", textTransform: "none" }}
+                            >
+                              Save address
+                            </Button>
+                          </Stack>
+                        </OverflowCell>
                       </SheetsCell>
                       <SheetsCell
                         columnKey="website"
@@ -959,15 +1230,17 @@ const SheetsApp = () => {
                         tableContainerRef={tableContainerRef}
                         isMobile={isMobile}
                       >
-                        {row.website ? (
-                          <Link href={normalizeUrl(row.website)} target="_blank" rel="noreferrer">
-                            {row.website}
-                          </Link>
-                        ) : (
-                          <Typography variant="caption" color="text.secondary">
-                            --
-                          </Typography>
-                        )}
+                        <OverflowCell row={row} columnKey="website" onOpenDetail={handleOpenDetail}>
+                          {row.website ? (
+                            <Link href={normalizeUrl(row.website)} target="_blank" rel="noreferrer">
+                              {row.website}
+                            </Link>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              --
+                            </Typography>
+                          )}
+                        </OverflowCell>
                       </SheetsCell>
                       <SheetsCell
                         columnKey="phones"
@@ -976,44 +1249,46 @@ const SheetsApp = () => {
                         tableContainerRef={tableContainerRef}
                         isMobile={isMobile}
                       >
-                        <Stack spacing={1} sx={{ width: "100%", maxHeight: 160, overflowY: "auto" }}>
-                          {row.phones.length ? (
-                            row.phones.map((phone, index) => {
-                              const phoneId = phone?.id || `${row.id}-phone-${index}`;
-                              const draftValue = phoneDrafts[phoneId] ?? phone?.number ?? "";
-                              const phoneDirty =
-                                normalizePhoneNumber(draftValue) !==
-                                normalizePhoneNumber(phoneDefaultsRef.current[phoneId] || "");
-                              const isSavingPhone = savingPhoneIds.has(phoneId);
-                              return (
-                                <Stack key={phoneId} spacing={0.5}>
-                                  <PhoneNumberField
-                                    value={draftValue}
-                                    onChange={(value) =>
-                                      setPhoneDrafts((prev) => ({ ...prev, [phoneId]: value }))
-                                    }
-                                    size="small"
-                                    fullWidth
-                                  />
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    startIcon={isSavingPhone ? <CircularProgress size={14} /> : <SaveIcon fontSize="small" />}
-                                    disabled={!phoneDirty || isSavingPhone}
-                                    onClick={() => handleSavePhone(row.id, phoneId)}
-                                    sx={{ alignSelf: "flex-start", textTransform: "none" }}
-                                  >
-                                    Save phone
-                                  </Button>
-                                </Stack>
-                              );
-                            })
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">
-                              --
-                            </Typography>
-                          )}
-                        </Stack>
+                        <OverflowCell row={row} columnKey="phones" onOpenDetail={handleOpenDetail}>
+                          <Stack spacing={1} sx={{ width: "100%", overflow: "hidden" }}>
+                            {row.phones.length ? (
+                              row.phones.map((phone, index) => {
+                                const phoneId = phone?.id || `${row.id}-phone-${index}`;
+                                const draftValue = phoneDrafts[phoneId] ?? phone?.number ?? "";
+                                const phoneDirty =
+                                  normalizePhoneNumber(draftValue) !==
+                                  normalizePhoneNumber(phoneDefaultsRef.current[phoneId] || "");
+                                const isSavingPhone = savingPhoneIds.has(phoneId);
+                                return (
+                                  <Stack key={phoneId} spacing={0.5}>
+                                    <PhoneNumberField
+                                      value={draftValue}
+                                      onChange={(value) =>
+                                        setPhoneDrafts((prev) => ({ ...prev, [phoneId]: value }))
+                                      }
+                                      size="small"
+                                      fullWidth
+                                    />
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      startIcon={isSavingPhone ? <CircularProgress size={14} /> : <SaveIcon fontSize="small" />}
+                                      disabled={!phoneDirty || isSavingPhone}
+                                      onClick={() => handleSavePhone(row.id, phoneId)}
+                                      sx={{ alignSelf: "flex-start", textTransform: "none" }}
+                                    >
+                                      Save phone
+                                    </Button>
+                                  </Stack>
+                                );
+                              })
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">
+                                --
+                              </Typography>
+                            )}
+                          </Stack>
+                        </OverflowCell>
                       </SheetsCell>
                       <SheetsCell
                         columnKey="email"
@@ -1022,13 +1297,15 @@ const SheetsApp = () => {
                         tableContainerRef={tableContainerRef}
                         isMobile={isMobile}
                       >
-                        {row.email ? (
-                          <Link href={`mailto:${row.email}`}>{row.email}</Link>
-                        ) : (
-                          <Typography variant="caption" color="text.secondary">
-                            --
-                          </Typography>
-                        )}
+                        <OverflowCell row={row} columnKey="email" onOpenDetail={handleOpenDetail}>
+                          {row.email ? (
+                            <Link href={`mailto:${row.email}`}>{row.email}</Link>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              --
+                            </Typography>
+                          )}
+                        </OverflowCell>
                       </SheetsCell>
                       <SheetsCell
                         columnKey="gogetta"
@@ -1037,16 +1314,18 @@ const SheetsApp = () => {
                         tableContainerRef={tableContainerRef}
                         isMobile={isMobile}
                       >
-                        <Tooltip title="Open in Gogetta" arrow>
-                          <IconButton
-                            size="small"
-                            href={`https://gogetta.nyc/team/location/${row.id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <OpenInNewIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        <OverflowCell row={row} columnKey="gogetta" onOpenDetail={handleOpenDetail}>
+                          <Tooltip title="Open in Gogetta" arrow>
+                            <IconButton
+                              size="small"
+                              href={`https://gogetta.nyc/team/location/${row.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <OpenInNewIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </OverflowCell>
                       </SheetsCell>
                     </TableRow>
                   );
@@ -1056,6 +1335,67 @@ const SheetsApp = () => {
           </TableContainer>
         </Paper>
       </Stack>
+      <Box
+        ref={bottomScrollbarRef}
+        sx={{
+          flexShrink: 0,
+          overflowX: "auto",
+          overflowY: "hidden",
+          height: 14,
+          borderTop: "1px solid",
+          borderColor: "divider",
+          backgroundColor: "background.paper"
+        }}
+      >
+        <Box sx={{ width: bottomScrollWidth, height: 1 }} />
+      </Box>
+      <Dialog open={detailModal.open} onClose={handleCloseDetail} maxWidth="lg" fullWidth>
+        <DialogTitle>
+          {detailModal.row?.locationName || detailModal.row?.organization || "Record details"}
+        </DialogTitle>
+        <DialogContent dividers sx={{ maxHeight: "70vh" }}>
+          {detailModal.row ? (
+            <Stack spacing={2}>
+              {COLUMN_ORDER.map((key) => {
+                const isFocused = detailModal.focusKey === key;
+                return (
+                  <Box
+                    key={`detail-section-${key}`}
+                    ref={(node) => {
+                      if (node) detailSectionRefs.current.set(key, node);
+                    }}
+                    sx={{
+                      borderRadius: 1,
+                      border: "1px solid",
+                      borderColor: isFocused ? "primary.main" : "divider",
+                      backgroundColor: isFocused ? "action.hover" : "transparent",
+                      px: 2,
+                      py: 1.5
+                    }}
+                  >
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{ width: { md: 160 }, flexShrink: 0, color: "text.secondary" }}
+                      >
+                        {COLUMN_LABELS[key] || key}
+                      </Typography>
+                      <Box sx={{ flex: 1 }}>{renderDetailValue(detailModal.row, key)}</Box>
+                    </Stack>
+                  </Box>
+                );
+              })}
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No record selected.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDetail}>Close</Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={serviceModal.open} onClose={() => setServiceModal({ open: false, services: [], focusId: null, locationName: "" })} maxWidth="md" fullWidth>
         <DialogTitle>
           Services for {serviceModal.locationName || "location"}

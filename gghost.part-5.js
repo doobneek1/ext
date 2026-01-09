@@ -1667,6 +1667,19 @@ const SERVICE_EDIT_PLAYBACK_USER_COLORS = {
   doobneek: '#2e7d32',
   adamabard: '#1565c0'
 };
+const EDIT_USER_ALIASES = {
+  kiesha: 'kieshaj10',
+  kieshaj10: 'kieshaj10',
+  gavilan: 'gavilan',
+  glongino: 'glongino'
+};
+function normalizeEditUserName(value) {
+  if (!value) return '';
+  const text = String(value).trim();
+  if (!text) return '';
+  const alias = EDIT_USER_ALIASES[text.toLowerCase()];
+  return alias || text;
+}
 const SERVICE_EDIT_PLAYBACK_PALETTE = [
   '#6a1b9a',
   '#00838f',
@@ -1814,12 +1827,14 @@ function hexToRgba(hex, alpha = 0.18) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 function resolveUserColor(user, cache) {
-  const key = String(user || 'unknown').toLowerCase();
+  const normalized = normalizeEditUserName(user);
+  const key = String(normalized || user || 'unknown').toLowerCase();
   if (SERVICE_EDIT_PLAYBACK_USER_COLORS[key]) return SERVICE_EDIT_PLAYBACK_USER_COLORS[key];
-  if (cache.has(key)) return cache.get(key);
+  const cacheKey = normalized || user || 'unknown';
+  if (cache.has(cacheKey)) return cache.get(cacheKey);
   const idx = hashString(key) % SERVICE_EDIT_PLAYBACK_PALETTE.length;
   const color = SERVICE_EDIT_PLAYBACK_PALETTE[idx];
-  cache.set(key, color);
+  cache.set(cacheKey, color);
   return color;
 }
 function findServiceEditTextarea(mode) {
@@ -2012,7 +2027,7 @@ function formatEditTimestamp(ts) {
 }
 function formatTimelineLabel(event) {
   if (!event) return 'Unknown update';
-  const user = event.user || event.userName || 'unknown';
+  const user = normalizeEditUserName(event.user || event.userName || 'unknown') || 'unknown';
   const time = formatEditTimestamp(event.timestampMs || event.timestamp || event.ts);
   const kind = String(event.kind || '').toLowerCase();
   if (kind === 'confirm' || kind === 'reconfirmed' || kind === 'reconfirmed_on' || kind === 'seconded') {
@@ -2508,16 +2523,17 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
     // Filter user's edits and collect location UUIDs
     const userEdits = [];
     const locationUuids = new Set();
-    console.log('[Edit History] Current user:', currentUser);
+    const normalizedCurrentUser = normalizeEditUserName(currentUser || '');
+    console.log('[Edit History] Current user:', normalizedCurrentUser || currentUser);
     console.log('[Edit History] All data keys:', Object.keys(allData));
     progress.textContent = 'Analyzing your edits...';
     for (const [locationKey, userMap] of Object.entries(allData)) {
       if (!userMap || typeof userMap !== 'object') continue;
       // Check if current user has edits for this location
-      const userKey = `${currentUser}-futurenote`;
+      const userKey = `${normalizedCurrentUser || currentUser}-futurenote`;
       console.log('[Edit History] Checking location:', locationKey, 'for users:', Object.keys(userMap));
-      if (userMap[userKey] || userMap[currentUser]) {
-        const dateMap = userMap[userKey] || userMap[currentUser];
+      if (userMap[userKey] || userMap[normalizedCurrentUser] || userMap[currentUser]) {
+        const dateMap = userMap[userKey] || userMap[normalizedCurrentUser] || userMap[currentUser];
         if (dateMap && typeof dateMap === 'object') {
           // Extract UUID from location key (decode if needed)
           const normalizedPath = normalizeKeyPath(locationKey);
@@ -2707,15 +2723,16 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
         const colorPalette = ['#1b9e77', '#d95f02', '#7570b3', '#e7298a', '#66a61e', '#e6ab02'];
         const userColors = new Map();
         const pickColor = (user) => {
-          if (userColors.has(user)) return userColors.get(user);
+          const key = normalizeEditUserName(user || 'Unknown') || 'Unknown';
+          if (userColors.has(key)) return userColors.get(key);
           const color = colorPalette[userColors.size % colorPalette.length];
-          userColors.set(user, color);
+          userColors.set(key, color);
           return color;
         };
         const legend = document.createElement('div');
         Object.assign(legend.style, { display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' });
         locationEdits.forEach((edit) => {
-          const user = edit.userName || 'Unknown';
+          const user = normalizeEditUserName(edit.userName || 'Unknown') || 'Unknown';
           if (userColors.has(user)) return;
           const color = pickColor(user);
           const item = document.createElement('div');
@@ -2747,16 +2764,17 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
           });
           const headerRow = document.createElement('div');
           Object.assign(headerRow.style, { display: 'flex', alignItems: 'center', gap: '8px' });
+          const normalizedUser = normalizeEditUserName(edit.userName || 'Unknown') || 'Unknown';
           const dot = document.createElement('span');
           Object.assign(dot.style, {
             width: '10px',
             height: '10px',
             borderRadius: '50%',
-            background: pickColor(edit.userName || 'Unknown'),
+            background: pickColor(normalizedUser),
             display: 'inline-block'
           });
           const who = document.createElement('div');
-          who.textContent = edit.userName || 'Unknown';
+          who.textContent = normalizedUser;
           who.style.fontWeight = '600';
           who.style.fontSize = '13px';
           const when = document.createElement('div');
@@ -3151,9 +3169,10 @@ function applyEditHighlights(target, edits) {
   const palette = ['#1b9e77', '#d95f02', '#7570b3', '#e7298a', '#66a61e', '#e6ab02'];
   const userColors = new Map();
   const getColor = (user) => {
-    if (userColors.has(user)) return userColors.get(user);
+    const key = normalizeEditUserName(user || 'Unknown') || 'Unknown';
+    if (userColors.has(key)) return userColors.get(key);
     const color = palette[userColors.size % palette.length];
-    userColors.set(user, color);
+    userColors.set(key, color);
     return color;
   };
   const originalBoxShadow = target.style.boxShadow;
@@ -3194,7 +3213,8 @@ function applyEditHighlights(target, edits) {
       marginBottom: '4px'
     });
     const dot = document.createElement('span');
-    const color = getColor(edit.userName || 'Unknown');
+    const userLabel = normalizeEditUserName(edit.userName || 'Unknown') || 'Unknown';
+    const color = getColor(userLabel);
     Object.assign(dot.style, {
       width: '8px',
       height: '8px',
@@ -3203,7 +3223,7 @@ function applyEditHighlights(target, edits) {
       display: 'inline-block'
     });
     const text = document.createElement('span');
-    text.textContent = `${edit.userName || 'Unknown'} - ${formatNycDateTime(edit.date)}`;
+    text.textContent = `${userLabel} - ${formatNycDateTime(edit.date)}`;
     row.appendChild(dot);
     row.appendChild(text);
     legend.appendChild(row);
@@ -3217,7 +3237,7 @@ function applyEditHighlights(target, edits) {
     }
     const edit = edits[idx % edits.length];
     idx += 1;
-    const color = getColor(edit.userName || 'Unknown');
+    const color = getColor(normalizeEditUserName(edit.userName || 'Unknown') || 'Unknown');
     target.style.outline = `2px solid ${color}`;
     target.style.setProperty('--gghost-edit-color', hexToRgba(color, 0.25));
     target.classList.remove('gghost-edit-highlight');

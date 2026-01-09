@@ -24,6 +24,19 @@
   const FETCH_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
   const PLAYBACK_INDEX_PATH = "locationNotesCache/playback/v1/pages";
   const PLAYBACK_INDEX_API_DEFAULT = "https://us-central1-doobneek-fe7b7.cloudfunctions.net/locationNotesPlayback";
+  const USER_ALIAS_MAP = {
+    kiesha: "kieshaj10",
+    kieshaj10: "kieshaj10",
+    gavilan: "gavilan",
+    glongino: "glongino"
+  };
+  function normalizeUserAlias(value) {
+    if (!value) return "";
+    const text = String(value).trim();
+    if (!text) return "";
+    const alias = USER_ALIAS_MAP[text.toLowerCase()];
+    return alias || text;
+  }
   function buildPlaybackPageUrl(pagePath) {
     const normalized = String(pagePath || "").replace(/\/+$/, "");
     if (!normalized) return "";
@@ -338,7 +351,7 @@ watchSpaNavigation();
       for (const [dateKey, noteVal] of Object.entries(dateMap)) {
         const info = parseWhen(dateKey, noteVal);
         if (!info) continue;
-        const userName = userKey.replace(/-futurenote$/i, "");
+        const userName = normalizeUserAlias(userKey.replace(/-futurenote$/i, ""));
         const meta = parseNoteValue(noteVal);
         const detail = meta && meta.type === "edit"
           ? (meta.summary || meta.note || (meta.label ? `Updated ${meta.label}` : null))
@@ -377,7 +390,7 @@ watchSpaNavigation();
         if (!ts) return;
         const date = new Date(ts);
         if (Number.isNaN(date.getTime())) return;
-        const userName = String(event.user || "").replace(/-futurenote$/i, "");
+        const userName = normalizeUserAlias(String(event.user || "").replace(/-futurenote$/i, ""));
         const meta = {
           type: "edit",
           ...event,
@@ -445,8 +458,11 @@ watchSpaNavigation();
       )) {
         return;
       }
-      const you = currentUser && userName && userName.trim().toLowerCase() === currentUser.trim().toLowerCase();
-      const who = you ? "You" : userName || "Someone";
+      const normalizedUser = normalizeUserAlias(userName);
+      const normalizedCurrent = normalizeUserAlias(currentUser);
+      const you = normalizedCurrent && normalizedUser
+        && normalizedUser.toLowerCase() === normalizedCurrent.toLowerCase();
+      const who = you ? "You" : normalizedUser || userName || "Someone";
       const value = scoreEditValue(meta);
       const row = document.createElement("div");
       const message = detail

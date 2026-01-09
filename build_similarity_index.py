@@ -33,6 +33,12 @@ USER_MAP = {
     "b471674a-0d9f-4c32-96e5-dbc9249398d2": "emmab",
 }
 USER_MAP_LOWER = {key.lower(): value for key, value in USER_MAP.items()}
+USER_ALIASES = {
+    "kiesha": "kieshaj10",
+    "kieshaj10": "kieshaj10",
+    "gavilan": "gavilan",
+    "glongino": "glongino",
+}
 ALLOWED_FIELDS = {
     "services.description",
     "event_related_info.information",
@@ -189,8 +195,9 @@ def map_user(value: object) -> str:
     text = str(value).strip()
     if not text:
         return ""
-    mapped = USER_MAP.get(text) or USER_MAP_LOWER.get(text.lower())
-    return mapped or text
+    mapped = USER_MAP.get(text) or USER_MAP_LOWER.get(text.lower()) or text
+    alias = USER_ALIASES.get(mapped.lower())
+    return alias or mapped
 def normalize_base_path(value: str) -> str:
     if not value:
         return ""
