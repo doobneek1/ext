@@ -59,6 +59,16 @@ const CONTENT_SCRIPTS = [
     runAt: "document_idle"
   },
   {
+    id: "dnk-team-location-preload",
+    matches: [
+      "https://gogetta.nyc/team/location/*",
+      "https://test.gogetta.nyc/team/location/*",
+      "https://www.test.gogetta.nyc/team/location/*"
+    ],
+    js: ["gghost-loader.js"],
+    runAt: "document_start"
+  },
+  {
     id: "dnk-team-location",
     matches: [
       "https://gogetta.nyc/team/location/*",
@@ -80,7 +90,6 @@ const CONTENT_SCRIPTS = [
       "recenter.js",
       "autoClicker.js",
       "proofsRequired.js",
-      "gghost-loader.js",
       "lastpage.js",
       "snackbar.js",
       "linkValidator.js"
@@ -132,6 +141,14 @@ const REMINDERS_FETCH_TIMEOUT_MS = 8000;
 const REMINDERS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const REMINDERS_ALARM_NAME = "refreshReminders";
 const REMINDERS_POLL_MINUTES = 5;
+const LOCATION_NOTES_BASE_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes";
+const NOTES_CACHE_PREFIX = "ggNotesCache:";
+const NOTES_PREVIEW_PREFIX = "ggNotesPreview:";
+const NOTES_CACHE_TTL_MS = 2 * 60 * 1000;
+const NOTES_PREFETCH_TIMEOUT_MS = 5000;
+const TEAM_LOCATION_URL_RE = /^https:\/\/(?:www\.)?(?:test\.)?gogetta\.nyc\/team\/location\/([0-9a-f-]+)/i;
+const notesPrefetchInFlight = new Map();
+const notesPrefetchLast = new Map();
 let remindersRefreshInFlight = null;
 function isDoneBy(note = "") {
   return /\bDone by [a-zA-Z]+$/.test(note.trim());
@@ -165,6 +182,84 @@ async function fetchRemindersFromApi() {
 }
 async function fetchRemindersFromFirebase() {
   return fetchJsonWithTimeout(FIREBASE_REMINDERS_URL, REMINDERS_FETCH_TIMEOUT_MS);
+}
+function getNotesCacheKey(uuid) {
+  return `${NOTES_CACHE_PREFIX}${uuid}`;
+}
+function getNotesPreviewKey(uuid) {
+  return `${NOTES_PREVIEW_PREFIX}${uuid}`;
+}
+function extractLocationUuid(url) {
+  if (!url) return null;
+  const match = url.match(TEAM_LOCATION_URL_RE);
+  return match ? match[1].toLowerCase() : null;
+}
+function pickLatestNoteEntry(data) {
+  if (!data || typeof data !== "object") return null;
+  let latestDate = null;
+  let latestUser = null;
+  let latestNote = null;
+  for (const user in data) {
+    const dateMap = data[user];
+    if (!dateMap || typeof dateMap !== "object") continue;
+    for (const date in dateMap) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      if (!latestDate || date > latestDate) {
+        latestDate = date;
+        latestUser = user;
+        latestNote = dateMap[date];
+      }
+    }
+  }
+  if (!latestDate) return null;
+  return { user: latestUser, date: latestDate, note: latestNote };
+}
+async function prefetchNotes(uuid, { force = false } = {}) {
+  if (!uuid || !chrome?.storage?.local) return null;
+  const key = uuid.toLowerCase();
+  if (!force) {
+    const last = notesPrefetchLast.get(key);
+    if (last && Date.now() - last < NOTES_CACHE_TTL_MS) return null;
+  }
+  if (notesPrefetchInFlight.has(key)) {
+    return notesPrefetchInFlight.get(key);
+  }
+  const task = (async () => {
+    const now = Date.now();
+    const cacheKey = getNotesCacheKey(key);
+    const previewKey = getNotesPreviewKey(key);
+    if (!force) {
+      try {
+        const cached = await chrome.storage.local.get(cacheKey);
+        const ts = Number(cached?.[cacheKey]?.ts) || 0;
+        if (ts && now - ts < NOTES_CACHE_TTL_MS) {
+          notesPrefetchLast.set(key, now);
+          return;
+        }
+      } catch {
+        // ignore cache read failures
+      }
+    }
+    try {
+      const data = await fetchJsonWithTimeout(`${LOCATION_NOTES_BASE_URL}/${key}.json`, NOTES_PREFETCH_TIMEOUT_MS);
+      if (!data || typeof data !== "object") return;
+      const latest = pickLatestNoteEntry(data);
+      const payload = { [cacheKey]: { ts: now, data } };
+      if (latest) {
+        payload[previewKey] = { ts: now, latest };
+      }
+      await chrome.storage.local.set(payload);
+    } catch (err) {
+      const errMessage = err?.message || String(err || "unknown error");
+      console.warn("[Background] Notes prefetch failed:", errMessage);
+    } finally {
+      notesPrefetchLast.set(key, Date.now());
+    }
+  })();
+  notesPrefetchInFlight.set(key, task);
+  return task.finally(() => {
+    notesPrefetchInFlight.delete(key);
+  });
 }
 function buildReminderList(data) {
   const reminders = [];
@@ -357,6 +452,12 @@ function maybeRedirect(details) {
     }
   });
 }
+function maybePrefetchNotes(details) {
+  if (extensionPaused) return;
+  const uuid = extractLocationUuid(details?.url || "");
+  if (!uuid) return;
+  void prefetchNotes(uuid);
+}
 chrome.webNavigation.onBeforeNavigate.addListener(maybeRedirect, {
   url: [
     { hostEquals: "gogetta.nyc", pathPrefix: "/team/location/" },
@@ -369,9 +470,16 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(maybeRedirect, {
     { hostEquals: "gogetta.nyc", pathPrefix: "/team/location/" }
   ]
 });
+chrome.webNavigation.onHistoryStateUpdated.addListener(maybePrefetchNotes, {
+  url: [
+    { hostEquals: "gogetta.nyc", pathPrefix: "/team/location/" },
+    { hostEquals: "gogetta.nyc", pathPrefix: "/team/location/" }
+  ]
+});
 chrome.webNavigation.onCommitted.addListener((details) => {
   if (details.frameId !== 0) return;
   gghostInjectedTabs.delete(details.tabId);
+  maybePrefetchNotes(details);
 });
 chrome.tabs.onRemoved.addListener((tabId) => {
   gghostInjectedTabs.delete(tabId);
@@ -519,6 +627,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ tabId: sender?.tab?.id ?? null });
     return true;
   }
+  if (msg.type === "PREFETCH_NOTES") {
+    prefetchNotes(msg?.uuid, { force: !!msg?.force })
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => {
+        sendResponse({ ok: false, error: err?.message || String(err) });
+      });
+    return true;
+  }
   if (msg.type === "SET_EXTENSION_PAUSED") {
     setExtensionPaused(msg.paused)
       .then(() => sendResponse({ ok: true, paused: !!msg.paused }))
@@ -591,6 +707,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     if (query.radius != null) {
       url.searchParams.set('radius', query.radius);
+    }
+    if (query.maxResults != null) {
+      url.searchParams.set('maxResults', query.maxResults);
     }
     fetch(url.toString())
       .then((res) => {

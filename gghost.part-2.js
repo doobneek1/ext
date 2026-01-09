@@ -612,6 +612,21 @@ function buildEditSummary(label, beforeValue, afterValue) {
   if (beforeText && !afterText) return `Cleared ${label}`;
   return `Updated ${label}`;
 }
+function normalizeServiceNoteFields(field, label, urlSuffix) {
+  const rawField = String(field || '').trim();
+  if (rawField === 'eventInfo' || urlSuffix === 'other-info') {
+    return {
+      field: 'additional_info',
+      label: label || 'Other info',
+      resourceTable: 'services'
+    };
+  }
+  return {
+    field: rawField,
+    label: label || '',
+    resourceTable: 'services'
+  };
+}
 async function recordServiceEditLog({
   locationId,
   serviceId,
@@ -626,11 +641,17 @@ async function recordServiceEditLog({
   const ts = new Date().toISOString();
   const dateKey = String(Date.now());
   const pagePath = buildServicePath(locationId, serviceId, urlSuffix || '');
-  const summary = buildEditSummary(label || field || 'field', before, after);
+  const normalized = normalizeServiceNoteFields(field, label, urlSuffix);
+  const summary = buildEditSummary(normalized.label || normalized.field || 'field', before, after);
+  const action = before == null || before === ''
+    ? 'create'
+    : after == null || after === ''
+      ? 'delete'
+      : 'update';
   const note = {
     type: 'edit',
-    field: field || '',
-    label: label || '',
+    field: normalized.field || '',
+    label: normalized.label || '',
     before,
     after,
     note: summary,
@@ -639,7 +660,11 @@ async function recordServiceEditLog({
     userName,
     pagePath,
     locationId,
-    serviceId
+    serviceId,
+    resourceTable: normalized.resourceTable || 'services',
+    action,
+    copyedit: false,
+    source: 'taxonomy'
   };
   let notePayload = note;
   if (note && typeof note === 'object') {
@@ -712,7 +737,7 @@ function getCachedServiceRecord(locationId, serviceId) {
 function getServiceFieldValue(service, field) {
   if (!service) return null;
   if (field === 'description') return (service.description || '').trim();
-  if (field === 'eventInfo') {
+  if (field === 'eventInfo' || field === 'additional_info') {
     const infos = Array.isArray(service.EventRelatedInfos) ? service.EventRelatedInfos : [];
     const info = infos.find(item => item?.event === SERVICE_EDIT_OCCASION) || null;
     return (info?.information || '').trim();
@@ -747,10 +772,10 @@ function buildServiceApiChanges(payload, serviceBefore) {
   }
   if (payload.eventRelatedInfo) {
     changes.push({
-      field: 'eventInfo',
-      label: 'Event info',
+      field: 'additional_info',
+      label: 'Other info',
       urlSuffix: 'other-info',
-      before: getServiceFieldValue(serviceBefore, 'eventInfo'),
+      before: getServiceFieldValue(serviceBefore, 'additional_info'),
       after: payload.eventRelatedInfo?.information ?? null
     });
   }
@@ -1717,13 +1742,13 @@ function getServiceQuickEntries(service) {
   const eventInfo = eventInfos.find(info => info?.event === SERVICE_EDIT_OCCASION) || null;
   const eventText = truncateText((eventInfo?.information || "").trim(), 120);
   entries.push({
-    label: "Event info",
+    label: "Other info",
     value: eventText,
     rawValue: (eventInfo?.information || "").trim(),
-    emptyLabel: "Add event info",
+    emptyLabel: "Add other info",
     urlSuffix: "other-info",
     updatedAt: eventInfo?.updatedAt || eventInfo?.createdAt || null,
-    field: "eventInfo",
+    field: "additional_info",
     editable: true
   });
   const requiredDocs = Array.isArray(service?.RequiredDocuments) ? service.RequiredDocuments : [];

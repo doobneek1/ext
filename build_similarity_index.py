@@ -37,6 +37,9 @@ ALLOWED_FIELDS = {
     "services.description",
     "event_related_info.information",
 }
+RECONFIRM_GAP_DAYS = 180
+RECONFIRM_GAP_MS = RECONFIRM_GAP_DAYS * 86400000
+CONFIRM_DEDUPE_WINDOW_MS = 2 * 60 * 1000
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build a similarity index for locationNotes edits.",
@@ -57,8 +60,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output",
-        required=True,
-        help="Path to write similarity index JSON.",
+        required=False,
+        default="",
+        help="Path to write similarity index JSON (required unless --playback-only).",
     )
     parser.add_argument(
         "--base-path",
@@ -128,6 +132,26 @@ def parse_args() -> argparse.Namespace:
         "--events-cache",
         default="",
         help="Events cache path for resume (default: <output>.events.json).",
+    )
+    parser.add_argument(
+        "--playback-output",
+        default="",
+        help="Optional playback index output JSON (initial text + deltas for UI animation).",
+    )
+    parser.add_argument(
+        "--playback-only",
+        action="store_true",
+        help="Generate playback index only (skip similarity matching/output).",
+    )
+    parser.add_argument(
+        "--playback-fields",
+        default="",
+        help="Comma-separated field keys to include in playback (default: allowed fields).",
+    )
+    parser.add_argument(
+        "--playback-include-after",
+        action="store_true",
+        help="Include full after text in playback events (default: deltas only).",
     )
     parser.add_argument(
         "--progress-every",
@@ -307,9 +331,38 @@ def apply_text_delta(prev_text: str, delta: dict) -> Optional[str]:
     except Exception:
         return None
     return text
+def build_text_delta_ops(prev_text: str, new_text: str) -> list[list[object]]:
+    matcher = difflib.SequenceMatcher(None, prev_text, new_text)
+    ops: list[list[object]] = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        if tag == "delete":
+            ops.append(["delete", i1, i2])
+        elif tag == "insert":
+            ops.append(["insert", i1, new_text[j1:j2]])
+        else:
+            ops.append(["replace", i1, i2, new_text[j1:j2]])
+    return ops
+def build_text_delta(prev_text: str, new_text: str) -> dict:
+    return {"kind": "text-diff-v1", "ops": build_text_delta_ops(prev_text, new_text)}
 def build_field_key(note: dict) -> str:
-    resource_table = str(note.get("resourceTable") or "").strip()
-    field = str(note.get("field") or "").strip()
+    field_key = str(note.get("fieldKey") or note.get("field_key") or "").strip()
+    if field_key:
+        return field_key
+    resource_table = str(
+        note.get("resourceTable")
+        or note.get("resource_table")
+        or note.get("resource")
+        or note.get("table")
+        or ""
+    ).strip()
+    field = str(
+        note.get("field")
+        or note.get("field_name")
+        or note.get("fieldName")
+        or ""
+    ).strip()
     if resource_table and field:
         return f"{resource_table}.{field}"
     if resource_table:
@@ -361,6 +414,34 @@ def normalize_similarity_text(text: str) -> str:
     cleaned = PHONE_RE.sub("<PHONE>", cleaned)
     cleaned = WHITESPACE_RE.sub(" ", cleaned).strip()
     return cleaned
+def parse_playback_fields(value: str, include_all_by_default: bool = False) -> Optional[set[str]]:
+    if not value:
+        return None if include_all_by_default else set(ALLOWED_FIELDS)
+    lowered = value.strip().lower()
+    if lowered in {"all", "*"}:
+        return None
+    fields = {item.strip() for item in value.split(",") if item.strip()}
+    return fields or (None if include_all_by_default else set(ALLOWED_FIELDS))
+def classify_note_kind(note: dict, has_text_payload: bool) -> str:
+    if has_text_payload:
+        return "edit"
+    summary = str(note.get("summary") or note.get("note") or "").strip().lower()
+    if summary.startswith("seconded"):
+        return "seconded"
+    if summary.startswith("reconfirmed"):
+        return "reconfirmed"
+    return "confirm"
+def coerce_playback_text(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=True)
+    except Exception:
+        return str(value)
+def encode_playback_field_key(field_key: str) -> str:
+    return urllib.parse.quote(field_key, safe="").replace(".", "%2E")
 def default_checkpoint_path(output: str) -> str:
     return f"{output}.checkpoint.json"
 def default_events_cache_path(output: str) -> str:
@@ -445,12 +526,183 @@ def build_checkpoint_payload(
         "matches": matches,
         "seenPairs": [f"{a}|{b}" for a, b in sorted(seen_pairs)],
     }
+def build_playback_pages(
+    entries_by_key: dict[str, list[dict]],
+    playback_fields: Optional[set[str]],
+    include_after: bool,
+) -> dict[str, dict]:
+    pages: dict[str, dict] = {}
+    for encoded_key, entries in entries_by_key.items():
+        entries.sort(key=lambda item: item["epoch_ms"])
+        decoded_path = urllib.parse.unquote(encoded_key)
+        location_id = extract_location_id(decoded_path)
+        service_id = extract_service_id(decoded_path)
+        field_states: dict[str, dict] = {}
+        for entry in entries:
+            note = entry["note"]
+            field_key = build_field_key(note)
+            if playback_fields is not None and field_key not in playback_fields:
+                continue
+            state = field_states.setdefault(
+                field_key,
+                {
+                    "current_text": None,
+                    "initial": None,
+                    "events": [],
+                    "last_text_change_ms": None,
+                    "last_event_index": None,
+                },
+            )
+            prev_text = state["current_text"]
+            has_after = "after" in note
+            has_delta = "delta" in note
+            has_text_payload = has_after or has_delta
+            new_text = None
+            if has_after:
+                new_text = coerce_playback_text(note.get("after"))
+            elif has_delta:
+                base_text = prev_text if isinstance(prev_text, str) else coerce_playback_text(prev_text)
+                new_text = apply_text_delta(base_text, note.get("delta"))
+                if new_text is None:
+                    new_text = base_text
+            elif prev_text is not None:
+                new_text = prev_text if isinstance(prev_text, str) else coerce_playback_text(prev_text)
+            if new_text is None:
+                continue
+            if not isinstance(new_text, str):
+                new_text = coerce_playback_text(new_text)
+            has_prev_text = isinstance(prev_text, str)
+            text_changed = isinstance(new_text, str) and (not has_prev_text or new_text != prev_text)
+            user = map_user(entry["user"])
+            event_id = event_key_for(
+                entry["epoch_ms"],
+                user,
+                field_key,
+                location_id,
+                service_id if field_key.startswith("services.") else "",
+            )
+            kind = classify_note_kind(note, has_text_payload)
+            if kind == "edit" and not text_changed and has_prev_text:
+                kind = "confirm"
+            if kind == "confirm":
+                last_change = state.get("last_text_change_ms")
+                if last_change is not None and entry["epoch_ms"] - last_change >= RECONFIRM_GAP_MS:
+                    kind = "reconfirmed"
+            summary = note.get("summary") or note.get("note") or ""
+            event_payload = {
+                "eventId": event_id,
+                "timestampMs": entry["epoch_ms"],
+                "user": user,
+                "field": note.get("field"),
+                "resourceTable": note.get("resourceTable"),
+                "action": note.get("action"),
+                "label": note.get("label"),
+                "summary": summary,
+                "kind": kind,
+                "fieldKey": field_key,
+                "pagePath": decoded_path,
+                "locationId": location_id or None,
+            }
+            if service_id and field_key.startswith("services."):
+                event_payload["serviceId"] = service_id
+            if state["initial"] is None:
+                initial_event = dict(event_payload)
+                if include_after:
+                    initial_event["after"] = new_text
+                state["initial"] = {"text": new_text, "event": initial_event}
+                state["current_text"] = new_text
+                state["last_text_change_ms"] = entry["epoch_ms"]
+                continue
+            delta = build_text_delta(
+                prev_text if isinstance(prev_text, str) else "",
+                new_text,
+            )
+            if has_delta or has_after or text_changed:
+                event_payload["delta"] = delta
+            if include_after:
+                event_payload["after"] = new_text
+            if not text_changed:
+                last_index = state.get("last_event_index")
+                if last_index is not None:
+                    last_event = state["events"][last_index]
+                    if (
+                        last_event
+                        and last_event.get("user") == user
+                        and last_event.get("fieldKey") == field_key
+                        and last_event.get("kind") == kind
+                        and entry["epoch_ms"] - last_event.get("timestampMs", 0) <= CONFIRM_DEDUPE_WINDOW_MS
+                    ):
+                        state["events"][last_index] = event_payload
+                        continue
+            state["events"].append(event_payload)
+            state["last_event_index"] = len(state["events"]) - 1
+            if text_changed:
+                state["current_text"] = new_text
+                state["last_text_change_ms"] = entry["epoch_ms"]
+        fields_payload: dict[str, dict] = {}
+        for field_key, state in field_states.items():
+            if not state.get("initial"):
+                continue
+            encoded_field_key = encode_playback_field_key(field_key)
+            fields_payload[encoded_field_key] = {
+                "fieldKey": field_key,
+                "initial": state["initial"],
+                "events": state["events"],
+            }
+        if fields_payload:
+            pages[encoded_key] = {
+                "pagePath": decoded_path,
+                "locationId": location_id or None,
+                "serviceId": service_id or None,
+                "fields": fields_payload,
+            }
+    return pages
 def main() -> int:
     args = parse_args()
+    if not args.playback_only and not args.output:
+        print("Missing --output (required unless --playback-only).")
+        return 1
+    if args.playback_only and not args.playback_output:
+        print("Playback-only mode requires --playback-output.")
+        return 1
     input_path = Path(args.input)
     if not input_path.exists():
         print(f"Input not found: {input_path}")
         return 1
+    if args.playback_only:
+        entries_by_key: dict[str, list[dict]] = {}
+        entries_seen = 0
+        for encoded_key, user, epoch_ms, note in load_entries(input_path, args.base_path):
+            entries_seen += 1
+            entries_by_key.setdefault(encoded_key, []).append(
+                {
+                    "encoded_key": encoded_key,
+                    "user": user,
+                    "epoch_ms": epoch_ms,
+                    "note": note,
+                }
+            )
+            if args.progress_every and entries_seen % args.progress_every == 0:
+                print(f"Scanned {entries_seen} entries...")
+        playback_fields = parse_playback_fields(
+            args.playback_fields,
+            include_all_by_default=True,
+        )
+        playback_pages = build_playback_pages(
+            entries_by_key,
+            playback_fields,
+            args.playback_include_after,
+        )
+        playback_output = {
+            "schemaVersion": "1.0",
+            "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "pages": playback_pages,
+        }
+        Path(args.playback_output).write_text(
+            json.dumps(playback_output, ensure_ascii=True) + "\n", encoding="utf-8"
+        )
+        print(f"Wrote playback index: {args.playback_output}")
+        return 0
     checkpoint_path = Path(
         args.checkpoint or default_checkpoint_path(args.output)
     )
@@ -463,13 +715,18 @@ def main() -> int:
         if resume_enabled:
             print("Auto-resume enabled (cache/checkpoint detected).")
     events: list[dict] = []
-    if resume_enabled and events_cache_path.exists():
+    entries_by_key: dict[str, list[dict]] = {}
+    playback_fields = parse_playback_fields(
+        args.playback_fields,
+        include_all_by_default=bool(args.playback_output),
+    )
+    needs_entries_by_key = bool(args.playback_output)
+    if resume_enabled and events_cache_path.exists() and not needs_entries_by_key:
         events = load_events_cache(events_cache_path)
         events = normalize_cached_events(events)
         events.sort(key=lambda item: item.get("timestampMs", 0))
         print(f"Loaded events cache: {events_cache_path} ({len(events)} events)")
     else:
-        entries_by_key: dict[str, list[dict]] = {}
         entries_seen = 0
         for encoded_key, user, epoch_ms, note in load_entries(input_path, args.base_path):
             entries_seen += 1
@@ -576,80 +833,80 @@ def main() -> int:
                 last_completed_index = idx
                 continue
             bucket = target_len // bucket_size
-        candidate_indices: list[int] = []
-        for offset in (-1, 0, 1):
-            candidate_indices.extend(buckets.get(bucket + offset, []))
-        if args.max_candidates and len(candidate_indices) > args.max_candidates:
-            candidate_indices = candidate_indices[-args.max_candidates :]
-        best = None
-        best_ratio = 0.0
-        best_source = None
-        for cand_idx in candidate_indices:
-            source = events[cand_idx]
-            if not source["locationId"] or source["locationId"] == event["locationId"]:
-                continue
-            if args.same_field_only and source["fieldKey"] != event["fieldKey"]:
-                continue
-            source_text = source["normalizedText"]
-            if not source_text:
-                continue
-            if source_text == target_text:
-                best_ratio = 1.0
-                best_source = source
-                best = 1.0
-                break
-            min_len = min(len(source_text), target_len)
-            max_len = max(len(source_text), target_len)
-            if max_len and (min_len / max_len) < args.length_ratio_min:
-                continue
-            ratio = difflib.SequenceMatcher(None, target_text, source_text).ratio()
-            if ratio > best_ratio:
-                best_ratio = ratio
-                best_source = source
-                best = ratio
-            if best_ratio >= 1.0:
-                break
-            if best is not None and best_ratio >= args.min_similarity and best_source:
-                pair_key = (best_source["locationId"], event["locationId"])
-                if pair_key not in seen_pairs:
-                    match_type = "review"
-                    confidence_band = "review"
-                    if best_ratio >= args.auto_threshold:
-                        match_type = "borrowed_from"
-                        confidence_band = "high"
-                    elif best_ratio >= args.match_threshold:
-                        match_type = "similar_to"
-                        confidence_band = "medium"
-                    match_scope = (
-                        "cross-field"
-                        if best_source["fieldKey"] != event["fieldKey"]
-                        else "same-field"
-                    )
-                    source_payload = {
-                        "locationId": best_source["locationId"],
-                        "timestampMs": best_source["timestampMs"],
-                        "user": map_user(best_source["user"]),
-                        "fieldKey": best_source["fieldKey"],
-                    }
-                    if best_source.get("serviceId"):
-                        source_payload["serviceId"] = best_source["serviceId"]
-                    match_info = {
-                        "matchType": match_type,
-                        "confidence": round(best_ratio, 4),
-                        "confidenceBand": confidence_band,
-                        "matchScope": match_scope,
-                        "source": source_payload,
-                    }
-                    field_key = event["fieldKey"]
-                    event_key = event_key_for(
-                        event.get("timestampMs") or 0,
-                        event.get("user") or "",
-                        field_key,
-                        str(event.get("locationId") or ""),
-                        str(event.get("serviceId") or ""),
-                    )
-                    matches[field_key][event_key] = match_info
-                    seen_pairs.add(pair_key)
+            candidate_indices: list[int] = []
+            for offset in (-1, 0, 1):
+                candidate_indices.extend(buckets.get(bucket + offset, []))
+            if args.max_candidates and len(candidate_indices) > args.max_candidates:
+                candidate_indices = candidate_indices[-args.max_candidates :]
+            best = None
+            best_ratio = 0.0
+            best_source = None
+            for cand_idx in candidate_indices:
+                source = events[cand_idx]
+                if not source["locationId"] or source["locationId"] == event["locationId"]:
+                    continue
+                if args.same_field_only and source["fieldKey"] != event["fieldKey"]:
+                    continue
+                source_text = source["normalizedText"]
+                if not source_text:
+                    continue
+                if source_text == target_text:
+                    best_ratio = 1.0
+                    best_source = source
+                    best = 1.0
+                    break
+                min_len = min(len(source_text), target_len)
+                max_len = max(len(source_text), target_len)
+                if max_len and (min_len / max_len) < args.length_ratio_min:
+                    continue
+                ratio = difflib.SequenceMatcher(None, target_text, source_text).ratio()
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    best_source = source
+                    best = ratio
+                if best_ratio >= 1.0:
+                    break
+                if best is not None and best_ratio >= args.min_similarity and best_source:
+                    pair_key = (best_source["locationId"], event["locationId"])
+                    if pair_key not in seen_pairs:
+                        match_type = "review"
+                        confidence_band = "review"
+                        if best_ratio >= args.auto_threshold:
+                            match_type = "borrowed_from"
+                            confidence_band = "high"
+                        elif best_ratio >= args.match_threshold:
+                            match_type = "similar_to"
+                            confidence_band = "medium"
+                        match_scope = (
+                            "cross-field"
+                            if best_source["fieldKey"] != event["fieldKey"]
+                            else "same-field"
+                        )
+                        source_payload = {
+                            "locationId": best_source["locationId"],
+                            "timestampMs": best_source["timestampMs"],
+                            "user": map_user(best_source["user"]),
+                            "fieldKey": best_source["fieldKey"],
+                        }
+                        if best_source.get("serviceId"):
+                            source_payload["serviceId"] = best_source["serviceId"]
+                        match_info = {
+                            "matchType": match_type,
+                            "confidence": round(best_ratio, 4),
+                            "confidenceBand": confidence_band,
+                            "matchScope": match_scope,
+                            "source": source_payload,
+                        }
+                        field_key = event["fieldKey"]
+                        event_key = event_key_for(
+                            event.get("timestampMs") or 0,
+                            event.get("user") or "",
+                            field_key,
+                            str(event.get("locationId") or ""),
+                            str(event.get("serviceId") or ""),
+                        )
+                        matches[field_key][event_key] = match_info
+                        seen_pairs.add(pair_key)
             buckets.setdefault(bucket, []).append(idx)
             last_completed_index = idx
             processed_since_checkpoint += 1
@@ -701,6 +958,24 @@ def main() -> int:
         json.dumps(output, ensure_ascii=True, indent=2) + "\n", encoding="utf-8"
     )
     print(f"Wrote similarity index: {args.output}")
+    if args.playback_output:
+        if not entries_by_key:
+            print("Playback output requested but no entries loaded; re-run without resume cache.")
+            return 1
+        playback_pages = build_playback_pages(
+            entries_by_key,
+            playback_fields,
+            args.playback_include_after,
+        )
+        playback_output = {
+            "schemaVersion": "1.0",
+            "generatedAt": output["generatedAt"],
+            "pages": playback_pages,
+        }
+        Path(args.playback_output).write_text(
+            json.dumps(playback_output, ensure_ascii=True) + "\n", encoding="utf-8"
+        )
+        print(f"Wrote playback index: {args.playback_output}")
     return 0
 if __name__ == "__main__":
     raise SystemExit(main())

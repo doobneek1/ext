@@ -12,6 +12,9 @@
   let lastGoodNotes = null;
   let lastGoodPath = null;
   let lastGoodAt = 0;
+  let lastGoodPlayback = null;
+  let lastGoodPlaybackPath = null;
+  let lastGoodPlaybackAt = 0;
   let retryTimer = null;
   let retryCount = 0;
   let fetchInFlight = false;
@@ -19,6 +22,26 @@
   const FETCH_RETRY_LIMIT = 2;
   const FETCH_RETRY_BASE_MS = 1200;
   const FETCH_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+  const PLAYBACK_INDEX_PATH = "locationNotesCache/playback/v1/pages";
+  const PLAYBACK_INDEX_API_DEFAULT = "https://us-central1-doobneek-fe7b7.cloudfunctions.net/locationNotesPlayback";
+  function buildPlaybackPageUrl(pagePath) {
+    const normalized = String(pagePath || "").replace(/\/+$/, "");
+    if (!normalized) return "";
+    const apiOverride = window.gghost?.PLAYBACK_INDEX_API;
+    const apiBase = typeof apiOverride === "string" && apiOverride.trim()
+      ? apiOverride.trim()
+      : PLAYBACK_INDEX_API_DEFAULT;
+    if (apiBase) {
+      try {
+        const url = new URL(apiBase);
+        url.searchParams.set("pagePath", normalized);
+        return url.toString();
+      } catch {}
+    }
+    const encodedKey = encodeURIComponent(normalized);
+    const safeKey = encodeURIComponent(encodedKey);
+    return applyAuth(`${baseURL}${PLAYBACK_INDEX_PATH}/${safeKey}.json`);
+  }
   function buildPageNotesUrls(pagePath) {
     const normalized = String(pagePath || "").replace(/\/+$/, "");
     if (!normalized) return { primaryUrl: "", fallbackUrl: "" };
@@ -326,6 +349,52 @@ watchSpaNavigation();
     items.sort((a, b) => b.date - a.date);
     return items;
   }
+  function buildPlaybackDetail(meta, fieldKey) {
+    const action = String(meta.action || "").toLowerCase();
+    const label = meta.label || meta.field || fieldKey || "field";
+    if (action === "create") return `created ${label}`;
+    if (action === "delete") return `deleted ${label}`;
+    return `updated ${label}`;
+  }
+  function normalizePlaybackRecords(pageData) {
+    const items = [];
+    if (!pageData || typeof pageData !== "object") return items;
+    const fields = pageData.fields;
+    if (!fields || typeof fields !== "object") return items;
+    const fieldEntries = Array.isArray(fields) ? fields : Object.values(fields);
+    fieldEntries.forEach((fieldPayload) => {
+      if (!fieldPayload || typeof fieldPayload !== "object") return;
+      const fieldKey = fieldPayload.fieldKey || "";
+      const events = [];
+      if (fieldPayload.initial && fieldPayload.initial.event) {
+        events.push(fieldPayload.initial.event);
+      }
+      if (Array.isArray(fieldPayload.events)) {
+        events.push(...fieldPayload.events);
+      }
+      events.forEach((event) => {
+        const ts = event?.timestampMs ?? event?.timestamp ?? event?.ts;
+        if (!ts) return;
+        const date = new Date(ts);
+        if (Number.isNaN(date.getTime())) return;
+        const userName = String(event.user || "").replace(/-futurenote$/i, "");
+        const meta = {
+          type: "edit",
+          ...event,
+          summary: event.summary || buildPlaybackDetail(event, fieldKey)
+        };
+        items.push({
+          userName,
+          date,
+          dateOnly: false,
+          detail: buildPlaybackDetail(meta, fieldKey),
+          meta
+        });
+      });
+    });
+    items.sort((a, b) => b.date - a.date);
+    return items;
+  }
   function destroySnackbar() {
     if (currentSnackbar) {
       currentSnackbar.remove();
@@ -456,55 +525,81 @@ watchSpaNavigation();
     const pagePath = location.pathname.replace(/\/+$/, "");
     if (pagePath === lastRenderedPath && lastFetchOk) return; // avoid duplicate fetch on same URL
     lastRenderedPath = pagePath;
-    let all = null;
     let usedCache = false;
+    let items = null;
     fetchInFlight = true;
     try {
-      const { primaryUrl, fallbackUrl } = buildPageNotesUrls(pagePath);
-      let result = primaryUrl
-        ? await fetchJsonWithRetry(primaryUrl)
-        : { ok: false, error: new Error("Missing page URL") };
-      if (!result.ok && fallbackUrl && fallbackUrl !== primaryUrl) {
-        result = await fetchJsonWithRetry(fallbackUrl);
+      const playbackUrl = buildPlaybackPageUrl(pagePath);
+      if (playbackUrl) {
+        const playbackResult = await fetchJsonWithRetry(playbackUrl);
+        if (playbackResult.ok && playbackResult.data) {
+          const playbackItems = normalizePlaybackRecords(playbackResult.data);
+          if (playbackItems.length) {
+            items = playbackItems;
+            lastFetchOk = true;
+            lastGoodPlayback = playbackResult.data;
+            lastGoodPlaybackPath = pagePath;
+            lastGoodPlaybackAt = Date.now();
+            retryCount = 0;
+            if (retryTimer) {
+              clearTimeout(retryTimer);
+              retryTimer = null;
+            }
+          }
+        } else if (!playbackResult.ok) {
+          const now = Date.now();
+          const errorMessage = playbackResult.error?.message || String(playbackResult.error || 'unknown error');
+          if (lastGoodPlayback && lastGoodPlaybackPath === pagePath && (now - lastGoodPlaybackAt) < FETCH_CACHE_MAX_AGE_MS) {
+            items = normalizePlaybackRecords(lastGoodPlayback);
+            if (items.length) {
+              usedCache = true;
+              console.warn("[Snackbar] playback fetch failed, using cached playback:", errorMessage);
+            }
+          }
+        }
       }
-      if (result.ok) {
-        all = result.data;
-        lastFetchOk = true;
-        lastGoodNotes = all;
-        lastGoodPath = pagePath;
-        lastGoodAt = Date.now();
-        retryCount = 0;
-        if (retryTimer) {
-          clearTimeout(retryTimer);
-          retryTimer = null;
+      if (!items || !items.length) {
+        const { primaryUrl, fallbackUrl } = buildPageNotesUrls(pagePath);
+        let result = primaryUrl
+          ? await fetchJsonWithRetry(primaryUrl)
+          : { ok: false, error: new Error("Missing page URL") };
+        if (!result.ok && fallbackUrl && fallbackUrl !== primaryUrl) {
+          result = await fetchJsonWithRetry(fallbackUrl);
         }
-      } else {
-        lastFetchOk = false;
-        const now = Date.now();
-        const errorMessage = result.error?.message || String(result.error || 'unknown error');
-        if (lastGoodNotes && lastGoodPath === pagePath && (now - lastGoodAt) < FETCH_CACHE_MAX_AGE_MS) {
-          all = lastGoodNotes;
-          usedCache = true;
-          console.warn("[Snackbar] fetch failed, using cached data:", errorMessage);
+        if (result.ok) {
+          const all = result.data;
+          lastFetchOk = true;
+          lastGoodNotes = all;
+          lastGoodPath = pagePath;
+          lastGoodAt = Date.now();
+          retryCount = 0;
+          if (retryTimer) {
+            clearTimeout(retryTimer);
+            retryTimer = null;
+          }
+          items = normalizeRecordsForTopKey(all);
         } else {
-          console.warn("[Snackbar] fetch failed:", errorMessage);
+          lastFetchOk = false;
+          const now = Date.now();
+          const errorMessage = result.error?.message || String(result.error || 'unknown error');
+          if (lastGoodNotes && lastGoodPath === pagePath && (now - lastGoodAt) < FETCH_CACHE_MAX_AGE_MS) {
+            items = normalizeRecordsForTopKey(lastGoodNotes);
+            if (items.length) {
+              usedCache = true;
+              console.warn("[Snackbar] fetch failed, using cached data:", errorMessage);
+            }
+          } else {
+            console.warn("[Snackbar] fetch failed:", errorMessage);
+            scheduleSnackbarRetry();
+            destroySnackbar();
+            return;
+          }
           scheduleSnackbarRetry();
-          destroySnackbar();
-          return;
         }
-        scheduleSnackbarRetry();
       }
     } finally {
       fetchInFlight = false;
     }
-    if (!all || typeof all !== "object") {
-      lastFetchOk = false;
-      scheduleSnackbarRetry();
-      return;
-    }
-    const matchedUserMap = all && typeof all === "object" ? all : null;
-    if (!matchedUserMap || !Object.keys(matchedUserMap).length) { destroySnackbar(); return; }
-    const items = normalizeRecordsForTopKey(matchedUserMap);
     if (!items.length) { destroySnackbar(); return; }
     const currentUser = await getCurrentUserName();
     showSnackbar(items, currentUser, { isStale: usedCache });

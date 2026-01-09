@@ -1527,7 +1527,7 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
         };
         const beginEdit = () => {
           if (entry.field === 'description') return beginDescriptionEdit();
-          if (entry.field === 'eventInfo') return beginEventInfoEdit();
+          if (entry.field === 'additional_info' || entry.field === 'eventInfo') return beginEventInfoEdit();
           if (entry.field === 'requiredDocs') return beginRequiredDocsEdit();
           if (entry.field === 'age') return beginAgeEdit();
           if (entry.field === 'hours') return beginHoursEdit();
@@ -1793,6 +1793,257 @@ function renderServiceTaxonomyBanner(taxonomies, services = [], locationId = nul
     wireHoverPanel(headerRow);
   }
   banner.appendChild(headerRow);
+  const actionsRow = document.createElement('div');
+  actionsRow.style.display = 'flex';
+  actionsRow.style.justifyContent = 'flex-end';
+  actionsRow.style.marginTop = '6px';
+  const editHistoryBtn = document.createElement('button');
+  editHistoryBtn.type = 'button';
+  editHistoryBtn.textContent = 'Edit history';
+  const canShowEditPlayback = /\/(description|other-info)(?:\/|$)/i.test(location.pathname || '');
+  const playbackStateAttr = 'data-gghost-playback-state';
+  editHistoryBtn.setAttribute(playbackStateAttr, 'unknown');
+  editHistoryBtn.disabled = !canShowEditPlayback;
+  editHistoryBtn.title = canShowEditPlayback
+    ? 'Play the text edit history'
+    : 'Open description or other-info to view edits';
+  Object.assign(editHistoryBtn.style, {
+    padding: '4px 8px',
+    fontSize: '12px',
+    border: '1px solid #d4c79a',
+    background: '#fff',
+    borderRadius: '6px',
+    cursor: editHistoryBtn.disabled ? 'default' : 'pointer',
+    opacity: editHistoryBtn.disabled ? '0.6' : '1'
+  });
+  const isPlaybackDebugEnabled = () => {
+    if (typeof window.gghost?.isPlaybackDebugEnabled === 'function') {
+      return window.gghost.isPlaybackDebugEnabled();
+    }
+    if (window.gghost?.DEBUG_PLAYBACK === true) return true;
+    if (window.gghost?.DEBUG_PLAYBACK === false) return false;
+    try {
+      const flag = localStorage.getItem('gghostDebugPlayback');
+      return flag === '1' || flag === 'true';
+    } catch {}
+    const path = location?.pathname || '';
+    return /^\/team\/location\/[0-9a-f-]+\/services\/[0-9a-f-]+\/(description|other-info)(?:\/|$)/i.test(path);
+  };
+  const pickPlaybackFieldData = (pageData, fieldKey) => {
+    if (!pageData || typeof pageData !== 'object') return null;
+    const fields = pageData.fields;
+    if (!fields || typeof fields !== 'object') return null;
+    const fallbackFieldKey = fieldKey === 'services.additional_info'
+      ? 'event_related_info.information'
+      : '';
+    const fieldKeys = [fieldKey, fallbackFieldKey].filter(Boolean);
+    if (Array.isArray(fields)) {
+      if (fieldKeys.length) {
+        for (const key of fieldKeys) {
+          const match = fields.find((item) => item?.fieldKey === key);
+          if (match) return match;
+        }
+      }
+      return fields.find((item) => item && typeof item === 'object') || null;
+    }
+    if (fieldKeys.length) {
+      for (const key of fieldKeys) {
+        if (fields[key]) return fields[key];
+        const encodedKey = encodeURIComponent(String(key)).replace(/\./g, '%2E');
+        if (encodedKey && fields[encodedKey]) return fields[encodedKey];
+      }
+      const match = Object.values(fields).find((item) => item?.fieldKey && fieldKeys.includes(item.fieldKey));
+      if (match) return match;
+    }
+    return Object.values(fields).find((item) => item && typeof item === 'object') || null;
+  };
+  const normalizePlaybackPath = (value) => {
+    if (!value) return '';
+    const raw = String(value).trim();
+    if (!raw) return '';
+    return raw.replace(/\/+$/, '');
+  };
+  const formatProbeLogUrl = (value) => {
+    try {
+      const parsed = new URL(value);
+      parsed.search = '';
+      return parsed.toString();
+    } catch {
+      return value;
+    }
+  };
+  const buildPlaybackProbeUrl = (pagePath) => {
+    const normalized = normalizePlaybackPath(pagePath);
+    if (!normalized) return '';
+    const apiOverride = window.gghost?.PLAYBACK_INDEX_API;
+    const apiBase = typeof apiOverride === 'string' && apiOverride.trim()
+      ? apiOverride.trim()
+      : 'https://us-central1-doobneek-fe7b7.cloudfunctions.net/locationNotesPlayback';
+    if (apiBase) {
+      try {
+        const url = new URL(apiBase);
+        url.searchParams.set('pagePath', normalized);
+        return url.toString();
+      } catch {}
+    }
+    const base = window.gghost?.baseURL || 'https://doobneek-fe7b7-default-rtdb.firebaseio.com/';
+    const baseUrl = base.endsWith('/') ? base : `${base}/`;
+    const encodedKey = encodeURIComponent(normalized);
+    const safeKey = encodeURIComponent(encodedKey);
+    const url = `${baseUrl}locationNotesCache/playback/v1/pages/${safeKey}.json`;
+    if (typeof window.gghost?.withFirebaseAuth === 'function') {
+      return window.gghost.withFirebaseAuth(url);
+    }
+    return url;
+  };
+  const probePlaybackPage = async (pagePath) => {
+    const url = buildPlaybackProbeUrl(pagePath);
+    if (!url) return { ok: false, status: 0, reason: 'no-url' };
+    const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    const debug = isPlaybackDebugEnabled();
+    const safeUrl = debug ? formatProbeLogUrl(url) : '';
+    try {
+      const res = await fetcher(url, { cache: 'no-store' });
+      const status = res.status;
+      if (!res.ok) {
+        if (debug) {
+          console.warn('[Edit Playback] Playback probe not ok', { url: safeUrl, status });
+        }
+        return { ok: false, status, reason: 'http-error' };
+      }
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {}
+      return { ok: true, status, data };
+    } catch (err) {
+      if (debug) {
+        console.warn('[Edit Playback] Playback probe failed', {
+          url: safeUrl,
+          error: err?.message || String(err)
+        });
+      }
+      return {
+        ok: false,
+        status: 0,
+        reason: err?.message || 'fetch-failed'
+      };
+    }
+  };
+  const updatePlaybackButtonState = (state, info = {}) => {
+    const nextState = state || 'unknown';
+    editHistoryBtn.setAttribute(playbackStateAttr, nextState);
+    if (nextState === 'missing') {
+      editHistoryBtn.style.display = 'none';
+    } else {
+      editHistoryBtn.style.display = '';
+    }
+    if (isPlaybackDebugEnabled()) {
+      console.log('[Edit Playback] Button state', { state: nextState, ...info });
+    }
+  };
+  const evaluatePlaybackAvailability = async ({ force = false } = {}) => {
+    const path = normalizePlaybackPath(location.pathname || '');
+    const mode = /\/description(?:\/|$)/i.test(path)
+      ? 'description'
+      : /\/other-info(?:\/|$)/i.test(path)
+        ? 'other-info'
+        : '';
+    const fieldKey = mode === 'description'
+      ? 'services.description'
+      : mode === 'other-info'
+        ? 'services.additional_info'
+        : '';
+    if (!fieldKey) return { state: 'unknown', reason: 'no-field' };
+    const fetchPlayback = window.gghost?.fetchPlaybackIndexForPage;
+    if (typeof fetchPlayback !== 'function') {
+      return { state: 'unknown', reason: 'fetch-unavailable' };
+    }
+    let pageData = null;
+    try {
+      pageData = await fetchPlayback(path, { force });
+    } catch (err) {
+      if (isPlaybackDebugEnabled()) {
+        console.warn('[Edit Playback] Failed to fetch playback for button check', err);
+      }
+      return { state: 'unknown', reason: 'fetch-error' };
+    }
+    if (!pageData || typeof pageData !== 'object') {
+      const probe = await probePlaybackPage(path);
+      if (probe.ok) {
+        if (!probe.data || typeof probe.data !== 'object') {
+          return { state: 'missing', reason: 'no-page' };
+        }
+        pageData = probe.data;
+      } else {
+        if (probe.status === 404) {
+          return { state: 'missing', reason: 'no-page' };
+        }
+        const statusReason = probe.status ? `http-${probe.status}` : (probe.reason || 'fetch-failed');
+        return { state: 'unknown', reason: statusReason };
+      }
+    }
+    const fieldData = pickPlaybackFieldData(pageData, fieldKey);
+    if (!fieldData) {
+      return { state: 'missing', reason: 'field-missing' };
+    }
+    const events = Array.isArray(fieldData.events) ? fieldData.events : [];
+    const hasInitial = !!(fieldData.initial || fieldData.initialText || fieldData.initialEvent);
+    const hasHistory = hasInitial && events.length > 0;
+    return {
+      state: hasHistory ? 'ready' : 'missing',
+      reason: hasHistory ? 'ok' : 'no-edits',
+      events: events.length
+    };
+  };
+  const scheduleEditPlaybackCheck = () => {
+    if (!canShowEditPlayback) return;
+    let attempts = 0;
+    const maxAttempts = 8;
+    const run = async () => {
+      attempts += 1;
+      const result = await evaluatePlaybackAvailability({ force: attempts > 1 });
+      if (result.state === 'ready' || result.state === 'missing') {
+        updatePlaybackButtonState(result.state, result);
+        return;
+      }
+      if (attempts < maxAttempts) {
+        setTimeout(run, 500);
+      } else if (isPlaybackDebugEnabled()) {
+        const details = (() => {
+          try {
+            return JSON.stringify(result);
+          } catch {
+            return String(result);
+          }
+        })();
+        console.warn('[Edit Playback] Playback availability check unresolved', details);
+      }
+    };
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(run, { timeout: 2500 });
+    } else {
+      setTimeout(run, 0);
+    }
+  };
+  scheduleEditPlaybackCheck();
+  editHistoryBtn.addEventListener('click', async () => {
+    if (!canShowEditPlayback) return;
+    const state = editHistoryBtn.getAttribute(playbackStateAttr) || 'unknown';
+    if (state !== 'ready') {
+      const result = await evaluatePlaybackAvailability({ force: true });
+      updatePlaybackButtonState(result.state, result);
+      if (result.state !== 'ready') return;
+    }
+    const runner = window.gghost?.openServiceEditPlaybackOverlay;
+    if (typeof runner === 'function') {
+      runner();
+    } else {
+      alert('Edit playback is not ready yet.');
+    }
+  });
+  actionsRow.appendChild(editHistoryBtn);
+  banner.appendChild(actionsRow);
   document.body.appendChild(banner);
 }
 async function showServiceTaxonomy(locationId, serviceId, options = {}) {

@@ -2,6 +2,88 @@
 window.__GGHOST_PARTS_LOADED__ = window.__GGHOST_PARTS_LOADED__ || [];
 window.__GGHOST_PARTS_LOADED__.push('gghost.part-5.js');
 console.log('[gghost] loaded gghost.part-5.js');
+const NOTES_CACHE_PREFIX = "ggNotesCache:";
+const NOTES_PREVIEW_PREFIX = "ggNotesPreview:";
+const NOTES_CACHE_TTL_MS = 2 * 60 * 1000;
+function getNotesCacheKey(uuid) {
+  return `${NOTES_CACHE_PREFIX}${uuid}`;
+}
+function getNotesPreviewKey(uuid) {
+  return `${NOTES_PREVIEW_PREFIX}${uuid}`;
+}
+function storageGet(keys) {
+  if (!chrome?.storage?.local) return Promise.resolve({});
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.get(keys, (payload) => resolve(payload || {}));
+    } catch {
+      resolve({});
+    }
+  });
+}
+function storageSet(payload) {
+  if (!chrome?.storage?.local) return Promise.resolve();
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.set(payload, () => resolve());
+    } catch {
+      resolve();
+    }
+  });
+}
+function buildNotesArray(data) {
+  const notesArray = [];
+  if (!data || typeof data !== "object") return notesArray;
+  for (const user in data) {
+    if (typeof data[user] !== "object") continue;
+    for (const date in data[user]) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      notesArray.push({
+        user,
+        date,
+        note: data[user][date]
+      });
+    }
+  }
+  notesArray.sort((a, b) => new Date(a.date) - new Date(b.date));
+  return notesArray;
+}
+function getLatestNoteEntry(notesArray) {
+  if (!Array.isArray(notesArray) || notesArray.length === 0) return null;
+  return notesArray[notesArray.length - 1];
+}
+async function readNotesCache(uuid) {
+  if (!uuid) return null;
+  const cacheKey = getNotesCacheKey(uuid);
+  const payload = await storageGet(cacheKey);
+  const cached = payload?.[cacheKey];
+  if (!cached || typeof cached !== "object") return null;
+  const data = cached.data;
+  if (!data || typeof data !== "object") return null;
+  const ts = Number(cached.ts) || 0;
+  const stale = !ts || (Date.now() - ts > NOTES_CACHE_TTL_MS);
+  return { data, ts, stale };
+}
+async function writeNotesCache(uuid, data, notesArray) {
+  if (!uuid || !data || typeof data !== "object") return;
+  const ts = Date.now();
+  const cacheKey = getNotesCacheKey(uuid);
+  const latest = getLatestNoteEntry(notesArray || buildNotesArray(data));
+  const payload = {
+    [cacheKey]: { ts, data }
+  };
+  if (latest) {
+    payload[getNotesPreviewKey(uuid)] = { ts, latest };
+  }
+  await storageSet(payload);
+}
+async function writeNotesPreviewEntry(uuid, entry) {
+  if (!uuid || !entry || typeof entry !== "object") return;
+  const previewKey = getNotesPreviewKey(uuid);
+  await storageSet({
+    [previewKey]: { ts: Date.now(), latest: entry }
+  });
+}
 async function injectGoGettaButtons() {
   const host = location.hostname;
   if (!host.includes('gogetta.nyc')) {
@@ -984,17 +1066,79 @@ async function fetchLocationNotesWithCache(baseURL) {
 }
 const EDIT_TIMELINE_CACHE_PREFIX = 'gghost-edit-timeline-cache-';
 const EDIT_TIMELINE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const EDIT_TIMELINE_FAILURE_LIMIT = 3;
+const EDIT_TIMELINE_DISABLE_MS = 20 * 60 * 1000;
+const EDIT_TIMELINE_TIMEOUT_MS = 8000;
+const EDIT_TIMELINE_STATE_KEY = 'gghost-edit-timeline-state';
 const editTimelineCacheInflight = new Map();
-let editTimelineApiDisabledFor = null;
 let editTimelineApiDisabledLogged = false;
+function readEditTimelineState() {
+  try {
+    const raw = sessionStorage.getItem(EDIT_TIMELINE_STATE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function writeEditTimelineState(state) {
+  try {
+    sessionStorage.setItem(EDIT_TIMELINE_STATE_KEY, JSON.stringify(state));
+  } catch {}
+}
+function getEditTimelineState(apiBase) {
+  const state = readEditTimelineState() || {};
+  if (apiBase && state.api && state.api !== apiBase) {
+    return { api: apiBase, failures: 0, disabledUntil: 0 };
+  }
+  return {
+    api: apiBase || state.api || '',
+    failures: Number(state.failures) || 0,
+    disabledUntil: Number(state.disabledUntil) || 0
+  };
+}
+function isEditTimelineEnabled() {
+  if (window.gghost?.EDIT_TIMELINE_FORCE === true) return true;
+  return window.gghost?.EDIT_TIMELINE_ENABLED === true;
+}
+function isEditTimelineDisabled(apiBase) {
+  if (!apiBase) return true;
+  if (window.gghost?.EDIT_TIMELINE_FORCE === true) return false;
+  const state = getEditTimelineState(apiBase);
+  return state.disabledUntil && Date.now() < state.disabledUntil;
+}
+function registerEditTimelineFailure(apiBase, err, { hard = false } = {}) {
+  if (!apiBase) return;
+  const state = getEditTimelineState(apiBase);
+  state.failures = (state.failures || 0) + 1;
+  if (window.gghost?.EDIT_TIMELINE_FORCE === true) {
+    state.disabledUntil = 0;
+  } else if (hard || state.failures >= EDIT_TIMELINE_FAILURE_LIMIT) {
+    state.disabledUntil = Date.now() + EDIT_TIMELINE_DISABLE_MS;
+  }
+  writeEditTimelineState(state);
+  if (!editTimelineApiDisabledLogged && state.disabledUntil) {
+    editTimelineApiDisabledLogged = true;
+    console.warn('[Edit Timeline] Timeline API disabled temporarily.', {
+      api: apiBase,
+      error: err?.message || String(err || 'unknown')
+    });
+  }
+}
+function registerEditTimelineSuccess(apiBase) {
+  if (!apiBase) return;
+  writeEditTimelineState({ api: apiBase, failures: 0, disabledUntil: 0 });
+}
 function getEditTimelineApiBase() {
-  if (window.gghost?.EDIT_TIMELINE_ENABLED === false) return '';
+  if (!isEditTimelineEnabled()) return '';
   const override = window.gghost?.EDIT_TIMELINE_API;
   if (typeof override === 'string' && override.trim()) return override.trim();
-  return EDIT_TIMELINE_API;
+  if (typeof EDIT_TIMELINE_API === 'string' && EDIT_TIMELINE_API.trim()) return EDIT_TIMELINE_API;
+  return '';
 }
 function markEditTimelineApiDisabled(apiBase, status) {
-  editTimelineApiDisabledFor = apiBase;
+  registerEditTimelineFailure(apiBase, new Error(`HTTP ${status}`), { hard: true });
   if (!editTimelineApiDisabledLogged) {
     editTimelineApiDisabledLogged = true;
     console.warn('[Edit Timeline] Timeline API unavailable; disabling preload.', {
@@ -1014,6 +1158,7 @@ function readEditTimelineCache(locationId, { allowStale = false } = {}) {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
     if (!parsed.data || typeof parsed.data !== 'object') return null;
+    if (parsed.data.ok === false) return null;
     const age = Date.now() - (Number(parsed.ts) || 0);
     if (allowStale || age < EDIT_TIMELINE_CACHE_TTL_MS) {
       return parsed.data;
@@ -1034,20 +1179,24 @@ function normalizeTimelinePagePath(value) {
   if (!value) return '';
   const raw = String(value).trim();
   if (!raw) return '';
+  const stripTrailing = (text) => {
+    if (!text || text.length <= 1) return text || '';
+    return text.replace(/\/+$/, '');
+  };
   if (raw.startsWith('%2F')) {
     try {
-      return decodeURIComponent(raw);
+      return stripTrailing(decodeURIComponent(raw));
     } catch {
-      return raw;
+      return raw.replace(/(%2F)+$/i, '');
     }
   }
-  if (raw.startsWith('/team/')) return raw;
+  if (raw.startsWith('/team/')) return stripTrailing(raw);
   if (raw.startsWith('http://') || raw.startsWith('https://')) {
     try {
-      return new URL(raw).pathname;
+      return stripTrailing(new URL(raw).pathname);
     } catch {}
   }
-  return raw;
+  return stripTrailing(raw);
 }
 function getTimelinePageEntry(data, pagePath) {
   if (!data || typeof data !== 'object') return null;
@@ -1056,14 +1205,24 @@ function getTimelinePageEntry(data, pagePath) {
   const encodedKey = encodeURIComponent(pagePath);
   return pages[encodedKey] || pages[pagePath] || null;
 }
+function fetchTimelineWithTimeout(url) {
+  const fetcher = typeof fetchViaBackground === 'function'
+    ? fetchViaBackground
+    : (input, options) => fetch(input, options);
+  const request = fetcher(url, { cache: 'no-store' });
+  if (!EDIT_TIMELINE_TIMEOUT_MS) return request;
+  return Promise.race([
+    request,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Timeline fetch timeout')), EDIT_TIMELINE_TIMEOUT_MS);
+    })
+  ]);
+}
 async function fetchEditTimelineForLocation(locationId, { refresh = false } = {}) {
   if (!locationId) return null;
   const apiBase = getEditTimelineApiBase();
   if (!apiBase) return null;
-  if (!refresh && editTimelineApiDisabledFor === apiBase) return null;
-  if (refresh && editTimelineApiDisabledFor === apiBase) {
-    editTimelineApiDisabledFor = null;
-  }
+  if (!refresh && isEditTimelineDisabled(apiBase)) return null;
   const cached = readEditTimelineCache(locationId);
   if (cached && !refresh) return { data: cached, fromCache: true };
   if (!refresh && editTimelineCacheInflight.has(locationId)) {
@@ -1071,19 +1230,35 @@ async function fetchEditTimelineForLocation(locationId, { refresh = false } = {}
   }
   const url = `${apiBase}?locationId=${encodeURIComponent(locationId)}&scope=location&includeSegments=true`;
   const request = (async () => {
-    const res = await fetchViaBackground(url, { cache: 'no-store' });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      if (res.status === 401 || res.status === 403 || res.status === 404 || res.status === 410) {
-        markEditTimelineApiDisabled(apiBase, res.status);
+    let res = null;
+    try {
+      res = await fetchTimelineWithTimeout(url);
+    } catch (err) {
+      registerEditTimelineFailure(apiBase, err);
+      return null;
+    }
+    if (!res || !res.ok) {
+      const status = res?.status || 0;
+      if (status === 400 || status === 401 || status === 403 || status === 404 || status === 410) {
+        markEditTimelineApiDisabled(apiBase, status);
         return null;
       }
-      throw new Error(`Timeline fetch failed: ${res.status} ${text}`);
+      registerEditTimelineFailure(apiBase, new Error(`HTTP ${status}`));
+      return null;
     }
-    const data = await res.json();
-    if (data && typeof data === 'object') {
-      writeEditTimelineCache(locationId, data);
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (err) {
+      registerEditTimelineFailure(apiBase, err);
+      return null;
     }
+    if (!data || typeof data !== 'object' || data.ok === false) {
+      registerEditTimelineFailure(apiBase, new Error(data?.error || 'Timeline payload invalid'));
+      return null;
+    }
+    writeEditTimelineCache(locationId, data);
+    registerEditTimelineSuccess(apiBase);
     return { data, fromCache: false };
   })();
   editTimelineCacheInflight.set(locationId, request);
@@ -1104,7 +1279,9 @@ async function preloadEditTimelineForLocation(locationId, { refresh = false } = 
 async function getEditTimelineForPage(pagePath, { refresh = false } = {}) {
   const normalized = normalizeTimelinePagePath(pagePath);
   if (!normalized) return null;
-  const locationId = extractLocationIdFromPath(normalized);
+  const locationId = typeof extractLocationIdFromPath === 'function'
+    ? extractLocationIdFromPath(normalized)
+    : '';
   if (!locationId) return null;
   const cached = readEditTimelineCache(locationId);
   if (cached && !refresh) {
@@ -1114,22 +1291,1046 @@ async function getEditTimelineForPage(pagePath, { refresh = false } = {}) {
     }
   }
   const result = await fetchEditTimelineForLocation(locationId, { refresh });
-  const entry = getTimelinePageEntry(result?.data, normalized);
-  if (entry) {
-    return { ...result, page: entry, locationId };
-  }
-  return result;
+  if (!result || !result.data) return null;
+  const entry = getTimelinePageEntry(result.data, normalized);
+  return entry ? { ...result, page: entry, locationId } : result;
 }
 function preloadEditTimelineForCurrentLocation() {
-  if (window.gghost?.EDIT_TIMELINE_ENABLED === false) return;
+  if (!isEditTimelineEnabled()) return;
+  if (typeof extractLocationIdFromPath !== 'function') return;
+  const apiBase = getEditTimelineApiBase();
+  if (!apiBase || isEditTimelineDisabled(apiBase)) return;
   const locationId = extractLocationIdFromPath();
   if (!locationId) return;
-  void preloadEditTimelineForLocation(locationId);
+  const run = () => {
+    void preloadEditTimelineForLocation(locationId);
+  };
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(run, { timeout: 4000 });
+  } else {
+    setTimeout(run, 500);
+  }
 }
 window.gghost.preloadEditTimelineForLocation = preloadEditTimelineForLocation;
 window.gghost.getEditTimelineForPage = getEditTimelineForPage;
 preloadEditTimelineForCurrentLocation();
 window.addEventListener('locationchange', preloadEditTimelineForCurrentLocation);
+const SIMILARITY_INDEX_LIST_PATH = 'locationNotesCache/similarityIndex/v1/indexes';
+const SIMILARITY_INDEX_API_DEFAULT = 'https://us-central1-doobneek-fe7b7.cloudfunctions.net/locationNotesSimilarityIndex';
+const SIMILARITY_INDEX_CACHE_TTL_MS = 15 * 60 * 1000;
+const similarityIndexCache = {
+  data: null,
+  fetchedAt: 0,
+  promise: null
+};
+const PLAYBACK_INDEX_PAGES_PATH = 'locationNotesCache/playback/v1/pages';
+const PLAYBACK_INDEX_API_DEFAULT = 'https://us-central1-doobneek-fe7b7.cloudfunctions.net/locationNotesPlayback';
+const PLAYBACK_INDEX_CACHE_TTL_MS = 10 * 60 * 1000;
+const playbackIndexCache = new Map();
+function isPlaybackDebugEnabled() {
+  if (window.gghost?.DEBUG_PLAYBACK === true) return true;
+  if (window.gghost?.DEBUG_PLAYBACK === false) return false;
+  try {
+    const flag = localStorage.getItem('gghostDebugPlayback');
+    return flag === '1' || flag === 'true';
+  } catch {}
+  const path = location?.pathname || '';
+  return /^\/team\/location\/[0-9a-f-]+\/services\/[0-9a-f-]+\/(description|other-info)(?:\/|$)/i.test(path);
+}
+function scrubAuthParam(url) {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    if (parsed.searchParams.has('auth')) {
+      parsed.searchParams.set('auth', 'REDACTED');
+    }
+    return parsed.toString();
+  } catch {
+    return String(url).replace(/([?&])auth=[^&]+/i, '$1auth=REDACTED');
+  }
+}
+function logPlaybackDebug(...args) {
+  if (!isPlaybackDebugEnabled()) return;
+  console.log(...args);
+}
+function getSimilarityIndexBaseUrl() {
+  const base = window.gghost?.baseURL || 'https://doobneek-fe7b7-default-rtdb.firebaseio.com/';
+  return base.endsWith('/') ? base : `${base}/`;
+}
+function getSimilarityIndexApiBase() {
+  const override = window.gghost?.SIMILARITY_INDEX_API;
+  if (typeof override === 'string' && override.trim()) return override.trim();
+  return SIMILARITY_INDEX_API_DEFAULT;
+}
+function getPlaybackIndexBaseUrl() {
+  return getSimilarityIndexBaseUrl();
+}
+function getPlaybackIndexApiBase() {
+  const override = window.gghost?.PLAYBACK_INDEX_API;
+  if (typeof override === 'string' && override.trim()) return override.trim();
+  return PLAYBACK_INDEX_API_DEFAULT;
+}
+function buildSimilarityIndexQueryUrl() {
+  const base = getSimilarityIndexBaseUrl();
+  const url = new URL(`${base}${SIMILARITY_INDEX_LIST_PATH}.json`);
+  url.searchParams.set('orderBy', '"generatedAt"');
+  url.searchParams.set('limitToLast', '1');
+  return url.toString();
+}
+function buildSimilarityIndexListUrl() {
+  const base = getSimilarityIndexBaseUrl();
+  return `${base}${SIMILARITY_INDEX_LIST_PATH}.json`;
+}
+function parseSimilarityGeneratedAt(value) {
+  if (value == null) return 0;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const asNumber = Number.parseInt(String(value), 10);
+  if (Number.isFinite(asNumber)) return asNumber;
+  const parsed = Date.parse(String(value));
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+function pickLatestSimilarityIndexEntry(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  if (payload.fields && payload.schemaVersion) return payload;
+  const entries = Object.values(payload).filter((entry) => entry && typeof entry === 'object');
+  if (!entries.length) return null;
+  let bestEntry = entries[0];
+  let bestStamp = parseSimilarityGeneratedAt(bestEntry.generatedAt);
+  for (let i = 1; i < entries.length; i += 1) {
+    const candidate = entries[i];
+    const stamp = parseSimilarityGeneratedAt(candidate.generatedAt);
+    if (stamp >= bestStamp) {
+      bestEntry = candidate;
+      bestStamp = stamp;
+    }
+  }
+  return bestEntry;
+}
+function buildPlaybackIndexPageUrl(encodedKey, pagePath) {
+  const apiBase = getPlaybackIndexApiBase();
+  if (apiBase) {
+    try {
+      const url = new URL(apiBase);
+      if (pagePath) {
+        url.searchParams.set('pagePath', pagePath);
+      } else if (encodedKey) {
+        url.searchParams.set('encodedKey', encodedKey);
+      }
+      return url.toString();
+    } catch {
+      // fallback to RTDB below
+    }
+  }
+  const base = getPlaybackIndexBaseUrl();
+  const safeKey = encodeURIComponent(encodedKey);
+  return `${base}${PLAYBACK_INDEX_PAGES_PATH}/${safeKey}.json`;
+}
+function resolvePlaybackFieldKey(mode) {
+  if (mode === 'description') return 'services.description';
+  if (mode === 'other-info') return 'services.additional_info';
+  return '';
+}
+function encodePlaybackFieldKey(fieldKey) {
+  if (!fieldKey) return '';
+  return encodeURIComponent(String(fieldKey)).replace(/\./g, '%2E');
+}
+function pickPlaybackFieldData(pageData, fieldKey) {
+  if (!pageData || typeof pageData !== 'object') return null;
+  const fallbackFieldKey = fieldKey === 'services.additional_info'
+    ? 'event_related_info.information'
+    : '';
+  const fieldKeys = [fieldKey, fallbackFieldKey].filter(Boolean);
+  if (pageData.fields && typeof pageData.fields === 'object') {
+    if (Array.isArray(pageData.fields)) {
+      if (fieldKeys.length) {
+        for (const key of fieldKeys) {
+          const match = pageData.fields.find((item) => item?.fieldKey === key);
+          if (match) return match;
+        }
+      }
+      const first = pageData.fields.find((item) => item && typeof item === 'object');
+      return first || null;
+    }
+    if (fieldKeys.length) {
+      for (const key of fieldKeys) {
+        if (pageData.fields[key]) return pageData.fields[key];
+        const encodedKey = encodePlaybackFieldKey(key);
+        if (encodedKey && pageData.fields[encodedKey]) return pageData.fields[encodedKey];
+      }
+      const match = Object.values(pageData.fields).find((item) => item?.fieldKey && fieldKeys.includes(item.fieldKey));
+      if (match) return match;
+    }
+    const first = Object.values(pageData.fields).find((item) => item && typeof item === 'object');
+    return first || null;
+  }
+  if (pageData.events && Array.isArray(pageData.events)) {
+    if (!fieldKey || pageData.fieldKey === fieldKey) return pageData;
+  }
+  return null;
+}
+async function fetchPlaybackIndexForPage(pagePath, { force = false } = {}) {
+  const normalized = typeof normalizeTimelinePagePath === 'function'
+    ? normalizeTimelinePagePath(pagePath)
+    : pagePath;
+  if (!normalized) return null;
+  const encodedKey = encodeURIComponent(normalized);
+  const debugEnabled = isPlaybackDebugEnabled();
+  if (debugEnabled) {
+    logPlaybackDebug('[Edit Playback] Fetch playback page', {
+      pagePath: normalized,
+      encodedKey
+    });
+  }
+  const cached = playbackIndexCache.get(encodedKey);
+  const now = Date.now();
+  if (!force && cached?.data && now - cached.fetchedAt < PLAYBACK_INDEX_CACHE_TTL_MS) {
+    return cached.data;
+  }
+  if (!force && cached?.promise) return cached.promise;
+  const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+  const auth = typeof window.gghost?.withFirebaseAuth === 'function'
+    ? window.gghost.withFirebaseAuth
+    : null;
+  const run = (async () => {
+    const url = buildPlaybackIndexPageUrl(encodedKey, normalized);
+    const authUrl = auth && url.includes('firebaseio.com') ? auth(url) : url;
+    const safeUrl = debugEnabled ? scrubAuthParam(authUrl) : '';
+    let res;
+    try {
+      res = await fetcher(authUrl, { cache: 'no-store' });
+    } catch (err) {
+      if (debugEnabled) {
+        logPlaybackDebug('[Edit Playback] Playback fetch failed', {
+          url: safeUrl,
+          error: err?.message || String(err)
+        });
+      }
+      return null;
+    }
+    if (!res.ok) {
+      if (debugEnabled) {
+        logPlaybackDebug('[Edit Playback] Playback fetch not ok', {
+          url: safeUrl,
+          status: res.status
+        });
+      }
+      return null;
+    }
+    const payload = await res.json().catch(() => null);
+    if (!payload || typeof payload !== 'object') {
+      if (debugEnabled) {
+        logPlaybackDebug('[Edit Playback] Playback payload empty', { url: safeUrl });
+      }
+      return null;
+    }
+    if (debugEnabled) {
+      const fields = payload.fields;
+      const fieldCount = Array.isArray(fields)
+        ? fields.length
+        : fields && typeof fields === 'object'
+          ? Object.keys(fields).length
+          : 0;
+      logPlaybackDebug('[Edit Playback] Playback payload loaded', {
+        url: safeUrl,
+        fieldCount
+      });
+    }
+    return payload;
+  })();
+  playbackIndexCache.set(encodedKey, {
+    data: cached?.data || null,
+    fetchedAt: cached?.fetchedAt || 0,
+    promise: run
+  });
+  try {
+    const data = await run;
+    playbackIndexCache.set(encodedKey, {
+      data,
+      fetchedAt: Date.now(),
+      promise: null
+    });
+    return data;
+  } finally {
+    const latest = playbackIndexCache.get(encodedKey);
+    if (latest && latest.promise) {
+      playbackIndexCache.set(encodedKey, {
+        data: latest.data || null,
+        fetchedAt: latest.fetchedAt || 0,
+        promise: null
+      });
+    }
+  }
+}
+async function fetchSimilarityIndexLatest({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && similarityIndexCache.data && now - similarityIndexCache.fetchedAt < SIMILARITY_INDEX_CACHE_TTL_MS) {
+    return similarityIndexCache.data;
+  }
+  if (!force && similarityIndexCache.promise) return similarityIndexCache.promise;
+  const run = (async () => {
+    const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    const auth = typeof window.gghost?.withFirebaseAuth === 'function'
+      ? window.gghost.withFirebaseAuth
+      : null;
+    const apiBase = getSimilarityIndexApiBase();
+    if (apiBase) {
+      try {
+        const res = await fetcher(apiBase, { cache: 'no-store' });
+        if (res.ok) {
+          const apiPayload = await res.json().catch(() => null);
+          if (apiPayload && typeof apiPayload === 'object') {
+            similarityIndexCache.data = apiPayload;
+            similarityIndexCache.fetchedAt = now;
+            return apiPayload;
+          }
+        }
+      } catch {}
+    }
+    const fetchPayload = async (url) => {
+      const authUrl = auth ? auth(url) : url;
+      const res = await fetcher(authUrl, { cache: 'no-store' });
+      if (!res.ok) {
+        return { payload: null, status: res.status };
+      }
+      const payload = await res.json().catch(() => null);
+      if (!payload || typeof payload !== 'object') {
+        return { payload: null, status: res.status };
+      }
+      return { payload, status: res.status };
+    };
+    const primary = await fetchPayload(buildSimilarityIndexQueryUrl());
+    let payload = primary.payload;
+    let status = primary.status;
+    if (!payload || (typeof payload === 'object' && !Array.isArray(payload) && !Object.keys(payload).length)) {
+      const fallback = await fetchPayload(buildSimilarityIndexListUrl());
+      if (fallback.payload) {
+        payload = fallback.payload;
+        status = fallback.status || status;
+      }
+    }
+    if (!payload || typeof payload !== 'object') {
+      throw new Error(`Similarity index fetch failed (${status || 'unknown'})`);
+    }
+    const entry = pickLatestSimilarityIndexEntry(payload);
+    if (!entry || typeof entry !== 'object') {
+      throw new Error('Similarity index entry missing');
+    }
+    let data = null;
+    if (entry.raw && typeof entry.raw === 'string') {
+      try {
+        data = JSON.parse(entry.raw);
+      } catch (err) {
+        throw new Error('Similarity index raw parse failed');
+      }
+    } else if (entry.data && typeof entry.data === 'object') {
+      data = entry.data;
+    } else {
+      data = entry;
+    }
+    if (!data || typeof data !== 'object') {
+      throw new Error('Similarity index data missing');
+    }
+    similarityIndexCache.data = data;
+    similarityIndexCache.fetchedAt = now;
+    return data;
+  })();
+  similarityIndexCache.promise = run;
+  try {
+    return await run;
+  } finally {
+    similarityIndexCache.promise = null;
+  }
+}
+function getSimilarityMatch(index, event) {
+  if (!index || !event) return null;
+  const fieldKey = event.fieldKey || event.field || '';
+  if (!fieldKey) return null;
+  const matches = index?.fields?.[fieldKey]?.matches;
+  if (!matches || typeof matches !== 'object') return null;
+  const eventKey = event.eventId || '';
+  if (eventKey && matches[eventKey]) return matches[eventKey];
+  return null;
+}
+window.gghost.fetchSimilarityIndexLatest = fetchSimilarityIndexLatest;
+window.gghost.getSimilarityMatch = getSimilarityMatch;
+window.gghost.fetchPlaybackIndexForPage = fetchPlaybackIndexForPage;
+window.gghost.isPlaybackDebugEnabled = isPlaybackDebugEnabled;
+window.gghost.fetchLocationNotesRecordForPage = fetchLocationNotesRecordForPage;
+window.gghost.fetchLocationNotesRecordForService = fetchLocationNotesRecordForService;
+const SERVICE_EDIT_PLAYBACK_OVERLAY_ID = 'gghost-service-edit-playback';
+const SERVICE_EDIT_PLAYBACK_STYLE_ID = 'gghost-edit-playback-style';
+const SERVICE_EDIT_PLAYBACK_HIGHLIGHT_ATTR = 'data-gghost-edit-highlight';
+const SERVICE_EDIT_PLAYBACK_ACTIVE_ATTR = 'data-gghost-edit-playback-active';
+const SERVICE_EDIT_PLAYBACK_USER_COLORS = {
+  kieshaj10: '#c62828',
+  glongino: '#ef6c00',
+  doobneek: '#2e7d32',
+  adamabard: '#1565c0'
+};
+const SERVICE_EDIT_PLAYBACK_PALETTE = [
+  '#6a1b9a',
+  '#00838f',
+  '#6d4c41',
+  '#2f4f4f',
+  '#7b1fa2',
+  '#c2185b',
+  '#455a64'
+];
+const PLAYBACK_MAX_SEGMENT_CHARS = 8000;
+function ensureServiceEditPlaybackStyles() {
+  if (document.getElementById(SERVICE_EDIT_PLAYBACK_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = SERVICE_EDIT_PLAYBACK_STYLE_ID;
+  style.textContent = `
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} {
+      position: absolute;
+      z-index: 2147483647;
+      background: transparent;
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-panel {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: #fffdf5;
+      border: 1px solid #e1d7b6;
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-body {
+      display: flex;
+      gap: 12px;
+      align-items: stretch;
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-panel.gg-edit-playback-stacked .gg-edit-playback-body {
+      flex-direction: column;
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-text {
+      flex: 1 1 auto;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      user-select: text;
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-timeline {
+      width: 260px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow: hidden;
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-panel.gg-edit-playback-stacked .gg-edit-playback-timeline {
+      width: 100%;
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-timeline-list {
+      overflow-y: auto;
+      border: 1px solid #e7e1cf;
+      border-radius: 8px;
+      background: #fff;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-timeline-btn {
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      background: #fafafa;
+      text-align: left;
+      padding: 6px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      line-height: 1.3;
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-timeline-btn.active {
+      border-color: #b0a06a;
+      background: #fff6d8;
+      box-shadow: inset 0 0 0 1px rgba(176, 160, 106, 0.45);
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-highlight {
+      border-radius: 3px;
+      padding: 0 1px;
+      cursor: pointer;
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-meta {
+      font-size: 11px;
+      color: #6b6b6b;
+      line-height: 1.3;
+    }
+    #${SERVICE_EDIT_PLAYBACK_OVERLAY_ID} .gg-edit-playback-controls button {
+      border: 1px solid #d4c79a;
+      background: #fff;
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+  `;
+  document.head.appendChild(style);
+}
+function removeServiceEditPlaybackOverlay() {
+  const overlay = document.getElementById(SERVICE_EDIT_PLAYBACK_OVERLAY_ID);
+  if (overlay) overlay.remove();
+  document.querySelectorAll(`[${SERVICE_EDIT_PLAYBACK_ACTIVE_ATTR}="true"]`).forEach((el) => {
+    el.style.visibility = '';
+    el.style.pointerEvents = '';
+    el.removeAttribute(SERVICE_EDIT_PLAYBACK_ACTIVE_ATTR);
+  });
+}
+function getServiceEditPlaybackTarget(pathname = location.pathname) {
+  const match = String(pathname || '').match(/^\/team\/location\/([0-9a-f-]{12,36})\/services\/([0-9a-f-]{12,36})(?:\/|$)/i);
+  if (!match) return null;
+  const path = String(pathname || '');
+  if (/\/description(?:\/|$)/i.test(path)) {
+    return { locationId: match[1], serviceId: match[2], mode: 'description', path };
+  }
+  if (/\/other-info(?:\/|$)/i.test(path)) {
+    return { locationId: match[1], serviceId: match[2], mode: 'other-info', path };
+  }
+  return null;
+}
+function hashString(value) {
+  const str = String(value || '');
+  let hash = 0;
+  for (let i = 0; i < str.length; i += 1) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+function hexToRgba(hex, alpha = 0.18) {
+  const clean = String(hex || '').replace('#', '');
+  if (clean.length !== 6) return `rgba(255, 235, 148, ${alpha})`;
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+function resolveUserColor(user, cache) {
+  const key = String(user || 'unknown').toLowerCase();
+  if (SERVICE_EDIT_PLAYBACK_USER_COLORS[key]) return SERVICE_EDIT_PLAYBACK_USER_COLORS[key];
+  if (cache.has(key)) return cache.get(key);
+  const idx = hashString(key) % SERVICE_EDIT_PLAYBACK_PALETTE.length;
+  const color = SERVICE_EDIT_PLAYBACK_PALETTE[idx];
+  cache.set(key, color);
+  return color;
+}
+function findServiceEditTextarea(mode) {
+  const textareas = Array.from(document.querySelectorAll('textarea.TextArea, textarea'));
+  const visible = textareas.filter((el) => el.offsetParent !== null && !el.hasAttribute(SERVICE_EDIT_PLAYBACK_ACTIVE_ATTR));
+  if (!visible.length) return null;
+  if (mode === 'description') {
+    const match = visible.find((el) => /open only to ages 65/i.test(el.placeholder || ''));
+    if (match) return match;
+  }
+  const scored = visible.map((el) => {
+    const rect = el.getBoundingClientRect();
+    return { el, area: rect.width * rect.height };
+  }).sort((a, b) => b.area - a.area);
+  return scored[0]?.el || visible[0];
+}
+function parseEditText(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+function applyPlaybackTextDelta(prevText, delta) {
+  if (!delta || delta.kind !== 'text-diff-v1' || !Array.isArray(delta.ops)) return null;
+  let text = typeof prevText === 'string' ? prevText : '';
+  try {
+    const ops = [...delta.ops].sort((a, b) => (b?.[1] || 0) - (a?.[1] || 0));
+    ops.forEach((op) => {
+      if (!op) return;
+      const action = op[0];
+      if (action === 'delete' && op.length === 3) {
+        const [, i1, i2] = op;
+        text = text.slice(0, i1) + text.slice(i2);
+      } else if (action === 'insert' && op.length === 3) {
+        const [, pos, fragment] = op;
+        text = text.slice(0, pos) + fragment + text.slice(pos);
+      } else if (action === 'replace' && op.length === 4) {
+        const [, i1, i2, fragment] = op;
+        text = text.slice(0, i1) + fragment + text.slice(i2);
+      }
+    });
+  } catch {
+    return null;
+  }
+  return text;
+}
+function buildPlaybackSegments(prevText, nextText) {
+  if (typeof prevText !== 'string' || typeof nextText !== 'string') return null;
+  if (prevText.length > PLAYBACK_MAX_SEGMENT_CHARS || nextText.length > PLAYBACK_MAX_SEGMENT_CHARS) {
+    return null;
+  }
+  const maxPrefix = Math.min(prevText.length, nextText.length);
+  let prefix = 0;
+  while (prefix < maxPrefix && prevText[prefix] === nextText[prefix]) {
+    prefix += 1;
+  }
+  const maxSuffix = Math.min(prevText.length, nextText.length) - prefix;
+  let suffix = 0;
+  while (
+    suffix < maxSuffix
+    && prevText[prevText.length - 1 - suffix] === nextText[nextText.length - 1 - suffix]
+  ) {
+    suffix += 1;
+  }
+  const segments = [];
+  if (prefix > 0) {
+    segments.push({
+      op: 'equal',
+      text: nextText.slice(0, prefix),
+      a_start: 0,
+      a_end: prefix,
+      b_start: 0,
+      b_end: prefix
+    });
+  }
+  const deleteText = prevText.slice(prefix, prevText.length - suffix);
+  if (deleteText) {
+    segments.push({
+      op: 'delete',
+      text: deleteText,
+      a_start: prefix,
+      a_end: prevText.length - suffix,
+      b_start: null,
+      b_end: null
+    });
+  }
+  const insertText = nextText.slice(prefix, nextText.length - suffix);
+  if (insertText) {
+    segments.push({
+      op: 'insert',
+      text: insertText,
+      a_start: null,
+      a_end: null,
+      b_start: prefix,
+      b_end: nextText.length - suffix
+    });
+  }
+  if (suffix > 0) {
+    segments.push({
+      op: 'equal',
+      text: nextText.slice(nextText.length - suffix),
+      a_start: prevText.length - suffix,
+      a_end: prevText.length,
+      b_start: nextText.length - suffix,
+      b_end: nextText.length
+    });
+  }
+  return segments;
+}
+function inflatePlaybackEvents(fieldData, fieldKey) {
+  if (!fieldData || typeof fieldData !== 'object') return [];
+  const events = [];
+  const initial = fieldData.initial && typeof fieldData.initial === 'object' ? fieldData.initial : null;
+  let currentText = '';
+  if (initial && typeof initial.text === 'string') {
+    currentText = initial.text;
+  } else if (typeof fieldData.initialText === 'string') {
+    currentText = fieldData.initialText;
+  }
+  const initialEvent = initial?.event || fieldData.initialEvent || null;
+  if (initialEvent) {
+    const seeded = {
+      ...initialEvent,
+      fieldKey: initialEvent.fieldKey || fieldKey,
+      before: '',
+      after: currentText
+    };
+    if (!Array.isArray(seeded.segments)) {
+      const segments = buildPlaybackSegments('', currentText);
+      if (segments) seeded.segments = segments;
+    }
+    events.push(seeded);
+  }
+  const list = Array.isArray(fieldData.events) ? fieldData.events : [];
+  list.forEach((event) => {
+    const beforeText = typeof currentText === 'string' ? currentText : '';
+    let afterText = typeof event?.after === 'string' ? event.after : null;
+    if (afterText == null && event?.delta) {
+      const nextText = applyPlaybackTextDelta(beforeText, event.delta);
+      if (typeof nextText === 'string') afterText = nextText;
+    }
+    if (afterText == null) afterText = beforeText;
+    const inflated = {
+      ...event,
+      fieldKey: event.fieldKey || fieldKey,
+      before: beforeText,
+      after: afterText
+    };
+    if (!Array.isArray(inflated.segments)) {
+      const segments = buildPlaybackSegments(beforeText, afterText);
+      if (segments) inflated.segments = segments;
+    }
+    events.push(inflated);
+    currentText = afterText;
+  });
+  return events;
+}
+function buildPlaybackFrames(events) {
+  const frames = [];
+  let lastText = '';
+  events.forEach((event) => {
+    const afterText = typeof event?.after === 'string' ? event.after : null;
+    const beforeText = typeof event?.before === 'string' ? event.before : null;
+    const text = afterText ?? beforeText ?? lastText ?? '';
+    const textChanged = afterText != null && afterText !== lastText;
+    if (text != null) lastText = text;
+    frames.push({
+      event,
+      text: parseEditText(text),
+      textChanged,
+      segments: Array.isArray(event?.segments) ? event.segments : null
+    });
+  });
+  return frames;
+}
+function formatEditTimestamp(ts) {
+  if (!ts) return 'unknown time';
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return 'unknown time';
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+function formatTimelineLabel(event) {
+  if (!event) return 'Unknown update';
+  const user = event.user || event.userName || 'unknown';
+  const time = formatEditTimestamp(event.timestampMs || event.timestamp || event.ts);
+  const kind = String(event.kind || '').toLowerCase();
+  if (kind === 'confirm' || kind === 'reconfirmed' || kind === 'reconfirmed_on' || kind === 'seconded') {
+    return `${user} reconfirmed this information on ${time}`;
+  }
+  const label = event.label || event.field || 'update';
+  return `${user} updated ${label} on ${time}`;
+}
+function renderPlaybackText(container, frame, color) {
+  container.innerHTML = '';
+  if (!frame || !frame.text) return;
+  if (!frame.segments || !frame.textChanged) {
+    container.textContent = frame.text;
+    return;
+  }
+  frame.segments.forEach((seg) => {
+    if (!seg || typeof seg.text !== 'string') return;
+    if (seg.op === 'delete') {
+      return;
+    }
+    const span = document.createElement('span');
+    span.textContent = seg.text;
+    if (seg.op === 'insert') {
+      span.className = 'gg-edit-playback-highlight';
+      span.setAttribute(SERVICE_EDIT_PLAYBACK_HIGHLIGHT_ATTR, 'true');
+      span.style.background = hexToRgba(color, 0.25);
+      span.style.borderBottom = `2px solid ${color}`;
+    }
+    container.appendChild(span);
+  });
+}
+async function openServiceEditPlaybackOverlay({ refresh = false } = {}) {
+  removeServiceEditPlaybackOverlay();
+  const target = getServiceEditPlaybackTarget();
+  if (!target) {
+    alert('Edit playback is only available on service description or other-info pages.');
+    return;
+  }
+  const textarea = findServiceEditTextarea(target.mode);
+  if (!textarea) {
+    alert('Unable to locate the service editor textarea.');
+    return;
+  }
+  ensureServiceEditPlaybackStyles();
+  const playbackFieldKey = resolvePlaybackFieldKey(target.mode);
+  if (isPlaybackDebugEnabled()) {
+    logPlaybackDebug('[Edit Playback] Opening overlay', {
+      pagePath: target.path,
+      fieldKey: playbackFieldKey
+    });
+  }
+  let timelineResult = null;
+  let playbackEvents = [];
+  try {
+    const playbackPage = await fetchPlaybackIndexForPage(target.path, { force: refresh });
+    const fieldData = pickPlaybackFieldData(playbackPage, playbackFieldKey);
+    if (fieldData) {
+      playbackEvents = inflatePlaybackEvents(fieldData, playbackFieldKey);
+    }
+    if (isPlaybackDebugEnabled()) {
+      const missingDeltaOps = playbackEvents.filter((event) => {
+        if (!event || !event.delta) return false;
+        if (Array.isArray(event.delta?.ops)) return false;
+        return typeof event.after !== 'string';
+      }).length;
+      logPlaybackDebug('[Edit Playback] Playback events loaded', {
+        count: playbackEvents.length,
+        missingDeltaOps
+      });
+    }
+  } catch (err) {
+    console.warn('[Edit Playback] Playback index fetch failed', err);
+  }
+  let events = playbackEvents;
+  let frames = events.length ? buildPlaybackFrames(events) : [];
+  let editFrameCount = frames.filter((frame) => frame.textChanged).length;
+  let frameCount = frames.length;
+  if (frameCount < 2) {
+    try {
+      timelineResult = await window.gghost?.getEditTimelineForPage?.(target.path, { refresh });
+    } catch (err) {
+      if (!playbackEvents.length) {
+        alert('Failed to load edit history for this field.');
+        console.warn('[Edit Playback] Timeline fetch failed', err);
+        return;
+      }
+    }
+    if (timelineResult?.page?.events) {
+      events = timelineResult.page.events;
+      frames = buildPlaybackFrames(events);
+      editFrameCount = frames.filter((frame) => frame.textChanged).length;
+      frameCount = frames.length;
+    }
+  }
+  if (frameCount < 2) {
+    if (isPlaybackDebugEnabled()) {
+      logPlaybackDebug('[Edit Playback] Not enough history to animate', {
+        playbackEvents: playbackEvents.length,
+        timelineEvents: timelineResult?.page?.events?.length || 0
+      });
+    }
+    alert('Not enough edit history to animate yet.');
+    return;
+  }
+  const hasTextChanges = editFrameCount >= 2;
+  if (!hasTextChanges && isPlaybackDebugEnabled()) {
+    logPlaybackDebug('[Edit Playback] Playback has no text diffs; showing timeline only', {
+      frames: frameCount,
+      playbackEvents: playbackEvents.length
+    });
+  }
+  let similarityIndex = null;
+  try {
+    similarityIndex = await fetchSimilarityIndexLatest();
+  } catch (err) {
+    console.warn('[Edit Playback] Similarity index unavailable', err);
+  }
+  textarea.style.visibility = 'hidden';
+  textarea.style.pointerEvents = 'none';
+  textarea.setAttribute(SERVICE_EDIT_PLAYBACK_ACTIVE_ATTR, 'true');
+  const overlay = document.createElement('div');
+  overlay.id = SERVICE_EDIT_PLAYBACK_OVERLAY_ID;
+  const panel = document.createElement('div');
+  panel.className = 'gg-edit-playback-panel';
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.justifyContent = 'space-between';
+  const title = document.createElement('div');
+  title.textContent = target.mode === 'description' ? 'Description evolution' : 'Other info evolution';
+  title.style.fontWeight = '600';
+  title.style.fontSize = '13px';
+  const controls = document.createElement('div');
+  controls.className = 'gg-edit-playback-controls';
+  controls.style.display = 'flex';
+  controls.style.gap = '6px';
+  const playBtn = document.createElement('button');
+  playBtn.textContent = 'Pause';
+  const prevBtn = document.createElement('button');
+  prevBtn.textContent = 'Prev';
+  const nextBtn = document.createElement('button');
+  nextBtn.textContent = 'Next';
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Exit';
+  controls.appendChild(playBtn);
+  controls.appendChild(prevBtn);
+  controls.appendChild(nextBtn);
+  controls.appendChild(closeBtn);
+  header.appendChild(title);
+  header.appendChild(controls);
+  const body = document.createElement('div');
+  body.className = 'gg-edit-playback-body';
+  const textPanel = document.createElement('div');
+  textPanel.className = 'gg-edit-playback-text';
+  const timelinePanel = document.createElement('div');
+  timelinePanel.className = 'gg-edit-playback-timeline';
+  const timelineTitle = document.createElement('div');
+  timelineTitle.textContent = 'Timeline';
+  timelineTitle.style.fontSize = '12px';
+  timelineTitle.style.fontWeight = '600';
+  const timelineList = document.createElement('div');
+  timelineList.className = 'gg-edit-playback-timeline-list';
+  const meta = document.createElement('div');
+  meta.className = 'gg-edit-playback-meta';
+  timelinePanel.appendChild(timelineTitle);
+  timelinePanel.appendChild(timelineList);
+  timelinePanel.appendChild(meta);
+  body.appendChild(textPanel);
+  body.appendChild(timelinePanel);
+  panel.appendChild(header);
+  panel.appendChild(body);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  const userColors = new Map();
+  let currentIndex = 0;
+  let isPlaying = true;
+  let playTimer = null;
+  const buttons = [];
+  const updatePosition = () => {
+    const rect = textarea.getBoundingClientRect();
+    const maxWidth = window.innerWidth - 20;
+    const textWidth = Math.min(rect.width, maxWidth);
+    const timelineWidth = Math.min(280, Math.max(200, Math.floor(textWidth * 0.35)));
+    const left = rect.left + window.scrollX;
+    const top = rect.top + window.scrollY;
+    const fitsSide = (left + textWidth + timelineWidth + 12) <= (window.scrollX + window.innerWidth - 10);
+    panel.classList.toggle('gg-edit-playback-stacked', !fitsSide);
+    overlay.style.left = `${left}px`;
+    overlay.style.top = `${top}px`;
+    panel.style.width = `${fitsSide ? (textWidth + timelineWidth + 12) : textWidth}px`;
+    textPanel.style.width = `${textWidth}px`;
+    textPanel.style.height = `${rect.height}px`;
+    if (fitsSide) {
+      timelinePanel.style.width = `${timelineWidth}px`;
+      timelineList.style.height = `${Math.max(120, rect.height - 60)}px`;
+    } else {
+      timelinePanel.style.width = `${textWidth}px`;
+      timelineList.style.height = `${Math.max(120, Math.min(220, rect.height))}px`;
+    }
+  };
+  const pausePlayback = () => {
+    isPlaying = false;
+    playBtn.textContent = 'Play';
+    if (playTimer) {
+      clearTimeout(playTimer);
+      playTimer = null;
+    }
+  };
+  const startPlayback = () => {
+    if (isPlaying) return;
+    isPlaying = true;
+    playBtn.textContent = 'Pause';
+    scheduleNext();
+  };
+  const scheduleNext = () => {
+    if (!isPlaying) return;
+    playTimer = setTimeout(() => {
+      if (!isPlaying) return;
+      if (currentIndex < frames.length - 1) {
+        setFrameIndex(currentIndex + 1);
+        scheduleNext();
+      } else {
+        pausePlayback();
+      }
+    }, 2300);
+  };
+  const setFrameIndex = (index) => {
+    currentIndex = Math.max(0, Math.min(index, frames.length - 1));
+    const frame = frames[currentIndex];
+    const user = frame?.event?.user || frame?.event?.userName || 'unknown';
+    const color = resolveUserColor(user, userColors);
+    renderPlaybackText(textPanel, frame, color);
+    const match = similarityIndex ? getSimilarityMatch(similarityIndex, frame.event) : null;
+    const baseLabel = match
+      ? `Match: ${match.matchType || 'similar'} (${Math.round((match.confidence || 0) * 100)}%)`
+      : formatTimelineLabel(frame.event);
+    meta.textContent = !hasTextChanges && !frame?.textChanged
+      ? `${baseLabel} (no text diff recorded)`
+      : baseLabel;
+    buttons.forEach((btn, idx) => {
+      if (idx === currentIndex) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+    const active = buttons[currentIndex];
+    if (active) {
+      active.scrollIntoView({ block: 'nearest' });
+    }
+  };
+  frames.forEach((frame, idx) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'gg-edit-playback-timeline-btn';
+    const user = frame?.event?.user || frame?.event?.userName || 'unknown';
+    const color = resolveUserColor(user, userColors);
+    btn.style.borderLeft = `4px solid ${color}`;
+    btn.textContent = formatTimelineLabel(frame.event);
+    if (similarityIndex) {
+      const match = getSimilarityMatch(similarityIndex, frame.event);
+      if (match) {
+        const badge = document.createElement('div');
+        badge.textContent = `Borrowed: ${Math.round((match.confidence || 0) * 100)}%`;
+        badge.style.fontSize = '10px';
+        badge.style.color = '#7a5b00';
+        btn.appendChild(document.createElement('br'));
+        btn.appendChild(badge);
+      }
+    }
+    btn.addEventListener('click', () => {
+      pausePlayback();
+      setFrameIndex(idx);
+    });
+    timelineList.appendChild(btn);
+    buttons.push(btn);
+  });
+  textPanel.addEventListener('click', (event) => {
+    const target = event.target.closest(`[${SERVICE_EDIT_PLAYBACK_HIGHLIGHT_ATTR}="true"]`);
+    if (target) {
+      pausePlayback();
+    }
+  });
+  playBtn.addEventListener('click', () => {
+    if (isPlaying) {
+      pausePlayback();
+    } else {
+      startPlayback();
+    }
+  });
+  prevBtn.addEventListener('click', () => {
+    pausePlayback();
+    setFrameIndex(currentIndex - 1);
+  });
+  nextBtn.addEventListener('click', () => {
+    pausePlayback();
+    setFrameIndex(currentIndex + 1);
+  });
+  const cleanup = () => {
+    pausePlayback();
+    removeServiceEditPlaybackOverlay();
+    window.removeEventListener('resize', updatePosition);
+    window.removeEventListener('scroll', updatePosition, true);
+    document.removeEventListener('keydown', onKeyDown);
+  };
+  const onKeyDown = (evt) => {
+    if (evt.key === 'Escape') cleanup();
+  };
+  closeBtn.addEventListener('click', cleanup);
+  window.addEventListener('resize', updatePosition);
+  window.addEventListener('scroll', updatePosition, true);
+  document.addEventListener('keydown', onKeyDown);
+  updatePosition();
+  setFrameIndex(0);
+  scheduleNext();
+}
+window.gghost.openServiceEditPlaybackOverlay = openServiceEditPlaybackOverlay;
+window.gghost.removeServiceEditPlaybackOverlay = removeServiceEditPlaybackOverlay;
 // Edit History Overlay Function
 async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
   // Remove existing overlay if present
@@ -1884,6 +3085,49 @@ async function fetchPageEditNotes(pagePath) {
   edits.sort((a, b) => b.date - a.date);
   return edits;
 }
+function buildServiceNotesPagePath(locationId, serviceId, mode) {
+  const loc = String(locationId || '').trim();
+  const svc = String(serviceId || '').trim();
+  if (!loc || !svc) return '';
+  const suffix = mode === 'description' ? 'description'
+    : mode === 'other-info' ? 'other-info'
+      : '';
+  if (!suffix) return '';
+  return `/team/location/${loc}/services/${svc}/${suffix}`;
+}
+async function fetchLocationNotesRecordForPage(pagePath) {
+  const base = window.gghost?.baseURL || baseURL;
+  if (!base || !pagePath) return null;
+  const encodedKey = encodeURIComponent(pagePath);
+  const primaryUrl = `${base}locationNotes/${encodedKey}.json`;
+  const fallbackUrl = `${base}locationNotes/${pagePath.replace(/^\/+/, '')}.json`;
+  const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+  const auth = typeof window.gghost?.withFirebaseAuth === 'function'
+    ? window.gghost.withFirebaseAuth
+    : null;
+  const fetchData = async (url) => {
+    const authUrl = auth && url.includes('firebaseio.com') ? auth(url) : url;
+    const res = await fetcher(authUrl, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return res.json();
+  };
+  let data = null;
+  try {
+    data = await fetchData(primaryUrl);
+    if (!data) {
+      data = await fetchData(fallbackUrl);
+    }
+  } catch (err) {
+    console.warn('[LocationNotes] Failed to fetch record', err);
+    return null;
+  }
+  return data && typeof data === 'object' ? data : null;
+}
+async function fetchLocationNotesRecordForService({ locationId, serviceId, mode } = {}) {
+  const pagePath = buildServiceNotesPagePath(locationId, serviceId, mode);
+  if (!pagePath) return null;
+  return fetchLocationNotesRecordForPage(pagePath);
+}
 function findEditHighlightTarget(field) {
   const key = String(field || '').toLowerCase();
   if (key === 'description' || key === 'other-info') {
@@ -2407,6 +3651,7 @@ try {
 });
 if (!document.getElementById("gg-note-overlay")) {
   try {
+document.getElementById("gg-note-preload")?.remove();
 const { accessToken, username: cognitoUsername } = getCognitoTokens();
 const userName = accessToken ? cognitoUsername : null;
 if (!userName && !location.pathname.startsWith('/find/')) {
@@ -2431,31 +3676,42 @@ if (!userName && !location.pathname.startsWith('/find/')) {
   setTimeout(() => banner.remove(), 10000);
   return;
 }
-const res = await fetch(`${baseURL}locationNotes/${uuid}.json`);
-const data = (await res.json()) || {};
-            const notesArray = [];
-    let allNotesContent = "";
-if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-  for (const user in data) {
-    if (typeof data[user] === 'object') {
-      for (const date in data[user]) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-        notesArray.push({
-          user: user,
-          date: date,
-          note: data[user][date]  // Don't escape here, will escape when displaying
-        });
-      }
+let data = {};
+const cacheEntry = await readNotesCache(uuid);
+if (cacheEntry?.data) {
+  data = cacheEntry.data;
+}
+let fetched = false;
+if (!cacheEntry || cacheEntry.stale) {
+  try {
+    const res = await fetch(`${baseURL}locationNotes/${uuid}.json`);
+    if (res.ok) {
+      data = (await res.json()) || {};
+      fetched = true;
+    } else if (!cacheEntry?.data) {
+      data = {};
     }
+  } catch (err) {
+    if (!cacheEntry?.data) {
+      data = {};
+    }
+    console.warn("[Notes] Failed to fetch notes data:", err);
   }
-  notesArray.sort((a, b) => new Date(a.date) - new Date(b.date));
+}
+const notesArray = buildNotesArray(data);
+const isFindMode = location.pathname.startsWith('/find/');
+const needsAllNotesContent = isFindMode || !userName;
+let allNotesContent = "";
+if (needsAllNotesContent && notesArray.length > 0) {
   allNotesContent = notesArray.map(n => `${n.user} (${n.date}): ${n.note}`).join("\n\n");
+}
+if (fetched) {
+  void writeNotesCache(uuid, data, notesArray);
 }
 document.getElementById("gg-note-overlay")?.remove();
 document.getElementById("gg-note-wrapper")?.remove();
     const noteBox = document.createElement("div");
     noteBox.id = "gg-note-overlay";
-    const isFindMode = location.pathname.startsWith('/find/');
     const isEditable = !isFindMode && !!userName;
 noteBox.contentEditable = isEditable ? "true" : "false";
 noteBox.dataset.userName = userName || "";
@@ -2622,65 +3878,82 @@ Object.assign(readOnlyDiv.style, {
   fontSize: "13px",
   fontStyle: "italic"
 });
-if (notesArray.length > 0) {
-  notesArray
-    .filter(n => !(n.user === userName && n.date === today && n.note.trim().toLowerCase() !== "revalidated123435355342"))
-    .forEach(n => {
-      const container = document.createElement("div");
-      container.style.marginBottom = "10px";
-      const safeUser = n.user === 'doobneek'
-        ? `<a href="http://localhost:3210" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
-         : `<strong>${escapeHtml(n.user)}</strong>`;
-      const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"
-        ? "Revalidated"
-        : escapeHtml(n.note).replace(/\n/g, '<br>');  // Escape once and preserve line breaks
-      container.innerHTML = `${safeUser} (${n.date}):<br>${displayNote}`;
-      const isReminder = n.user === "reminder";
-      const today = new Date().toISOString().slice(0, 10);
-      const isDue = n.date <= today;
-      const isDone = /\n?\s*Done by .+$/i.test(n.note.trim());
-      if (isReminder && isDue && !isDone) {
-        const btn = document.createElement("button");
-        btn.textContent = "Done?";
-        btn.style.marginTop = "5px";
-        btn.addEventListener("click", async () => {
-          const updatedNote = `${n.note.trim()}\n\nDone by ${userName}`;
-          try {
-            const response = await postToNoteAPI({
-                uuid,
-                date: n.date,
-                note: updatedNote,
-                userName: "reminder"
-              });
-            await checkResponse(response, "Marking reminder done");
-            btn.textContent = "Thanks!";
-            btn.disabled = true;
-            btn.style.backgroundColor = "#ccc";
-          } catch (err) {
-            console.error("❌ Failed to mark done", err);
-            alert("Failed to update reminder.");
-          }
-        });
-        container.appendChild(document.createElement("br"));
-        container.appendChild(btn);
-      }
-      readOnlyDiv.appendChild(container);
-    });
-} else {
-  readOnlyDiv.innerHTML = "<i>(No past notes available)</i>";
-}
+const renderReadOnlyNotes = (notesToRender) => {
+  readOnlyDiv.innerHTML = "";
+  if (!Array.isArray(notesToRender) || notesToRender.length === 0) {
+    readOnlyDiv.innerHTML = "<i>(No past notes available)</i>";
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  for (const n of notesToRender) {
+    if (n.user === userName && n.date === todayStr && n.note.trim().toLowerCase() !== "revalidated123435355342") {
+      continue;
+    }
+    const container = document.createElement("div");
+    container.style.marginBottom = "10px";
+    const safeUser = n.user === 'doobneek'
+      ? `<a href="http://localhost:3210" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
+      : `<strong>${escapeHtml(n.user)}</strong>`;
+    const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"
+      ? "Revalidated"
+      : escapeHtml(n.note).replace(/\n/g, '<br>');  // Escape once and preserve line breaks
+    container.innerHTML = `${safeUser} (${n.date}):<br>${displayNote}`;
+    const isReminder = n.user === "reminder";
+    const isDue = n.date <= todayStr;
+    const isDone = /\n?\s*Done by .+$/i.test(n.note.trim());
+    if (isReminder && isDue && !isDone) {
+      const btn = document.createElement("button");
+      btn.textContent = "Done?";
+      btn.style.marginTop = "5px";
+      btn.addEventListener("click", async () => {
+        const updatedNote = `${n.note.trim()}\n\nDone by ${userName}`;
+        try {
+          const response = await postToNoteAPI({
+            uuid,
+            date: n.date,
+            note: updatedNote,
+            userName: "reminder"
+          });
+          await checkResponse(response, "Marking reminder done");
+          btn.textContent = "Thanks!";
+          btn.disabled = true;
+          btn.style.backgroundColor = "#ccc";
+          await refreshReadOnlyNotes();
+        } catch (err) {
+          console.error("❌ Failed to mark done", err);
+          alert("Failed to update reminder.");
+        }
+      });
+      container.appendChild(document.createElement("br"));
+      container.appendChild(btn);
+    }
+    fragment.appendChild(container);
+  }
+  readOnlyDiv.appendChild(fragment);
+};
+renderReadOnlyNotes(notesArray);
 noteWrapper.appendChild(readOnlyDiv);
-// After readOnlyDiv is populated:
-await addValidationHistoryBadge(readOnlyDiv, uuid);
-// ⬇️ Add this call
-await injectSiteVisitUI({
-  parentEl: readOnlyDiv,
-  uuid,                       // same uuid you already computed above
-  userName,                   // current user (already resolved earlier)
-  NOTE_API,                   // "https://locationnote1-iygwucy2fa-uc.a.run.app"
-  today,                       // you already have const today = new Date().toISOString().slice(0, 10);
-  done:false
-});
+const scheduleNotesExtras = () => {
+  Promise.resolve()
+    .then(() => addValidationHistoryBadge(readOnlyDiv, uuid))
+    .catch((err) => console.warn("[Notes] Validation badge failed:", err));
+  Promise.resolve()
+    .then(() => injectSiteVisitUI({
+      parentEl: readOnlyDiv,
+      uuid,                       // same uuid you already computed above
+      userName,                   // current user (already resolved earlier)
+      NOTE_API,                   // "https://locationnote1-iygwucy2fa-uc.a.run.app"
+      today,                       // you already have const today = new Date().toISOString().slice(0, 10);
+      done: false
+    }))
+    .catch((err) => console.warn("[Notes] Site visit UI failed:", err));
+};
+if (window.requestIdleCallback) {
+  window.requestIdleCallback(scheduleNotesExtras, { timeout: 4000 });
+} else {
+  setTimeout(scheduleNotesExtras, 500);
+}
 const reminderToggleWrapper = document.createElement("div");
 Object.assign(reminderToggleWrapper.style, {
   padding: "10px",
@@ -2734,15 +4007,19 @@ editableDiv.addEventListener("input", () => {
   clearTimeout(saveTimeout);
   saveTimeout = setTimeout(async () => {
     const note = editableDiv.innerText.trim();
+    const currentUserName = getCurrentUsername();
     const payload = {
       uuid,
       date: today,
       note: note || null,
-      userName: getCurrentUsername()
+      userName: currentUserName
     };
     try {
       const response = await postToNoteAPI(payload);
       await checkResponse(response, note ? "Saving note" : "Deleting note");
+      if (note) {
+        void writeNotesPreviewEntry(uuid, { user: currentUserName, date: today, note });
+      }
       console.log(note ? `[📝 Saved ${userName}'s note for ${today}]` : `[🗑️ Deleted ${userName}'s note for ${today}]`);
     } catch (err) {
       console.error("[❌ Failed to save/delete note]", err);
@@ -2781,72 +4058,9 @@ async function refreshReadOnlyNotes() {
   try {
     const res = await fetch(`${baseURL}locationNotes/${uuid}.json`);
     const data = (await res.json()) || {};
-    const notesArray = [];
-    if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-      for (const user in data) {
-        if (typeof data[user] === 'object') {
-          for (const date in data[user]) {
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-            notesArray.push({
-              user: user,
-              date: date,
-              note: data[user][date]  // Don't escape here, will escape when displaying
-            });
-          }
-        }
-      }
-      notesArray.sort((a, b) => new Date(a.date) - new Date(b.date));
-    }
-    // Clear and repopulate readOnlyDiv
-    readOnlyDiv.innerHTML = '';
-    if (notesArray.length > 0) {
-      const today = new Date().toISOString().slice(0, 10);
-      notesArray
-        .filter(n => !(n.user === userName && n.date === today && n.note.trim().toLowerCase() !== "revalidated123435355342"))
-        .forEach(n => {
-          const container = document.createElement("div");
-          container.style.marginBottom = "10px";
-          const safeUser = n.user === 'doobneek'
-            ? `<a href="http://localhost:3210" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
-            : `<strong>${escapeHtml(n.user)}</strong>`;
-          const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"
-            ? "Revalidated"
-            : escapeHtml(n.note).replace(/\n/g, '<br>');  // Escape once and preserve line breaks
-          container.innerHTML = `${safeUser} (${n.date}):<br>${displayNote}`;
-          const isReminder = n.user === "reminder";
-          const isDue = n.date <= today;
-          const isDone = /\n?\s*Done by .+$/i.test(n.note.trim());
-          if (isReminder && isDue && !isDone) {
-            const btn = document.createElement("button");
-            btn.textContent = "Done?";
-            btn.style.marginTop = "5px";
-            btn.addEventListener("click", async () => {
-              const updatedNote = `${n.note.trim()}\n\nDone by ${userName}`;
-              try {
-                await postToNoteAPI({
-                  uuid,
-                  date: n.date,
-                  note: updatedNote,
-                  userName: "reminder"
-                });
-                btn.textContent = "Thanks!";
-                btn.disabled = true;
-                btn.style.backgroundColor = "#ccc";
-                // Refresh notes to show the updated "Done by" status
-                await refreshReadOnlyNotes();
-              } catch (err) {
-                console.error("❌ Failed to mark done", err);
-                alert("Failed to update reminder.");
-              }
-            });
-            container.appendChild(document.createElement("br"));
-            container.appendChild(btn);
-          }
-          readOnlyDiv.appendChild(container);
-        });
-    } else {
-      readOnlyDiv.innerHTML = "<i>(No past notes available)</i>";
-    }
+    const notesArray = buildNotesArray(data);
+    renderReadOnlyNotes(notesArray);
+    void writeNotesCache(uuid, data, notesArray);
     console.log("[Notes] Refreshed readonly notes");
   } catch (err) {
     console.error("[Notes] Failed to refresh:", err);

@@ -140,9 +140,26 @@ const LOCATION_CONTACT_TOGGLE_ID = 'gghost-location-contact-toggle';
 const LOCATION_CONTACT_STATUS_TTL = 5 * 60 * 1000;
 const locationContactStatusCache = new Map();
 let locationContactRequestId = 0;
+let relatedLocationsRequestId = 0;
 const LOCATION_LINK_RE = /https?:\/\/[^\s"'<>]+/gi;
 const LOCATION_EMAIL_RE = /[\w.+-]+@[\w.-]+\.\w{2,}/g;
 const LOCATION_PHONE_RE = /(?:(?:\+?1[\s.\-]*)?)\(?\d{3}\)?[\s.\-]*\d{3}[\s.\-]*\d{4}(?:\s*(?:x|ext\.?|extension|#)\s*\d+)?/gi;
+const LOCATION_EMAIL_VALIDATION_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RELATED_LOCATIONS_CACHE_PREFIX = 'gghost-related-locations-cache-';
+const RELATED_LOCATIONS_CACHE_TTL_MS = 15 * 60 * 1000;
+const RELATED_LOCATIONS_CACHE_MAX = 4;
+const RELATED_LOCATIONS_DEFAULT_CENTER = { lat: 40.697488, lng: -73.979681 };
+const RELATED_LOCATIONS_RADIUS_METERS = 10000;
+const RELATED_LOCATIONS_MAX_RADIUS_METERS = 10000;
+const RELATED_LOCATIONS_MAX_RESULTS = 250;
+const SHEETS_CACHE_QUERY = { latitude: 40.697488, longitude: -73.979681, radius: 34000 };
+const RELATED_LOCATIONS_SCAN_LIMIT = 2500;
+const RELATED_LOCATIONS_RESULTS_LIMIT = 40;
+const RELATED_LOCATIONS_OVERLAY_ID = 'gghost-related-locations-overlay';
+const RELATED_MATCHES_CACHE_PREFIX = 'gghost-related-matches-cache-';
+const RELATED_MATCHES_CACHE_TTL_MS = 15 * 60 * 1000;
+const RELATED_MATCHES_EMPTY_TTL_MS = 3 * 60 * 1000;
+const relatedMatchesMemory = new Map();
 function buildLocationQuestionUrl(uuid, question) {
   return `https://gogetta.nyc/team/location/${uuid}/questions/${question}`;
 }
@@ -378,6 +395,896 @@ async function showLocationLinkPreview(url, isHttps = true) {
   });
   document.body.appendChild(overlay);
 }
+function yieldToMainThread() {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(() => resolve(), { timeout: 200 });
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+function roundCoordinate(value, precision = 3) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  const factor = 10 ** precision;
+  return Math.round(num * factor) / factor;
+}
+function readPreferredCenterFromStorage() {
+  try {
+    const raw = localStorage.getItem('gghostPreferredCenter');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const lat = Number(parsed?.lat ?? parsed?.latitude);
+    const lng = Number(parsed?.lng ?? parsed?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { lat, lng };
+  } catch (_error) {
+    return null;
+  }
+}
+function getLocationCenterFromData(locationData) {
+  const coords = locationData?.position?.coordinates;
+  if (Array.isArray(coords) && coords.length >= 2) {
+    const lng = Number(coords[0]);
+    const lat = Number(coords[1]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { lat, lng };
+    }
+  }
+  const lat = Number(
+    locationData?.position?.lat
+    ?? locationData?.position?.latitude
+    ?? locationData?.lat
+    ?? locationData?.latitude
+  );
+  const lng = Number(
+    locationData?.position?.lng
+    ?? locationData?.position?.longitude
+    ?? locationData?.lng
+    ?? locationData?.longitude
+  );
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+function normalizeRelatedLocationsQuery(query) {
+  if (!query) return null;
+  const latitude = Number(query.latitude);
+  const longitude = Number(query.longitude);
+  const rawRadius = Number(query.radius) || 0;
+  const radius = Math.min(Math.max(rawRadius, 0), RELATED_LOCATIONS_MAX_RADIUS_METERS);
+  const rawMaxResults = Number(query.maxResults) || 0;
+  const maxResults = rawMaxResults > 0
+    ? Math.min(Math.trunc(rawMaxResults), RELATED_LOCATIONS_MAX_RESULTS)
+    : null;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !radius) return null;
+  const normalized = { latitude, longitude, radius };
+  if (maxResults) normalized.maxResults = maxResults;
+  return normalized;
+}
+function haversineDistanceMeters(lat1, lng1, lat2, lng2) {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 6371000 * c;
+}
+function buildSheetsCacheKey(query) {
+  if (!query) return '';
+  const lat = String(query.latitude).replace(/[^0-9-]/g, '_');
+  const lng = String(query.longitude).replace(/[^0-9-]/g, '_');
+  return `sheets_${lat}_${lng}_${query.radius}`;
+}
+function getRtdbBaseUrl() {
+  const raw = window.gghost?.baseURL || 'https://doobneek-fe7b7-default-rtdb.firebaseio.com/';
+  return raw.endsWith('/') ? raw : `${raw}/`;
+}
+async function fetchSheetsCacheLocations() {
+  const cacheKey = buildSheetsCacheKey(SHEETS_CACHE_QUERY);
+  if (!cacheKey) return null;
+  const url = `${getRtdbBaseUrl()}sheetsCache/global/${cacheKey}.json`;
+  const authUrl = typeof window.gghost?.withFirebaseAuth === 'function'
+    ? window.gghost.withFirebaseAuth(url)
+    : url;
+  const requestFetch = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+  const res = await requestFetch(authUrl, { cache: 'no-store' });
+  if (!res.ok) return null;
+  const payload = await res.json().catch(() => null);
+  const locations = payload?.locations;
+  return Array.isArray(locations) ? locations : null;
+}
+async function filterLocationsWithinRadius(locations, center, radius) {
+  if (!Array.isArray(locations)) return [];
+  if (!center || !Number.isFinite(center.lat) || !Number.isFinite(center.lng)) return locations;
+  if (!Number.isFinite(radius) || radius <= 0) return locations;
+  const filtered = [];
+  for (let i = 0; i < locations.length; i += 1) {
+    const coords = getLocationCenterFromData(locations[i]);
+    if (!coords) continue;
+    if (haversineDistanceMeters(center.lat, center.lng, coords.lat, coords.lng) <= radius) {
+      filtered.push(locations[i]);
+    }
+    if (i > 0 && i % 300 === 0) {
+      await yieldToMainThread();
+    }
+  }
+  return filtered;
+}
+function buildRelatedLocationsQuery(locationData) {
+  const center = getLocationCenterFromData(locationData)
+    || readPreferredCenterFromStorage()
+    || RELATED_LOCATIONS_DEFAULT_CENTER;
+  return normalizeRelatedLocationsQuery({
+    latitude: center.lat,
+    longitude: center.lng,
+    radius: RELATED_LOCATIONS_RADIUS_METERS,
+    maxResults: RELATED_LOCATIONS_MAX_RESULTS
+  });
+}
+function buildRelatedLocationsCacheKey(query) {
+  if (!query) return null;
+  const lat = roundCoordinate(query.latitude, 3);
+  const lng = roundCoordinate(query.longitude, 3);
+  const radius = Math.round(Number(query.radius) || 0);
+  return `${RELATED_LOCATIONS_CACHE_PREFIX}${lat ?? 'na'}:${lng ?? 'na'}:${radius}`;
+}
+function listRelatedLocationsCacheEntries() {
+  const entries = [];
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(RELATED_LOCATIONS_CACHE_PREFIX)) continue;
+      let timestamp = 0;
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key));
+        timestamp = Number(parsed?.fetchedAt) || 0;
+      } catch {
+        timestamp = 0;
+      }
+      entries.push({ key, timestamp });
+    }
+  } catch (_error) {
+    return entries;
+  }
+  return entries;
+}
+function pruneRelatedLocationsCache() {
+  const entries = listRelatedLocationsCacheEntries();
+  if (entries.length <= RELATED_LOCATIONS_CACHE_MAX) return;
+  entries.sort((a, b) => a.timestamp - b.timestamp);
+  const removeCount = entries.length - RELATED_LOCATIONS_CACHE_MAX;
+  for (let i = 0; i < removeCount; i += 1) {
+    localStorage.removeItem(entries[i].key);
+  }
+}
+function readRelatedLocationsCache(cacheKey) {
+  if (!cacheKey) return null;
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!Array.isArray(parsed.locations)) return null;
+    const fetchedAt = Number(parsed.fetchedAt) || 0;
+    const isStale = !fetchedAt || Date.now() - fetchedAt > RELATED_LOCATIONS_CACHE_TTL_MS;
+    return {
+      locations: parsed.locations,
+      fetchedAt,
+      isStale,
+      scanLimited: parsed.scanLimited === true
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+function writeRelatedLocationsCache(cacheKey, locations, scanLimited) {
+  if (!cacheKey) return;
+  const payload = {
+    fetchedAt: Date.now(),
+    locations: Array.isArray(locations) ? locations : [],
+    scanLimited: scanLimited === true
+  };
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(payload));
+  } catch (error) {
+    pruneRelatedLocationsCache();
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(payload));
+    } catch (_retryError) {
+      // Ignore cache write failure.
+    }
+  }
+}
+function normalizeEmailForMatch(raw) {
+  const cleaned = cleanContactMatch(raw);
+  if (!cleaned) return '';
+  return cleaned.toLowerCase();
+}
+function normalizePhoneForMatch(raw) {
+  const cleaned = cleanContactMatch(raw);
+  if (!cleaned) return '';
+  let digits = digitsOnly(cleaned);
+  if (!digits) return '';
+  if (digits.length > 10) digits = digits.slice(-10);
+  if (digits.length < 7) return '';
+  return digits;
+}
+function normalizeLinkForMatch(raw) {
+  const normalized = normalizeContactUrl(raw);
+  if (!normalized) return '';
+  if (!isFeasibleContactUrl(normalized)) return '';
+  try {
+    const url = new URL(normalized);
+    let host = url.hostname.toLowerCase();
+    if (host.startsWith('www.')) host = host.slice(4);
+    let path = url.pathname.replace(/\/+$/, '');
+    if (!path) path = '/';
+    const search = url.search || '';
+    return `${host}${path}${search}`;
+  } catch (_error) {
+    return normalized.toLowerCase();
+  }
+}
+function addContactMatchesFromText(text, addLink, addEmail, addPhone) {
+  if (!text) return;
+  const raw = String(text).trim();
+  if (!raw) return;
+  const snippet = raw.length > 6000 ? raw.slice(0, 6000) : raw;
+  const links = snippet.match(LOCATION_LINK_RE) || [];
+  links.forEach(link => addLink(link));
+  const emails = snippet.match(LOCATION_EMAIL_RE) || [];
+  emails.forEach(email => addEmail(email));
+  const phones = snippet.match(LOCATION_PHONE_RE) || [];
+  phones.forEach(phone => addPhone(phone));
+}
+function buildLocationContactKeys(locationData) {
+  const emailKeys = new Set();
+  const phoneKeys = new Set();
+  const linkKeys = new Set();
+  const addEmail = (value) => {
+    const key = normalizeEmailForMatch(value);
+    if (key) emailKeys.add(key);
+  };
+  const addPhone = (value) => {
+    const key = normalizePhoneForMatch(value);
+    if (key) phoneKeys.add(key);
+  };
+  const addLink = (value) => {
+    const key = normalizeLinkForMatch(value);
+    if (key) linkKeys.add(key);
+  };
+  addEmail(locationData?.email);
+  addEmail(locationData?.Organization?.email);
+  addLink(locationData?.url);
+  addLink(locationData?.Organization?.url);
+  const phones = Array.isArray(locationData?.Phones) ? locationData.Phones : [];
+  phones.forEach((phone) => addPhone(phone?.number));
+  addContactMatchesFromText(locationData?.description, addLink, addEmail, addPhone);
+  addContactMatchesFromText(locationData?.additional_info, addLink, addEmail, addPhone);
+  addContactMatchesFromText(locationData?.additionalInfo, addLink, addEmail, addPhone);
+  const locationInfos = Array.isArray(locationData?.EventRelatedInfos) ? locationData.EventRelatedInfos : [];
+  locationInfos.forEach(info => addContactMatchesFromText(info?.information, addLink, addEmail, addPhone));
+  const services = coerceServicesArray(locationData?.Services || locationData?.services);
+  services.forEach((service) => {
+    addEmail(service?.email);
+    addLink(service?.url);
+    addContactMatchesFromText(service?.description, addLink, addEmail, addPhone);
+    addContactMatchesFromText(service?.additional_info, addLink, addEmail, addPhone);
+    addContactMatchesFromText(service?.additionalInfo, addLink, addEmail, addPhone);
+    const eventInfos = Array.isArray(service?.EventRelatedInfos) ? service.EventRelatedInfos : [];
+    eventInfos.forEach(info => addContactMatchesFromText(info?.information, addLink, addEmail, addPhone));
+  });
+  return {
+    emails: Array.from(emailKeys),
+    phones: Array.from(phoneKeys),
+    links: Array.from(linkKeys)
+  };
+}
+function buildRelatedLocationEntry(locationData) {
+  const id = locationData?.id || locationData?.locationId;
+  if (!id) return null;
+  const contacts = buildLocationContactKeys(locationData || {});
+  if (!contacts.emails.length && !contacts.phones.length && !contacts.links.length) return null;
+  const name = String(locationData?.name || '').trim();
+  const orgName = String(locationData?.Organization?.name || locationData?.organization?.name || '').trim();
+  return { id, name, orgName, contacts };
+}
+async function buildRelatedLocationsPayload(locations) {
+  if (!Array.isArray(locations)) return [];
+  const entries = [];
+  const seen = new Set();
+  const limit = Math.min(locations.length, RELATED_LOCATIONS_SCAN_LIMIT);
+  for (let i = 0; i < limit; i += 1) {
+    const loc = locations[i];
+    const id = loc?.id || loc?.locationId;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const entry = buildRelatedLocationEntry(loc);
+    if (entry) entries.push(entry);
+    if (i > 0 && i % 120 === 0) {
+      await yieldToMainThread();
+    }
+  }
+  return entries;
+}
+async function fetchRelatedLocationsData(query) {
+  const normalized = normalizeRelatedLocationsQuery(query);
+  if (!normalized) return null;
+  let lastError = null;
+  const radiusFetcher = window.gghost?.fetchLocationsByRadius;
+  if (typeof radiusFetcher === 'function') {
+    try {
+      const data = await radiusFetcher(normalized);
+      if (Array.isArray(data)) return data;
+      lastError = new Error('Locations payload invalid');
+    } catch (_error) {
+      // Fall through to direct fetch.
+      lastError = _error;
+    }
+  }
+  try {
+    const url = new URL(LOCATION_API_BASE);
+    url.searchParams.set('latitude', normalized.latitude);
+    url.searchParams.set('longitude', normalized.longitude);
+    url.searchParams.set('radius', normalized.radius);
+    if (normalized.maxResults) {
+      url.searchParams.set('maxResults', normalized.maxResults);
+    }
+    const requestFetch = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    const res = await requestFetch(url.toString(), {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+      cache: 'no-store'
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Failed to fetch locations (${res.status}) ${text}`);
+    }
+    const payload = await res.json();
+    if (Array.isArray(payload)) return payload;
+    lastError = new Error('Locations payload invalid');
+  } catch (err) {
+    lastError = err;
+  }
+  const cachedLocations = await fetchSheetsCacheLocations();
+  if (Array.isArray(cachedLocations)) {
+    const center = { lat: normalized.latitude, lng: normalized.longitude };
+    return filterLocationsWithinRadius(cachedLocations, center, normalized.radius);
+  }
+  if (lastError) throw lastError;
+  return [];
+}
+async function loadRelatedLocationsPool(locationData) {
+  const query = buildRelatedLocationsQuery(locationData);
+  const cacheKey = buildRelatedLocationsCacheKey(query);
+  const cached = readRelatedLocationsCache(cacheKey);
+  const refresh = async () => {
+    const raw = await fetchRelatedLocationsData(query);
+    const scanLimited = Array.isArray(raw) && raw.length > RELATED_LOCATIONS_SCAN_LIMIT;
+    const entries = await buildRelatedLocationsPayload(raw || []);
+    writeRelatedLocationsCache(cacheKey, entries, scanLimited);
+    return { entries, scanLimited };
+  };
+  if (cached && !cached.isStale) {
+    return {
+      entries: cached.locations,
+      fromCache: true,
+      stale: false,
+      scanLimited: cached.scanLimited === true,
+      refreshPromise: null
+    };
+  }
+  if (cached) {
+    const refreshPromise = refresh().catch((err) => {
+      console.warn('[Location Contact] Related locations refresh failed:', err);
+      return null;
+    });
+    return {
+      entries: cached.locations,
+      fromCache: true,
+      stale: true,
+      scanLimited: cached.scanLimited === true,
+      refreshPromise
+    };
+  }
+  const fresh = await refresh();
+  return {
+    entries: fresh.entries,
+    fromCache: false,
+    stale: false,
+    scanLimited: fresh.scanLimited,
+    refreshPromise: null
+  };
+}
+function buildContactKeyIndexFromItems(contactData) {
+  const emails = new Map();
+  const phones = new Map();
+  const links = new Map();
+  const addKey = (map, key, display) => {
+    if (!key || map.has(key)) return;
+    map.set(key, display || key);
+  };
+  (contactData?.emailItems || []).forEach((item) => {
+    const key = normalizeEmailForMatch(item.display);
+    addKey(emails, key, item.display);
+  });
+  (contactData?.phoneItems || []).forEach((item) => {
+    const key = normalizePhoneForMatch(item.display);
+    addKey(phones, key, item.display);
+  });
+  (contactData?.linkItems || []).forEach((item) => {
+    const key = normalizeLinkForMatch(item.normalizedUrl || item.display);
+    addKey(links, key, item.display || item.normalizedUrl);
+  });
+  const hasAny = emails.size > 0 || phones.size > 0 || links.size > 0;
+  return { emails, phones, links, hasAny };
+}
+function buildContactFingerprint(keyIndex) {
+  const joinKeys = (map) => Array.from(map.keys()).sort().join('|');
+  const emails = joinKeys(keyIndex.emails);
+  const phones = joinKeys(keyIndex.phones);
+  const links = joinKeys(keyIndex.links);
+  return `${emails}::${phones}::${links}`;
+}
+function getRelatedMatchesCacheKey(locationId) {
+  if (!locationId) return null;
+  return `${RELATED_MATCHES_CACHE_PREFIX}${locationId}`;
+}
+function readRelatedMatchesCache(locationId, fingerprint) {
+  const cacheKey = getRelatedMatchesCacheKey(locationId);
+  if (!cacheKey || !fingerprint) return null;
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (parsed.fingerprint !== fingerprint) return null;
+    if (!Array.isArray(parsed.matches) || !parsed.matches.length) return null;
+    const computedAt = Number(parsed.computedAt) || 0;
+    if (!computedAt || Date.now() - computedAt > RELATED_MATCHES_CACHE_TTL_MS) return null;
+    return {
+      matches: parsed.matches,
+      meta: parsed.meta && typeof parsed.meta === 'object' ? parsed.meta : null,
+      computedAt
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+function writeRelatedMatchesCache(locationId, fingerprint, matches, meta) {
+  if (!locationId || !fingerprint) return;
+  if (!Array.isArray(matches) || !matches.length) return;
+  const cacheKey = getRelatedMatchesCacheKey(locationId);
+  if (!cacheKey) return;
+  const payload = {
+    fingerprint,
+    matches,
+    meta: meta && typeof meta === 'object' ? meta : null,
+    computedAt: Date.now()
+  };
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(payload));
+  } catch (_error) {
+    // Ignore cache write failures.
+  }
+}
+function getRelatedMatchesKey(locationId, fingerprint) {
+  if (!locationId || !fingerprint) return '';
+  return `${locationId}::${fingerprint}`;
+}
+function getRelatedMatchesEntry(key) {
+  if (!key) return null;
+  const entry = relatedMatchesMemory.get(key);
+  if (!entry) return null;
+  if (entry.status === 'empty' && entry.emptyUntil && Date.now() > entry.emptyUntil) {
+    relatedMatchesMemory.delete(key);
+    return null;
+  }
+  return entry;
+}
+function scheduleRelatedMatchesCompute(entry, locationId, locationData, keyIndex, fingerprint, immediate) {
+  if (!entry || entry.promise) return entry?.promise || Promise.resolve(entry);
+  const compute = async () => {
+    try {
+      const pool = await loadRelatedLocationsPool(locationData);
+      const result = await findRelatedLocationMatches(pool.entries || [], keyIndex, locationId);
+      const meta = {
+        scanned: result.scanned,
+        total: result.total,
+        limited: result.limited,
+        truncated: result.truncated,
+        scanLimited: pool.scanLimited === true,
+        source: pool.fromCache ? (pool.stale ? 'cache-stale' : 'cache') : 'live'
+      };
+      entry.meta = meta;
+      entry.matches = result.matches || [];
+      entry.computedAt = Date.now();
+      if (entry.matches.length) {
+        entry.status = 'ready';
+        writeRelatedMatchesCache(locationId, fingerprint, entry.matches, meta);
+      } else {
+        entry.status = 'empty';
+        entry.emptyUntil = Date.now() + RELATED_MATCHES_EMPTY_TTL_MS;
+      }
+    } catch (err) {
+      entry.status = 'error';
+      entry.error = err?.message || String(err);
+      entry.matches = [];
+    }
+    return entry;
+  };
+  if (immediate) {
+    entry.promise = compute();
+    return entry.promise;
+  }
+  entry.promise = new Promise((resolve) => {
+    const run = () => compute().then(resolve).catch(() => resolve(entry));
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(run, { timeout: 2000 });
+    } else {
+      setTimeout(run, 200);
+    }
+  });
+  return entry.promise;
+}
+function ensureRelatedMatchesLoaded({
+  locationId,
+  locationData,
+  contactData,
+  keyIndex,
+  immediate = false,
+  force = false
+}) {
+  if (!locationId || !locationData) return null;
+  const resolvedKeyIndex = keyIndex || buildContactKeyIndexFromItems(contactData);
+  if (!resolvedKeyIndex || !resolvedKeyIndex.hasAny) return null;
+  const fingerprint = buildContactFingerprint(resolvedKeyIndex);
+  const key = getRelatedMatchesKey(locationId, fingerprint);
+  let entry = getRelatedMatchesEntry(key);
+  if (entry && !force) {
+    if (immediate && entry.status === 'error') {
+      entry.status = 'loading';
+      entry.error = null;
+      entry.promise = null;
+      scheduleRelatedMatchesCompute(entry, locationId, locationData, resolvedKeyIndex, fingerprint, true);
+    }
+    return entry;
+  }
+  const cached = !force ? readRelatedMatchesCache(locationId, fingerprint) : null;
+  if (cached) {
+    entry = {
+      status: 'ready',
+      matches: cached.matches || [],
+      meta: cached.meta,
+      computedAt: cached.computedAt,
+      promise: null
+    };
+    relatedMatchesMemory.set(key, entry);
+    return entry;
+  }
+  entry = {
+    status: 'loading',
+    matches: [],
+    meta: null,
+    computedAt: 0,
+    promise: null
+  };
+  relatedMatchesMemory.set(key, entry);
+  scheduleRelatedMatchesCompute(entry, locationId, locationData, resolvedKeyIndex, fingerprint, immediate);
+  return entry;
+}
+function collectMatchValues(keys, keyMap, limit = 3) {
+  const values = [];
+  let count = 0;
+  const seen = new Set();
+  if (!Array.isArray(keys) || !keyMap || keyMap.size === 0) {
+    return { values, count };
+  }
+  keys.forEach((key) => {
+    if (!keyMap.has(key)) return;
+    const display = keyMap.get(key) || key;
+    if (seen.has(display)) return;
+    seen.add(display);
+    count += 1;
+    if (values.length < limit) {
+      values.push(display);
+    }
+  });
+  return { values, count };
+}
+function buildRelatedLocationMatch(entry, keyIndex) {
+  if (!entry || !entry.contacts) return null;
+  const emailMatches = collectMatchValues(entry.contacts.emails, keyIndex.emails);
+  const phoneMatches = collectMatchValues(entry.contacts.phones, keyIndex.phones);
+  const linkMatches = collectMatchValues(entry.contacts.links, keyIndex.links);
+  if (!emailMatches.count && !phoneMatches.count && !linkMatches.count) return null;
+  const reasons = [];
+  if (emailMatches.count) reasons.push({ label: 'Email', ...emailMatches });
+  if (phoneMatches.count) reasons.push({ label: 'Phone', ...phoneMatches });
+  if (linkMatches.count) reasons.push({ label: 'Link', ...linkMatches });
+  return {
+    id: entry.id,
+    name: entry.name,
+    orgName: entry.orgName,
+    reasons
+  };
+}
+async function findRelatedLocationMatches(entries, keyIndex, locationId) {
+  const matches = [];
+  let scanned = 0;
+  const limit = Math.min(entries.length, RELATED_LOCATIONS_SCAN_LIMIT);
+  for (let i = 0; i < limit; i += 1) {
+    const entry = entries[i];
+    if (!entry || !entry.id || entry.id === locationId) continue;
+    scanned += 1;
+    const match = buildRelatedLocationMatch(entry, keyIndex);
+    if (match) {
+      matches.push(match);
+      if (matches.length >= RELATED_LOCATIONS_RESULTS_LIMIT) {
+        break;
+      }
+    }
+    if (i > 0 && i % 140 === 0) {
+      await yieldToMainThread();
+    }
+  }
+  return {
+    matches,
+    scanned,
+    total: entries.length,
+    limited: matches.length >= RELATED_LOCATIONS_RESULTS_LIMIT,
+    truncated: entries.length > limit
+  };
+}
+function removeRelatedLocationsOverlay() {
+  const existing = document.getElementById(RELATED_LOCATIONS_OVERLAY_ID);
+  if (existing) existing.remove();
+  relatedLocationsRequestId += 1;
+}
+function ensureRelatedSpinnerStyles() {
+  if (document.getElementById('gghost-related-spinner-style')) return;
+  const style = document.createElement('style');
+  style.id = 'gghost-related-spinner-style';
+  style.textContent = `
+    @keyframes gghost-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  `;
+  document.head.appendChild(style);
+}
+function createRelatedSpinner() {
+  ensureRelatedSpinnerStyles();
+  const spinner = document.createElement('div');
+  spinner.style.cssText = `
+    width: 14px;
+    height: 14px;
+    border: 2px solid #c7c7c7;
+    border-top-color: #0d6efd;
+    border-radius: 50%;
+    display: inline-block;
+    animation: gghost-spin 0.8s linear infinite;
+    margin-right: 6px;
+  `;
+  return spinner;
+}
+function openRelatedLocationsOverlay({ locationId, locationData, contactData, sourceSection }) {
+  if (!locationId || !locationData) return;
+  removeRelatedLocationsOverlay();
+  const requestId = ++relatedLocationsRequestId;
+  const keyIndex = buildContactKeyIndexFromItems(contactData);
+  const overlay = document.createElement('div');
+  overlay.id = RELATED_LOCATIONS_OVERLAY_ID;
+  overlay.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 11000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
+  const panel = document.createElement('div');
+  panel.style.cssText = `
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    width: min(560px, 92vw);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  `;
+  const header = document.createElement('div');
+  header.style.cssText = `
+    padding: 12px 14px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  `;
+  const title = document.createElement('div');
+  title.textContent = 'Related locations';
+  title.style.cssText = 'font-weight: 600; font-size: 14px;';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'x';
+  closeBtn.style.cssText = `
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: #555;
+  `;
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+  const summary = document.createElement('div');
+  summary.style.cssText = 'padding: 8px 14px; font-size: 12px; color: #555;';
+  const list = document.createElement('div');
+  list.style.cssText = 'padding: 10px 14px 14px; overflow-y: auto;';
+  panel.appendChild(header);
+  panel.appendChild(summary);
+  panel.appendChild(list);
+  overlay.appendChild(panel);
+  const closeOverlay = () => {
+    if (!overlay.isConnected) return;
+    overlay.remove();
+  };
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      closeOverlay();
+    }
+  });
+  closeBtn.addEventListener('click', closeOverlay);
+  document.body.appendChild(overlay);
+  const updateSummary = (text, color = '#555') => {
+    summary.textContent = text;
+    summary.style.color = color;
+  };
+  const showLoading = (text) => {
+    list.innerHTML = '';
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; align-items: center; font-size: 12px; color: #666;';
+    row.appendChild(createRelatedSpinner());
+    row.appendChild(document.createTextNode(text || 'Loading related locations...'));
+    list.appendChild(row);
+  };
+  const renderMatches = (matches) => {
+    list.innerHTML = '';
+    if (!matches || !matches.length) {
+      const empty = document.createElement('div');
+      empty.textContent = 'No related locations found.';
+      empty.style.cssText = 'font-size: 12px; color: #666;';
+      list.appendChild(empty);
+      return;
+    }
+    matches.forEach((match) => {
+      const card = document.createElement('div');
+      card.style.cssText = `
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        background: #fafafa;
+      `;
+      const titleRow = document.createElement('div');
+      titleRow.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+      const nameBtn = document.createElement('button');
+      const displayName = match.orgName
+        ? `${match.orgName}${match.name ? ` - ${match.name}` : ''}`
+        : (match.name || `Location ${String(match.id).slice(0, 8)}`);
+      nameBtn.type = 'button';
+      nameBtn.textContent = truncateText(displayName, 70);
+      nameBtn.style.cssText = `
+        background: none;
+        border: none;
+        padding: 0;
+        color: #0d6efd;
+        font-size: 13px;
+        text-align: left;
+        cursor: pointer;
+        flex: 1;
+      `;
+      nameBtn.addEventListener('click', () => {
+        window.location.href = `https://gogetta.nyc/team/location/${match.id}`;
+      });
+      titleRow.appendChild(nameBtn);
+      card.appendChild(titleRow);
+      (match.reasons || []).forEach((reason) => {
+        const reasonLine = document.createElement('div');
+        const values = (reason.values || []).map((value) => truncateText(String(value), 64));
+        const extra = Math.max(0, (reason.count || 0) - values.length);
+        const suffix = extra ? ` (+${extra} more)` : '';
+        reasonLine.textContent = `Shared ${reason.label.toLowerCase()}: ${values.join(', ')}${suffix}`;
+        reasonLine.style.cssText = 'font-size: 11px; color: #555; margin-top: 4px;';
+        card.appendChild(reasonLine);
+      });
+      list.appendChild(card);
+    });
+  };
+  const formatSummary = (entry) => {
+    const count = entry?.matches?.length || 0;
+    if (!entry?.meta) {
+      return `Found ${count} related location${count === 1 ? '' : 's'}.`;
+    }
+    const sourceLabel = entry.meta.source === 'cache-stale'
+      ? 'cache (stale)'
+      : (entry.meta.source || 'cache');
+    const limited = entry.meta.limited ? `, showing first ${RELATED_LOCATIONS_RESULTS_LIMIT}` : '';
+    const scanLimit = entry.meta.scanLimited ? `, scan limited to ${RELATED_LOCATIONS_SCAN_LIMIT}` : '';
+    const scanned = Number.isFinite(entry.meta.scanned) ? entry.meta.scanned : count;
+    const total = Number.isFinite(entry.meta.total) ? entry.meta.total : scanned;
+    return `Found ${count} related location${count === 1 ? '' : 's'} (scanned ${scanned} of ${total}${scanLimit}${limited}) - ${sourceLabel}`;
+  };
+  const hideSourceSection = (message) => {
+    if (!sourceSection || !sourceSection.isConnected) return;
+    sourceSection.dataset.relatedStatus = 'empty';
+    if (message) {
+      const meta = sourceSection.querySelector('[data-related-meta="true"]');
+      if (meta) {
+        meta.textContent = message;
+      }
+    }
+    setTimeout(() => {
+      if (!sourceSection.isConnected) return;
+      if (sourceSection.dataset.relatedStatus === 'empty') {
+        sourceSection.style.display = 'none';
+      }
+    }, 1400);
+  };
+  if (!keyIndex.hasAny) {
+    updateSummary('No contact info available to match.', '#666');
+    hideSourceSection('No contact info to match.');
+    return;
+  }
+  const entry = ensureRelatedMatchesLoaded({
+    locationId,
+    locationData,
+    contactData,
+    keyIndex,
+    immediate: true
+  });
+  if (!entry) {
+    updateSummary('No contact info available to match.', '#666');
+    hideSourceSection('No contact info to match.');
+    return;
+  }
+  const applyEntry = (resolved) => {
+    if (!resolved || requestId !== relatedLocationsRequestId) return;
+    if (resolved.status === 'loading') {
+      updateSummary('Searching for related locations...');
+      showLoading('Searching for related locations...');
+      return;
+    }
+    if (resolved.status === 'ready') {
+      updateSummary(formatSummary(resolved));
+      renderMatches(resolved.matches || []);
+      return;
+    }
+    if (resolved.status === 'empty') {
+      updateSummary('No related locations found.', '#666');
+      renderMatches([]);
+      hideSourceSection('No related locations found.');
+      return;
+    }
+    if (resolved.status === 'error') {
+      updateSummary(resolved.error || 'Failed to load related locations.', '#c62828');
+      return;
+    }
+  };
+  applyEntry(entry);
+  if (entry.status === 'loading' && entry.promise) {
+    entry.promise.then((resolved) => {
+      applyEntry(resolved);
+    });
+  }
+}
 function buildLocationContactData(locationData, locationId) {
   const linkItems = [];
   const emailItems = [];
@@ -449,6 +1356,12 @@ function buildLocationContactData(locationData, locationId) {
       sourceLabel
     });
   };
+  if (locationData?.Organization?.email) {
+    addEmail(locationData.Organization.email, 'Organization email');
+  }
+  if (locationData?.email) {
+    addEmail(locationData.email, 'Location email');
+  }
   const services = coerceServicesArray(locationData?.Services || locationData?.services);
   services.forEach(service => {
     const serviceName = service?.name ? truncateText(service.name, 40) : 'Service';
@@ -517,7 +1430,106 @@ function buildLocationContactData(locationData, locationId) {
   generalEmails.forEach(email => addEmail(email, 'Detected email'));
   return { linkItems, emailItems, phoneItems };
 }
+async function patchLocationOrganizationEmail(locationId, orgId, email) {
+  if (!locationId) throw new Error('Missing location id.');
+  const url = `${LOCATION_API_BASE}/${locationId}`;
+  const payload = { Organization: { email: email || null } };
+  if (orgId) payload.Organization.id = orgId;
+  const { accessToken, idToken } = getCognitoTokens();
+  const tokens = [idToken, accessToken].filter(Boolean);
+  if (!tokens.length) tokens.push(null);
+  const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+  const attempt = async (token, useBearer) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      accept: 'application/json, text/plain, */*'
+    };
+    if (token) headers.Authorization = useBearer ? `Bearer ${token}` : token;
+    return fetcher(url, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(payload),
+      mode: 'cors',
+      credentials: 'include'
+    });
+  };
+  let res = null;
+  for (const token of tokens) {
+    if (token) {
+      res = await attempt(token, false);
+      if (res.ok) break;
+      if (res.status !== 401 && res.status !== 403) break;
+      res = await attempt(token, true);
+      if (res.ok) break;
+      if (res.status !== 401 && res.status !== 403) break;
+    } else {
+      res = await attempt(null, false);
+      if (res.ok) break;
+    }
+  }
+  if (!res) {
+    throw new Error('Email update failed: no response');
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Email update failed (${res.status}): ${text || 'unknown error'}`);
+  }
+  return res.json().catch(() => null);
+}
+function updateCachedLocationOrganizationEmail(locationId, email) {
+  if (!locationId) return false;
+  const locationKey = String(locationId).toLowerCase();
+  const applyUpdate = (data) => {
+    if (!data || typeof data !== 'object') return false;
+    if (!data.Organization || typeof data.Organization !== 'object') {
+      data.Organization = {};
+    }
+    data.Organization.email = email || null;
+    if (data.organization && typeof data.organization === 'object') {
+      data.organization.email = email || null;
+    }
+    return true;
+  };
+  let updated = false;
+  if (typeof locationRecordCache !== 'undefined') {
+    const memEntry = locationRecordCache.get(locationId) || locationRecordCache.get(locationKey);
+    if (memEntry?.data && applyUpdate(memEntry.data)) {
+      locationRecordCache.set(locationId, { data: memEntry.data, timestamp: Date.now() });
+      updated = true;
+    }
+  }
+  if (typeof getCachedLocationData === 'function' && typeof setCachedLocationData === 'function') {
+    try {
+      const cachedData = getCachedLocationData(locationId);
+      if (cachedData && applyUpdate(cachedData)) {
+        setCachedLocationData(locationId, cachedData);
+        updated = true;
+      }
+    } catch (_error) {
+      // Ignore cache update failure.
+    }
+  }
+  if (typeof PAGE_LOCATION_CACHE_KEY !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(PAGE_LOCATION_CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.uuid && String(parsed.uuid).toLowerCase() === locationKey && parsed?.data) {
+          if (applyUpdate(parsed.data)) {
+            parsed.timestamp = Date.now();
+            localStorage.setItem(PAGE_LOCATION_CACHE_KEY, JSON.stringify(parsed));
+            updated = true;
+          }
+        }
+      }
+    } catch (_error) {
+      // Ignore page cache update failure.
+    }
+  }
+  return updated;
+}
 function removeLocationContactOverlay() {
+  removeRelatedLocationsOverlay();
   document.getElementById(LOCATION_CONTACT_CONTAINER_ID)?.remove();
 }
 function renderLocationContactOverlay(locationId, locationData) {
@@ -525,9 +1537,6 @@ function renderLocationContactOverlay(locationId, locationData) {
   const wasOpen = existing?.dataset?.open === 'true';
   if (existing) existing.remove();
   const { linkItems, emailItems, phoneItems } = buildLocationContactData(locationData, locationId);
-  if (!linkItems.length && !emailItems.length && !phoneItems.length) {
-    return;
-  }
   const container = document.createElement('div');
   container.id = LOCATION_CONTACT_CONTAINER_ID;
   container.dataset.open = wasOpen ? 'true' : 'false';
@@ -762,9 +1771,182 @@ function renderLocationContactOverlay(locationId, locationData) {
     }
     return entry;
   };
+  const createOrganizationEmailSection = () => {
+    const section = document.createElement('div');
+    section.style.marginBottom = '12px';
+    const header = document.createElement('div');
+    header.textContent = 'Organization email';
+    header.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 6px;';
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+    const input = document.createElement('input');
+    input.type = 'email';
+    input.placeholder = 'Add organization email';
+    input.value = String(locationData?.Organization?.email || '').trim();
+    input.style.cssText = `
+      flex: 1;
+      min-width: 0;
+      padding: 4px 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+    `;
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.textContent = input.value ? 'Update' : 'Add';
+    saveBtn.style.cssText = `
+      background: #0d6efd;
+      color: #fff;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    `;
+    const status = createMeta('');
+    let saving = false;
+    let currentEmail = input.value;
+    const setSaveState = () => {
+      const nextValue = input.value.trim();
+      const dirty = nextValue !== currentEmail;
+      saveBtn.disabled = saving || !dirty;
+      saveBtn.style.opacity = saveBtn.disabled ? '0.6' : '1';
+      saveBtn.style.cursor = saveBtn.disabled ? 'default' : 'pointer';
+    };
+    const setStatus = (text, color) => {
+      status.textContent = text;
+      status.style.color = color || '#666';
+    };
+    input.addEventListener('input', () => {
+      setStatus('', '#666');
+      setSaveState();
+    });
+    saveBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const nextValue = input.value.trim();
+      if (nextValue && !LOCATION_EMAIL_VALIDATION_RE.test(nextValue)) {
+        setStatus('Enter a valid email.', '#c62828');
+        return;
+      }
+      saving = true;
+      setSaveState();
+      setStatus('Saving...', '#666');
+      try {
+        await patchLocationOrganizationEmail(locationId, locationData?.Organization?.id, nextValue || null);
+        currentEmail = nextValue;
+        if (!locationData.Organization || typeof locationData.Organization !== 'object') {
+          locationData.Organization = {};
+        }
+        locationData.Organization.email = nextValue || null;
+        updateCachedLocationOrganizationEmail(locationId, nextValue || null);
+        setStatus('Saved.', '#2e7d32');
+        setTimeout(() => {
+          if (!document.getElementById(LOCATION_CONTACT_CONTAINER_ID)) return;
+          renderLocationContactOverlay(locationId, locationData);
+        }, 200);
+      } catch (err) {
+        setStatus(err?.message || 'Failed to update email.', '#c62828');
+      } finally {
+        saving = false;
+        setSaveState();
+      }
+    });
+    row.appendChild(input);
+    row.appendChild(saveBtn);
+    section.appendChild(header);
+    section.appendChild(row);
+    section.appendChild(status);
+    setSaveState();
+    return section;
+  };
+  const createRelatedLocationsSection = () => {
+    const contactData = { linkItems, emailItems, phoneItems };
+    const keyIndex = buildContactKeyIndexFromItems(contactData);
+    if (!keyIndex.hasAny) return null;
+    const entry = ensureRelatedMatchesLoaded({
+      locationId,
+      locationData,
+      contactData,
+      keyIndex,
+      immediate: false
+    });
+    if (entry?.status === 'empty') return null;
+    const section = document.createElement('div');
+    section.style.marginBottom = '12px';
+    const header = document.createElement('div');
+    header.textContent = 'Related locations';
+    header.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 6px;';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Find related locations';
+    button.style.cssText = `
+      background: #0d6efd;
+      color: #fff;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    `;
+    const status = createMeta('Checking for matches...');
+    status.dataset.relatedMeta = 'true';
+    const applyEntryState = (resolved) => {
+      if (!resolved || !section.isConnected) return;
+      section.dataset.relatedStatus = resolved.status || '';
+      if (resolved.status === 'ready') {
+        const count = resolved.matches?.length || 0;
+        button.textContent = count ? `Related (${count})` : 'Find related locations';
+        status.textContent = count
+          ? `${count} related location${count === 1 ? '' : 's'} found.`
+          : 'Matches cached locations sharing a phone, email, or link.';
+        return;
+      }
+      if (resolved.status === 'loading') {
+        button.textContent = 'Find related locations';
+        status.textContent = 'Checking for matches...';
+        return;
+      }
+      if (resolved.status === 'empty') {
+        status.textContent = 'No related locations found.';
+        section.dataset.relatedStatus = 'empty';
+        setTimeout(() => {
+          if (!section.isConnected) return;
+          if (section.dataset.relatedStatus === 'empty') {
+            section.style.display = 'none';
+          }
+        }, 1400);
+        return;
+      }
+      if (resolved.status === 'error') {
+        button.textContent = 'Retry related locations';
+        status.textContent = 'Failed to check. Click to retry.';
+      }
+    };
+    applyEntryState(entry);
+    if (entry?.status === 'loading' && entry.promise) {
+      entry.promise.then((resolved) => {
+        applyEntryState(resolved);
+      });
+    }
+    button.addEventListener('click', () => {
+      openRelatedLocationsOverlay({
+        locationId,
+        locationData,
+        contactData,
+        sourceSection: section
+      });
+    });
+    section.appendChild(header);
+    section.appendChild(button);
+    section.appendChild(status);
+    return section;
+  };
+  panel.appendChild(createOrganizationEmailSection());
   appendSection('Links', linkItems, createLinkEntry);
   appendSection('Emails', emailItems, createEmailEntry);
   appendSection('Phones', phoneItems, createPhoneEntry);
+  const relatedSection = createRelatedLocationsSection();
+  if (relatedSection) panel.appendChild(relatedSection);
   container.appendChild(toggle);
   container.appendChild(panel);
   document.body.appendChild(container);
@@ -834,7 +2016,7 @@ function linkifyPhonesAndEmails(rootDoc){
   const root = rootDoc || document;
   // 1) Rewrite existing <a href="tel:"> and <a href="mailto:">
   root.querySelectorAll('a[href^="tel:"], a[href^="mailto:"]').forEach(a => {
-    if (a.closest(`#${LOCATION_CONTACT_CONTAINER_ID}`)) return;
+    if (a.closest(`#${LOCATION_CONTACT_CONTAINER_ID},#${RELATED_LOCATIONS_OVERLAY_ID}`)) return;
     const href = a.getAttribute('href') || "";
     if (href.startsWith("tel:")) {
       const url = buildGVUrl(href.slice(4));
@@ -854,7 +2036,7 @@ function linkifyPhonesAndEmails(rootDoc){
       acceptNode(node){
         if (!node.nodeValue || !/[A-Za-z0-9@]/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
         // skip inside these
-        if (node.parentElement?.closest(`a,script,style,textarea,select,code,pre,svg,#yp-embed-wrapper,#${LOCATION_CONTACT_CONTAINER_ID}`)) {
+        if (node.parentElement?.closest(`a,script,style,textarea,select,code,pre,svg,#yp-embed-wrapper,#${LOCATION_CONTACT_CONTAINER_ID},#${RELATED_LOCATIONS_OVERLAY_ID}`)) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;

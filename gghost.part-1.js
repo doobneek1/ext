@@ -55,11 +55,13 @@ const NOTE_API = "https://locationnote1-iygwucy2fa-uc.a.run.app";
 const EDIT_TIMELINE_API = window.gghost?.EDIT_TIMELINE_API
   || "https://us-central1-doobneek-fe7b7.cloudfunctions.net/locationNotesTimeline";
 const NOTE_API_SKIP_HOST_RE = /(^|\.)test\.gogetta\.nyc$|(^|\.)test\.yourpeer(\.nyc)?$/i;
-const EDIT_TIMELINE_ENABLED = window.gghost?.EDIT_TIMELINE_ENABLED ?? false;
+const EDIT_TIMELINE_ENABLED = window.gghost?.EDIT_TIMELINE_ENABLED ?? true;
+const EDIT_TIMELINE_FORCE = window.gghost?.EDIT_TIMELINE_FORCE ?? true;
 window.gghost = window.gghost || {};
 window.gghost.NOTE_API = NOTE_API;
 window.gghost.EDIT_TIMELINE_API = EDIT_TIMELINE_API;
 window.gghost.EDIT_TIMELINE_ENABLED = EDIT_TIMELINE_ENABLED;
+window.gghost.EDIT_TIMELINE_FORCE = EDIT_TIMELINE_FORCE;
 const baseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/";
 const NOTES_HIDDEN_CLASS = "gg-hide-notes";
 const NOTES_HIDDEN_STORAGE_KEY = "hideNotes";
@@ -371,9 +373,13 @@ function fetchViaBackground(url, options = {}) {
           return;
         }
         const headers = new Headers(response.headers || {});
-        const status = typeof response.status === 'number' ? response.status : 0;
-        const body = response.body || '';
-        resolve(new Response(body, { status, statusText: response.statusText || '', headers }));
+        const rawStatus = typeof response.status === 'number' ? response.status : 0;
+        const status = rawStatus >= 200 && rawStatus <= 599 ? rawStatus : 503;
+        const statusText = response.statusText || (rawStatus ? '' : 'fetch failed');
+        const method = String(options?.method || 'GET').toUpperCase();
+        const isNullBodyStatus = status === 204 || status === 205 || status === 304 || method === 'HEAD';
+        const body = isNullBodyStatus ? null : (response.body || '');
+        resolve(new Response(body, { status, statusText, headers }));
       });
     } catch (err) {
       reject(err);
@@ -400,6 +406,97 @@ async function fetchLocationsByRadiusViaExtension(query) {
 }
 window.gghost = window.gghost || {};
 window.gghost.fetchLocationsByRadius = fetchLocationsByRadiusViaExtension;
+const NOTE_QUEUE_KEY = 'gghost-note-queue';
+const NOTE_QUEUE_MAX = 120;
+let noteQueueFlushInFlight = false;
+let noteQueueFlushScheduled = false;
+function readNoteQueue() {
+  try {
+    const raw = localStorage.getItem(NOTE_QUEUE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+function writeNoteQueue(queue) {
+  try {
+    if (!queue || !queue.length) {
+      localStorage.removeItem(NOTE_QUEUE_KEY);
+      return;
+    }
+    localStorage.setItem(NOTE_QUEUE_KEY, JSON.stringify(queue));
+  } catch (_error) {
+    // Ignore storage failures.
+  }
+}
+function scheduleNoteQueueFlush(delayMs = 2000) {
+  if (noteQueueFlushScheduled) return;
+  noteQueueFlushScheduled = true;
+  const run = () => {
+    noteQueueFlushScheduled = false;
+    void flushNoteQueue();
+  };
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(run, { timeout: Math.max(delayMs, 2000) });
+  } else {
+    setTimeout(run, delayMs);
+  }
+}
+function enqueueNotePayload(payload, reason) {
+  if (!payload || typeof payload !== 'object') return;
+  const queue = readNoteQueue();
+  queue.push({
+    payload,
+    queuedAt: Date.now(),
+    reason: reason ? String(reason) : null
+  });
+  if (queue.length > NOTE_QUEUE_MAX) {
+    queue.splice(0, queue.length - NOTE_QUEUE_MAX);
+  }
+  writeNoteQueue(queue);
+  scheduleNoteQueueFlush(6000);
+}
+async function flushNoteQueue() {
+  if (noteQueueFlushInFlight) return;
+  noteQueueFlushInFlight = true;
+  try {
+    const queue = readNoteQueue();
+    if (!queue.length) return;
+    const headers = getAuthHeaders();
+    const remaining = [];
+    for (let i = 0; i < queue.length; i += 1) {
+      const item = queue[i];
+      try {
+        const res = await fetchViaBackground(NOTE_API, {
+          method: "POST",
+          headers,
+          credentials: 'include',
+          body: JSON.stringify(item.payload)
+        });
+        if (res?.ok) {
+          continue;
+        }
+        const status = res?.status || 0;
+        if (status === 401 || status === 403 || status >= 500 || status === 0) {
+          remaining.push(...queue.slice(i));
+          break;
+        }
+      } catch (_error) {
+        remaining.push(...queue.slice(i));
+        break;
+      }
+    }
+    writeNoteQueue(remaining);
+    if (remaining.length) {
+      scheduleNoteQueueFlush(10000);
+    }
+  } finally {
+    noteQueueFlushInFlight = false;
+  }
+}
+window.gghost.flushNoteQueue = flushNoteQueue;
 async function postToNoteAPI(payload) {
   if (shouldSkipNoteApi()) {
     return new Response('', { status: 204, statusText: 'Skipped note API on test host' });
@@ -407,16 +504,28 @@ async function postToNoteAPI(payload) {
   console.log('[postToNoteAPI] Making authenticated API call with payload:', payload);
   const headers = getAuthHeaders();
   console.log('[postToNoteAPI] Using headers:', headers);
-  const response = await fetchViaBackground(NOTE_API, {
-    method: "POST",
-    headers: headers,
-    credentials: 'include',
-    body: JSON.stringify(payload)
-  });
-  console.log('[postToNoteAPI] Response status:', response.status);
-  return response;
+  try {
+    const response = await fetchViaBackground(NOTE_API, {
+      method: "POST",
+      headers: headers,
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
+    const status = response?.status || 0;
+    console.log('[postToNoteAPI] Response status:', status);
+    if (!response?.ok && (status >= 500 || status === 0)) {
+      enqueueNotePayload(payload, `HTTP ${status || 'unknown'}`);
+    } else if (response?.ok) {
+      scheduleNoteQueueFlush(1500);
+    }
+    return response;
+  } catch (err) {
+    enqueueNotePayload(payload, err?.message || 'fetch failed');
+    return new Response('', { status: 503, statusText: 'Note API fetch failed' });
+  }
 }
 window.gghost.postToNoteAPI = postToNoteAPI;
+scheduleNoteQueueFlush(4000);
 function normalizeOrgName(name) {
   return (name || "")
     .toLowerCase()
