@@ -51,18 +51,20 @@ const waitForGghostIdle = () => {
 if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
   console.warn('Extension context may be invalidated');
 }
-const NOTE_API = "https://locationnote1-iygwucy2fa-uc.a.run.app";
+const NOTE_API = "https://us-central1-streetli.cloudfunctions.net/locationNote1";
 const EDIT_TIMELINE_API = window.gghost?.EDIT_TIMELINE_API
-  || "https://us-central1-doobneek-fe7b7.cloudfunctions.net/locationNotesTimeline";
+  || "https://us-central1-streetli.cloudfunctions.net/locationNotesTimeline";
 const NOTE_API_SKIP_HOST_RE = /(^|\.)test\.gogetta\.nyc$|(^|\.)test\.yourpeer(\.nyc)?$/i;
 const EDIT_TIMELINE_ENABLED = window.gghost?.EDIT_TIMELINE_ENABLED ?? true;
-const EDIT_TIMELINE_FORCE = window.gghost?.EDIT_TIMELINE_FORCE ?? true;
+const EDIT_TIMELINE_FORCE = window.gghost?.EDIT_TIMELINE_FORCE ?? false;
+const EDIT_TIMELINE_PREFETCH = window.gghost?.EDIT_TIMELINE_PREFETCH ?? false;
 window.gghost = window.gghost || {};
 window.gghost.NOTE_API = NOTE_API;
 window.gghost.EDIT_TIMELINE_API = EDIT_TIMELINE_API;
 window.gghost.EDIT_TIMELINE_ENABLED = EDIT_TIMELINE_ENABLED;
 window.gghost.EDIT_TIMELINE_FORCE = EDIT_TIMELINE_FORCE;
-const baseURL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/";
+window.gghost.EDIT_TIMELINE_PREFETCH = EDIT_TIMELINE_PREFETCH;
+const baseURL = "https://streetli-default-rtdb.firebaseio.com/";
 const NOTES_HIDDEN_CLASS = "gg-hide-notes";
 const NOTES_HIDDEN_STORAGE_KEY = "hideNotes";
 function ensureNotesHiddenStyle() {
@@ -2046,6 +2048,8 @@ async function checkResponse(response, actionDescription) {
 }
 const PAGE_LOCATION_CACHE_KEY = 'gghost-page-location-cache';
 const PAGE_LOCATION_CACHE_TTL_MS = 2 * 60 * 1000;
+const PAGE_LOCATION_CACHE_WAIT_MS = 1500;
+const PAGE_LOCATION_CACHE_WAIT_INTERVAL_MS = 120;
 function getCurrentPageLocationUuid() {
   const match = location.pathname.match(/\/(?:team|find)\/location\/([a-f0-9-]{12,36})/i);
   return match ? match[1] : null;
@@ -2080,6 +2084,19 @@ function readPageLocationCache(uuid, { allowStale = false } = {}) {
     return null;
   }
   return entry.data;
+}
+async function waitForPageLocationCache(uuid, { timeoutMs = PAGE_LOCATION_CACHE_WAIT_MS, intervalMs = PAGE_LOCATION_CACHE_WAIT_INTERVAL_MS } = {}) {
+  if (!uuid) return null;
+  const normalized = String(uuid).toLowerCase();
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const pageUuid = getCurrentPageLocationUuid();
+    if (!pageUuid || pageUuid.toLowerCase() !== normalized) return null;
+    const data = readPageLocationCache(uuid);
+    if (data) return data;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return null;
 }
 const VISIT_HISTORY_STORAGE_KEY = 'gghost-location-visit-history';
 const VISIT_HISTORY_LIMIT = 200;
@@ -2272,6 +2289,17 @@ async function fetchLocationDetails(uuid, { refresh = false } = {}) {
       const result = buildLocationDetails(pageData, lastValidated);
       locationDetailsCache.set(uuid, { data: result, timestamp: Date.now() });
       return result;
+    }
+    const pageUuid = getCurrentPageLocationUuid();
+    if (pageUuid && pageUuid.toLowerCase() === uuid.toLowerCase()) {
+      const awaited = await waitForPageLocationCache(uuid);
+      if (awaited) {
+        const lastValidated = awaited.last_validated_at || null;
+        await recordLocationStatsFromPayload(uuid, awaited, { source: "page-cache-wait" });
+        const result = buildLocationDetails(awaited, lastValidated);
+        locationDetailsCache.set(uuid, { data: result, timestamp: Date.now() });
+        return result;
+      }
     }
   }
   const request = (async () => {
@@ -3069,40 +3097,52 @@ async function getUserNameSafely() {
     }
   });
 }
+const urlChangeCallbacks = new Set();
+let urlChangeObserverInstalled = false;
+let lastUrlForChange = location.href;
 function onUrlChange(callback) {
-  let lastUrl = location.href;
+  if (typeof callback === 'function') {
+    urlChangeCallbacks.add(callback);
+  }
+  if (urlChangeObserverInstalled) return;
+  urlChangeObserverInstalled = true;
   const notifyIfChanged = () => {
     const currentUrl = location.href;
-    if (currentUrl === lastUrl) return;
-    lastUrl = currentUrl;
-    try {
-      callback(currentUrl);
-    } catch (error) {
-      if (error.message && error.message.includes('Extension context invalidated')) {
-        console.warn('[gghost] Extension context invalidated, stopping URL monitoring');
-        return;
+    if (currentUrl === lastUrlForChange) return;
+    lastUrlForChange = currentUrl;
+    urlChangeCallbacks.forEach((cb) => {
+      try {
+        cb(currentUrl);
+      } catch (error) {
+        if (error.message && error.message.includes('Extension context invalidated')) {
+          console.warn('[gghost] Extension context invalidated, stopping URL monitoring');
+          return;
+        }
+        console.error('[gghost] URL change callback error:', error);
       }
-      console.error('[gghost] URL change callback error:', error);
-    }
+    });
   };
   new MutationObserver(() => {
     notifyIfChanged();
   }).observe(document, { subtree: true, childList: true });
-  const pushState = history.pushState;
-  history.pushState = function () {
-    pushState.apply(this, arguments);
-    window.dispatchEvent(new Event('pushstate'));
-    window.dispatchEvent(new Event('locationchange'));
-  };
-  const replaceState = history.replaceState;
-  history.replaceState = function () {
-    replaceState.apply(this, arguments);
-    window.dispatchEvent(new Event('replacestate'));
-    window.dispatchEvent(new Event('locationchange'));
-  };
-  window.addEventListener('popstate', () => {
-    window.dispatchEvent(new Event('locationchange'));
-  });
+  if (!window.__gghostHistoryWrapped) {
+    window.__gghostHistoryWrapped = true;
+    const pushState = history.pushState;
+    history.pushState = function () {
+      pushState.apply(this, arguments);
+      window.dispatchEvent(new Event('pushstate'));
+      window.dispatchEvent(new Event('locationchange'));
+    };
+    const replaceState = history.replaceState;
+    history.replaceState = function () {
+      replaceState.apply(this, arguments);
+      window.dispatchEvent(new Event('replacestate'));
+      window.dispatchEvent(new Event('locationchange'));
+    };
+    window.addEventListener('popstate', () => {
+      window.dispatchEvent(new Event('locationchange'));
+    });
+  }
   window.addEventListener('locationchange', notifyIfChanged);
   window.addEventListener('pushstate', notifyIfChanged);
   window.addEventListener('replacestate', notifyIfChanged);
@@ -3212,3 +3252,4 @@ function pickServiceHash(services, preferredId = null) {
   }
   return serviceNameToHash(chosen?.name);
 }
+

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 import argparse
 import csv
 import json
@@ -13,8 +13,8 @@ import urllib.request
 DEFAULT_LOCATION_API = "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations"
 DEFAULT_SERVICE_API = "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/services"
 DEFAULT_PHONE_API = "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/phones"
-DEFAULT_NOTE_API = "https://locationnote1-iygwucy2fa-uc.a.run.app"
-DEFAULT_NOTE_BASE_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/"
+DEFAULT_NOTE_API = "https://us-central1-streetli.cloudfunctions.net/locationNote1"
+DEFAULT_NOTE_BASE_URL = "https://streetli-default-rtdb.firebaseio.com/"
 REQUEST_DELAY_MIN = 0.0
 REQUEST_DELAY_MAX = 0.0
 EVENT_OCCASION = "COVID19"
@@ -93,6 +93,12 @@ def parse_args(argv):
         "--note-base-url",
         default=DEFAULT_NOTE_BASE_URL,
         help="Base URL for locationNotes reads.",
+    )
+    parser.add_argument(
+        "--note-batch-size",
+        type=int,
+        default=50,
+        help="Number of locationNotes to send per batch request (0 = no limit).",
     )
     parser.add_argument(
         "--location-api",
@@ -1380,56 +1386,101 @@ def main(argv):
             break
     if not args.dry_run and not stop_for_error:
         today = time.strftime("%Y-%m-%d")
+        note_entries = []
         for location_id, note_list in note_updates.items():
             summary = " | ".join(note_list)
             if not summary:
                 continue
-            existing = fetch_existing_note(
-                args.note_base_url, location_id, args.notes_user, today
+            if not contains_revalidate_tag(summary):
+                summary = f"{summary} <<did not revalidate>>"
+            note_entries.append(
+                {
+                    "uuid": location_id,
+                    "userName": args.notes_user,
+                    "date": today,
+                    "note": summary,
+                }
             )
-            if existing:
-                if contains_revalidate_tag(existing):
-                    note_text = existing + " | " + summary
-                else:
-                    note_text = existing + " | " + summary + " <<did not revalidate>>"
-            else:
-                note_text = summary + " <<did not revalidate>>"
-            note_body = {
-                "uuid": location_id,
-                "userName": args.notes_user,
-                "date": today,
-                "note": note_text,
-            }
+
+        batch_size = max(int(args.note_batch_size or 0), 0)
+        if batch_size <= 0:
+            batch_size = len(note_entries) or 1
+
+        def parse_note_batch_errors(body_text):
+            if not body_text:
+                return []
+            try:
+                data = json.loads(body_text)
+            except json.JSONDecodeError:
+                return []
+            if not isinstance(data, dict):
+                return []
+            errors = data.get("errors")
+            if isinstance(errors, list):
+                return errors
+            results = data.get("results")
+            if isinstance(results, list):
+                return [
+                    entry
+                    for entry in results
+                    if isinstance(entry, dict) and entry.get("status") == "error"
+                ]
+            return []
+
+        for idx in range(0, len(note_entries), batch_size):
+            batch = note_entries[idx : idx + batch_size]
             status, body = http_request(
                 "POST",
                 args.note_api,
                 headers=build_note_headers(token),
-                payload=note_body,
+                payload={"batch": batch},
                 timeout=30,
             )
             if status is None or status >= 300:
                 error_note = format_http_error("POST", args.note_api, status, body)
-                if is_auth_error(status or 0, body):
-                    print(f"[AUTH] note:{location_id}: {error_note}")
-                    stop_reason = "auth_error"
-                else:
-                    print(f"[ERROR] note:{location_id}: {error_note}")
-                    stop_reason = "note_error"
-                add_flagged(
-                    {
-                        "location_id": location_id,
-                        "service_id": "",
-                        "phone_id": "",
-                        "source": "note",
-                        "target": "location_note",
-                        "reason": f"note_error:{error_note}",
-                        "url": build_location_link(location_id),
-                        "text_excerpt": "",
-                    }
-                )
+                batch_reason = "auth_error" if is_auth_error(status or 0, body) else "note_error"
+                for entry in batch:
+                    location_id = entry.get("uuid") or ""
+                    add_flagged(
+                        {
+                            "location_id": location_id,
+                            "service_id": "",
+                            "phone_id": "",
+                            "source": "note",
+                            "target": "location_note",
+                            "reason": f"note_error:{error_note}",
+                            "url": build_location_link(location_id) if location_id else "",
+                            "text_excerpt": "",
+                        }
+                    )
+                print(f"[ERROR] note batch: {error_note}")
+                stop_reason = batch_reason
                 stop_processing = True
                 stop_for_error = True
-                stop_patch_key = f"note:{location_id}"
+                stop_patch_key = f"note:{batch[0].get('uuid')}" if batch else "note:batch"
+                break
+            batch_errors = parse_note_batch_errors(body)
+            if batch_errors:
+                for entry in batch_errors:
+                    location_id = entry.get("uuid") or ""
+                    error_text = entry.get("error") or entry.get("message") or "note_error"
+                    add_flagged(
+                        {
+                            "location_id": location_id,
+                            "service_id": "",
+                            "phone_id": "",
+                            "source": "note",
+                            "target": "location_note",
+                            "reason": f"note_error:{error_text}",
+                            "url": build_location_link(location_id) if location_id else "",
+                            "text_excerpt": "",
+                        }
+                    )
+                print(f"[ERROR] note batch returned {len(batch_errors)} errors")
+                stop_reason = "note_error"
+                stop_processing = True
+                stop_for_error = True
+                stop_patch_key = f"note:{batch_errors[0].get('uuid')}" if batch_errors else "note:batch"
                 break
     if patched_handle:
         patched_handle.close()
@@ -1454,3 +1505,4 @@ def main(argv):
     return 0
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
+

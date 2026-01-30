@@ -3,6 +3,7 @@
   window.__gghostServiceApiMonitorInstalled = true;
   const SERVICE_API_RE = /\/(prod|stage)\/services(\/|$)/i;
   const LOCATION_API_RE = /\/(prod|stage)\/locations(\/|$)/i;
+  const LOCATION_ID_RE = /\/(prod|stage)\/locations\/([0-9a-f-]+)/i;
   const PHONE_API_RE = /\/(prod|stage)\/phones\/[a-f0-9-]+/i;
   const TRACKED_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
   const PHONE_METHODS = new Set(["POST", "PATCH", "PUT"]);
@@ -13,14 +14,34 @@
   const NONE_LABEL = 'none';
   const PROOFS_METHODS = new Set(["PATCH", "PUT"]);
   const NONE_CLEAR_ATTR = 'data-gghost-proofs-none-clear';
+  const getLocationIdFromUrl = (url) => {
+    if (!url) return null;
+    const match = String(url).match(LOCATION_ID_RE);
+    return match ? match[2].toLowerCase() : null;
+  };
+  const getCurrentLocationId = () => {
+    const match = location.pathname.match(/\/(?:team|find)\/location\/([0-9a-f-]{12,36})/i);
+    return match ? match[1].toLowerCase() : null;
+  };
+  const shouldTrackLocationGet = (url, method) => {
+    if (!url || !method) return false;
+    if (String(method).toUpperCase() !== "GET") return false;
+    if (!LOCATION_API_RE.test(String(url))) return false;
+    const requestId = getLocationIdFromUrl(url);
+    const currentId = getCurrentLocationId();
+    return !!(requestId && currentId && requestId === currentId);
+  };
   const getApiTarget = (url, method) => {
     if (!url || !method) return null;
     const upper = String(method).toUpperCase();
-    if (!TRACKED_METHODS.has(upper)) return null;
-    const urlString = String(url);
-    if (SERVICE_API_RE.test(urlString)) return "service";
-    if (LOCATION_API_RE.test(urlString)) return "location";
-    if (PHONE_API_RE.test(urlString)) return "phone";
+    if (TRACKED_METHODS.has(upper)) {
+      const urlString = String(url);
+      if (SERVICE_API_RE.test(urlString)) return "service";
+      if (LOCATION_API_RE.test(urlString)) return "location";
+      if (PHONE_API_RE.test(urlString)) return "phone";
+      return null;
+    }
+    if (shouldTrackLocationGet(url, upper)) return "location";
     return null;
   };
   const shouldSanitizePhone = (url, method) => {

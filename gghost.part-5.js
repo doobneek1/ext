@@ -357,9 +357,12 @@ const CLOSE_LOCATION_OVERLAY_ID = "gghost-close-location-overlay";
 const CLOSE_LOCATION_CLOSE_MODE = "close";
 const CLOSE_LOCATION_REOPEN_MODE = "reopen";
 const CLOSE_LOCATION_EDIT_MODE = "edit";
+const CLOSE_LOCATION_RETRY_DELAYS_MS = [500, 1500, 3500, 7000];
 const closeLocationStateCache = new Map();
 let closeLocationButtonObserver = null;
 let closeLocationButtonRequestId = 0;
+let closeLocationButtonUpdatePending = false;
+let closeLocationButtonActiveId = null;
 function getTeamLocationHomeUuid() {
   const match = location.pathname.match(/^\/team\/location\/([a-f0-9-]{12,36})\/?$/i);
   return match ? match[1] : null;
@@ -477,20 +480,157 @@ async function fetchLocationClosureState(locationId, { refresh = false } = {}) {
     return fallback;
   }
 }
-function findLocationBackButtons() {
-  const buttons = Array.from(document.querySelectorAll('button.default.font-weight-light'));
-  return buttons.filter((btn) => {
-    if (!btn || btn.dataset.gghostCloseLocation === '1') return false;
-    const text = (btn.textContent || '').replace(/\s+/g, '').toLowerCase();
-    return text.includes('back');
+const BACK_BUTTON_LABEL_RE = /\bback\b/i;
+const BACK_BUTTON_ICON_RE = /(chevron-left|arrow-left|back|caret-left|angle-left)/i;
+const BACK_BUTTON_HINT_RE = /(back|return|previous|chevron-left|arrow-left|caret-left|angle-left)/i;
+const BACK_BUTTON_HIDDEN_ATTR = 'data-gghost-back-hidden';
+const BACK_BUTTON_DISPLAY_ATTR = 'data-gghost-back-display';
+function normalizeBackButtonLabel(value) {
+  if (!value) return '';
+  return String(value).replace(/\s+/g, ' ').trim();
+}
+function getBackButtonHintText(el) {
+  if (!el) return '';
+  const parts = [];
+  const dataIcon = normalizeBackButtonLabel(el.getAttribute?.('data-icon'));
+  if (dataIcon) parts.push(dataIcon);
+  const testId = normalizeBackButtonLabel(
+    el.getAttribute?.('data-testid') ||
+    el.getAttribute?.('data-test') ||
+    el.getAttribute?.('data-qa')
+  );
+  if (testId) parts.push(testId);
+  const classNameValue = el.className;
+  const className = normalizeBackButtonLabel(
+    typeof classNameValue === 'string'
+      ? classNameValue
+      : classNameValue?.baseVal
+  );
+  if (className) parts.push(className);
+  return parts.join(' ').trim();
+}
+function isLikelyHeaderControl(el) {
+  if (!el || typeof el.getBoundingClientRect !== 'function') return false;
+  const rect = el.getBoundingClientRect();
+  if (!Number.isFinite(rect.top) || !Number.isFinite(rect.left)) return false;
+  if (rect.width === 0 || rect.height === 0) return false;
+  if (rect.top < 0 || rect.left < 0) return false;
+  if (rect.top > 200 || rect.left > 200) return false;
+  if (rect.width > 240 || rect.height > 120) return false;
+  return true;
+}
+function hideBackButton(btn) {
+  if (!btn) return;
+  if (btn.dataset.gghostBackHidden === '1') return;
+  btn.dataset.gghostBackDisplay = btn.style.display || '';
+  btn.dataset.gghostBackHidden = '1';
+  btn.style.display = 'none';
+}
+function restoreHiddenBackButtons() {
+  const hidden = document.querySelectorAll(`[${BACK_BUTTON_HIDDEN_ATTR}="1"]`);
+  hidden.forEach((btn) => {
+    btn.style.display = btn.dataset.gghostBackDisplay || '';
+    delete btn.dataset.gghostBackHidden;
+    delete btn.dataset.gghostBackDisplay;
   });
+}
+function readLabelFromIdList(idList) {
+  if (!idList) return '';
+  const ids = idList.split(/\s+/).filter(Boolean);
+  const parts = [];
+  for (const id of ids) {
+    const node = document.getElementById(id);
+    if (node && node.textContent) {
+      const text = normalizeBackButtonLabel(node.textContent);
+      if (text) parts.push(text);
+    }
+  }
+  return parts.join(' ').trim();
+}
+function getBackButtonLabel(el) {
+  if (!el) return '';
+  const parts = [];
+  const text = normalizeBackButtonLabel(el.textContent);
+  if (text) parts.push(text);
+  const aria = normalizeBackButtonLabel(el.getAttribute('aria-label'));
+  if (aria) parts.push(aria);
+  const title = normalizeBackButtonLabel(el.getAttribute('title'));
+  if (title) parts.push(title);
+  const labelledBy = readLabelFromIdList(el.getAttribute('aria-labelledby'));
+  if (labelledBy) parts.push(labelledBy);
+  const testId = normalizeBackButtonLabel(
+    el.getAttribute('data-testid') ||
+    el.getAttribute('data-test') ||
+    el.getAttribute('data-qa')
+  );
+  if (testId) parts.push(testId);
+  const icon = el.querySelector('[aria-label], [title], svg, i');
+  if (icon) {
+    const iconLabel = normalizeBackButtonLabel(
+      icon.getAttribute?.('aria-label') ||
+      icon.getAttribute?.('title')
+    );
+    if (iconLabel) parts.push(iconLabel);
+  }
+  return parts.join(' ').trim();
+}
+function hasBackIcon(el) {
+  if (!el) return false;
+  const icon = el.querySelector('svg, i');
+  if (!icon) return false;
+  const iconClass = normalizeBackButtonLabel(icon.getAttribute?.('data-icon'));
+  const classNameValue = icon.className;
+  const className = normalizeBackButtonLabel(
+    typeof classNameValue === 'string'
+      ? classNameValue
+      : classNameValue?.baseVal
+  );
+  const iconLabel = normalizeBackButtonLabel(
+    icon.getAttribute?.('aria-label') ||
+    icon.getAttribute?.('title')
+  );
+  const combined = [iconClass, className, iconLabel].join(' ');
+  return BACK_BUTTON_ICON_RE.test(combined);
+}
+function isBackButtonCandidate(btn) {
+  if (!btn || btn.dataset.gghostCloseLocation === '1') return false;
+  if (btn.dataset.gghostBackHidden === '1') return false;
+  if (btn.closest(`#${CLOSE_LOCATION_OVERLAY_ID}`)) return false;
+  const label = getBackButtonLabel(btn);
+  if (label && BACK_BUTTON_LABEL_RE.test(label)) return true;
+  const hint = getBackButtonHintText(btn);
+  if (!label && hint && BACK_BUTTON_HINT_RE.test(hint) && isLikelyHeaderControl(btn)) return true;
+  const href = btn.getAttribute?.('href') || '';
+  if (href && /\/team(\/|$)/i.test(href)) {
+    if (hasBackIcon(btn)) return true;
+    if (!label && isLikelyHeaderControl(btn)) return true;
+  }
+  if (hasBackIcon(btn) && isLikelyHeaderControl(btn)) return true;
+  if (btn.classList?.contains('default') && btn.classList?.contains('font-weight-light')) {
+    if (isLikelyHeaderControl(btn)) return true;
+  }
+  return false;
+}
+function findLocationBackButtons() {
+  const buttons = Array.from(
+    document.querySelectorAll('button.default.font-weight-light, button, a, [role="button"]')
+  );
+  return buttons.filter(isBackButtonCandidate);
 }
 function pickPreferredBackButton(buttons) {
   if (!buttons.length) return null;
   const visible = buttons.filter((btn) => btn.offsetParent !== null);
   const candidates = visible.length ? visible : buttons;
   const absolute = candidates.find((btn) => window.getComputedStyle(btn).position === 'absolute');
-  return absolute || candidates[0];
+  if (absolute) return absolute;
+  const positioned = candidates
+    .map((btn) => ({ btn, rect: btn.getBoundingClientRect() }))
+    .filter(({ rect }) => Number.isFinite(rect.top) && Number.isFinite(rect.left));
+  if (positioned.length) {
+    positioned.sort((a, b) => (a.rect.top - b.rect.top) || (a.rect.left - b.rect.left));
+    return positioned[0].btn;
+  }
+  return candidates[0];
 }
 function getExistingCloseLocationButton(locationId) {
   const existing = document.querySelector('button[data-gghost-close-location="1"]');
@@ -498,6 +638,11 @@ function getExistingCloseLocationButton(locationId) {
   if (!locationId || existing.dataset.locationId === locationId) return existing;
   existing.remove();
   return null;
+}
+function removeCloseLocationButtons() {
+  document.querySelectorAll('button[data-gghost-close-location="1"]').forEach((btn) => {
+    btn.remove();
+  });
 }
 async function submitLocationClosure(locationId, information) {
   if (!locationId) throw new Error('Missing location id.');
@@ -639,9 +784,6 @@ function showCloseLocationOverlay(locationId, initialMessage = CLOSE_LOCATION_DE
     cancelBtn.disabled = busy;
     okBtn.style.opacity = busy ? '0.7' : '1';
   };
-  if (meta && typeof meta === 'object') {
-    note.meta = meta;
-  }
   cancelBtn.addEventListener('click', () => {
     overlay.remove();
   });
@@ -884,8 +1026,8 @@ function setCloseLocationButtonState(button, mode) {
   const nextMode = mode === CLOSE_LOCATION_REOPEN_MODE ? CLOSE_LOCATION_REOPEN_MODE : CLOSE_LOCATION_CLOSE_MODE;
   button.dataset.gghostCloseMode = nextMode;
   button.textContent = nextMode === CLOSE_LOCATION_REOPEN_MODE
-    ? 'Reopen the location?'
-    : 'Close this location?';
+    ? 'Reopen location'
+    : 'Close location';
 }
 function ensureCloseLocationButtonHandler(button) {
   if (!button || button.__gghostCloseHandlerAttached) return;
@@ -920,7 +1062,10 @@ function replaceBackButtonWithClose(locationId) {
   closeButton.className = target.className || '';
   closeButton.style.cssText = target.style.cssText || '';
   closeButton.dataset.locationId = locationId;
-  target.replaceWith(closeButton);
+  hideBackButton(target);
+  if (target !== closeButton) {
+    target.insertAdjacentElement('afterend', closeButton);
+  }
   return closeButton;
 }
 async function updateCloseLocationButtonState(locationId, button) {
@@ -932,15 +1077,46 @@ async function updateCloseLocationButtonState(locationId, button) {
   const mode = closureInfo.isClosed ? CLOSE_LOCATION_REOPEN_MODE : CLOSE_LOCATION_CLOSE_MODE;
   setCloseLocationButtonState(button, mode);
 }
+function queueCloseLocationButtonUpdate(locationId) {
+  if (!locationId) return;
+  const currentHomeId = getTeamLocationHomeUuid();
+  if (!currentHomeId) {
+    removeCloseLocationButtons();
+    restoreHiddenBackButtons();
+    return;
+  }
+  if (currentHomeId !== locationId) {
+    initializeCloseLocationButton();
+    return;
+  }
+  closeLocationButtonActiveId = locationId;
+  if (closeLocationButtonUpdatePending) return;
+  closeLocationButtonUpdatePending = true;
+  const runUpdate = () => {
+    closeLocationButtonUpdatePending = false;
+    if (closeLocationButtonActiveId !== locationId) return;
+    const updatedButton = replaceBackButtonWithClose(locationId);
+    if (updatedButton) {
+      void updateCloseLocationButtonState(locationId, updatedButton);
+    }
+  };
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(runUpdate);
+  } else {
+    setTimeout(runUpdate, 16);
+  }
+}
 function initializeCloseLocationButton() {
   if (closeLocationButtonObserver) {
     closeLocationButtonObserver.disconnect();
     closeLocationButtonObserver = null;
   }
+  closeLocationButtonUpdatePending = false;
   const locationId = getTeamLocationHomeUuid();
+  closeLocationButtonActiveId = locationId;
   if (!locationId) {
-    const existing = document.querySelector('button[data-gghost-close-location="1"]');
-    if (existing) existing.remove();
+    removeCloseLocationButtons();
+    restoreHiddenBackButtons();
     return;
   }
   const closeButton = replaceBackButtonWithClose(locationId);
@@ -950,17 +1126,29 @@ function initializeCloseLocationButton() {
   const observerRoot = document.body || document.documentElement;
   if (!observerRoot) return;
   closeLocationButtonObserver = new MutationObserver(() => {
-    const updatedButton = replaceBackButtonWithClose(locationId);
-    if (updatedButton) {
-      void updateCloseLocationButtonState(locationId, updatedButton);
-    }
+    queueCloseLocationButtonUpdate(locationId);
   });
-  closeLocationButtonObserver.observe(observerRoot, { childList: true, subtree: true });
+  closeLocationButtonObserver.observe(observerRoot, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    characterData: true
+  });
+  queueCloseLocationButtonUpdate(locationId);
+  CLOSE_LOCATION_RETRY_DELAYS_MS.forEach((delay) => {
+    setTimeout(() => queueCloseLocationButtonUpdate(locationId), delay);
+  });
 }
 initializeCloseLocationButton();
 window.addEventListener('locationchange', () => {
   initializeCloseLocationButton();
 });
+if (!window.__gghostCloseLocationUrlHooked && typeof onUrlChange === 'function') {
+  window.__gghostCloseLocationUrlHooked = true;
+  onUrlChange(() => {
+    initializeCloseLocationButton();
+  });
+}
 // Parse dateKey or value for a timestamp. Return { date: Date, dateOnly: boolean } or null
 function parseWhen(dateKey, noteVal) {
   if (!dateKey) return null;
@@ -1101,6 +1289,16 @@ function getEditTimelineState(apiBase) {
 function isEditTimelineEnabled() {
   if (window.gghost?.EDIT_TIMELINE_FORCE === true) return true;
   return window.gghost?.EDIT_TIMELINE_ENABLED === true;
+}
+function isEditTimelinePreloadEnabled() {
+  const explicit = window.gghost?.EDIT_TIMELINE_PREFETCH;
+  if (explicit === true) return true;
+  if (explicit === false) return false;
+  try {
+    const flag = localStorage.getItem('gghostEditTimelinePrefetch');
+    return flag === '1' || flag === 'true';
+  } catch {}
+  return false;
 }
 function isEditTimelineDisabled(apiBase) {
   if (!apiBase) return true;
@@ -1296,6 +1494,7 @@ async function getEditTimelineForPage(pagePath, { refresh = false } = {}) {
   return entry ? { ...result, page: entry, locationId } : result;
 }
 function preloadEditTimelineForCurrentLocation() {
+  if (!isEditTimelinePreloadEnabled()) return;
   if (!isEditTimelineEnabled()) return;
   if (typeof extractLocationIdFromPath !== 'function') return;
   const apiBase = getEditTimelineApiBase();
@@ -1316,7 +1515,7 @@ window.gghost.getEditTimelineForPage = getEditTimelineForPage;
 preloadEditTimelineForCurrentLocation();
 window.addEventListener('locationchange', preloadEditTimelineForCurrentLocation);
 const SIMILARITY_INDEX_LIST_PATH = 'locationNotesCache/similarityIndex/v1/indexes';
-const SIMILARITY_INDEX_API_DEFAULT = 'https://us-central1-doobneek-fe7b7.cloudfunctions.net/locationNotesSimilarityIndex';
+const SIMILARITY_INDEX_API_DEFAULT = 'https://us-central1-streetli.cloudfunctions.net/locationNotesSimilarityIndex';
 const SIMILARITY_INDEX_CACHE_TTL_MS = 15 * 60 * 1000;
 const similarityIndexCache = {
   data: null,
@@ -1324,7 +1523,7 @@ const similarityIndexCache = {
   promise: null
 };
 const PLAYBACK_INDEX_PAGES_PATH = 'locationNotesCache/playback/v1/pages';
-const PLAYBACK_INDEX_API_DEFAULT = 'https://us-central1-doobneek-fe7b7.cloudfunctions.net/locationNotesPlayback';
+const PLAYBACK_INDEX_API_DEFAULT = 'https://us-central1-streetli.cloudfunctions.net/locationNotesPlayback';
 const PLAYBACK_INDEX_CACHE_TTL_MS = 10 * 60 * 1000;
 const playbackIndexCache = new Map();
 function isPlaybackDebugEnabled() {
@@ -1354,7 +1553,7 @@ function logPlaybackDebug(...args) {
   console.log(...args);
 }
 function getSimilarityIndexBaseUrl() {
-  const base = window.gghost?.baseURL || 'https://doobneek-fe7b7-default-rtdb.firebaseio.com/';
+  const base = window.gghost?.baseURL || 'https://streetli-default-rtdb.firebaseio.com/';
   return base.endsWith('/') ? base : `${base}/`;
 }
 function getSimilarityIndexApiBase() {
@@ -3963,7 +4162,7 @@ const scheduleNotesExtras = () => {
       parentEl: readOnlyDiv,
       uuid,                       // same uuid you already computed above
       userName,                   // current user (already resolved earlier)
-      NOTE_API,                   // "https://locationnote1-iygwucy2fa-uc.a.run.app"
+      NOTE_API,                   // "https://us-central1-streetli.cloudfunctions.net/locationNote1"
       today,                       // you already have const today = new Date().toISOString().slice(0, 10);
       done: false
     }))
@@ -6443,3 +6642,4 @@ function buildFutureOrgKey({ phone, website, email }) {
   const e = toFirebaseKey(normalizeEmail(email) || "x");
   return `${p || "x"}-${w || "x"}-${e || "x"}`;
 }
+

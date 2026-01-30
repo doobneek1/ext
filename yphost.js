@@ -374,7 +374,7 @@ document.querySelectorAll('div[id]').forEach(async section => {
       }
       // 🔹 Show draggable read-only note overlay
 try {
-  const NOTE_API = window.gghost?.NOTE_API || "https://locationnote1-iygwucy2fa-uc.a.run.app";
+  const NOTE_API = window.gghost?.NOTE_API || "https://us-central1-streetli.cloudfunctions.net/locationNote1";
   const noteHeaders = window.gghost?.getAuthHeaders ? window.gghost.getAuthHeaders() : { 'Content-Type': 'application/json' };
   const noteRes = await fetch(`${NOTE_API}?uuid=${uuid}`, {
     headers: noteHeaders,
@@ -702,3 +702,4 @@ Object.assign(note.style, {
     });
   }
 })();
+

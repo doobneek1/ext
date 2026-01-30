@@ -112,14 +112,14 @@ async function showTaxonomyHeartOverlay(locationId) {
     removeTaxonomyHeartOverlay();
     return;
   }
-  const { data: locationData, fromCache } = await fetchFullLocationRecord(locationId, { refresh: false });
+  const { data: locationData, fromCache, source } = await fetchFullLocationRecord(locationId, { refresh: false });
   if (!locationData) {
     removeTaxonomyHeartOverlay();
     return;
   }
   const services = normalizeServices(locationData.Services || locationData.services);
   renderTaxonomyHeartOverlay(services, locationId);
-  if (fromCache) {
+  if (fromCache && source !== 'page-cache' && source !== 'page-cache-wait') {
     fetchFullLocationRecord(locationId, { refresh: true })
       .then(({ data: freshData }) => {
         if (!freshData) return;
@@ -479,7 +479,7 @@ function buildSheetsCacheKey(query) {
   return `sheets_${lat}_${lng}_${query.radius}`;
 }
 function getRtdbBaseUrl() {
-  const raw = window.gghost?.baseURL || 'https://doobneek-fe7b7-default-rtdb.firebaseio.com/';
+  const raw = window.gghost?.baseURL || 'https://streetli-default-rtdb.firebaseio.com/';
   return raw.endsWith('/') ? raw : `${raw}/`;
 }
 async function fetchSheetsCacheLocations() {
@@ -1959,14 +1959,14 @@ async function updateLocationContactOverlay(locationId) {
   }
   const requestId = ++locationContactRequestId;
   try {
-    const { data: locationData, fromCache } = await fetchFullLocationRecord(locationId, { refresh: false });
+    const { data: locationData, fromCache, source } = await fetchFullLocationRecord(locationId, { refresh: false });
     if (requestId !== locationContactRequestId) return;
     if (!locationData) {
       removeLocationContactOverlay();
       return;
     }
     renderLocationContactOverlay(locationId, locationData);
-    if (fromCache) {
+    if (fromCache && source !== 'page-cache' && source !== 'page-cache-wait') {
       fetchFullLocationRecord(locationId, { refresh: true })
         .then(({ data: freshData }) => {
           if (!freshData || requestId !== locationContactRequestId) return;

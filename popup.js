@@ -28,8 +28,8 @@ function getCognitoTokens() {
   }
 }
 document.addEventListener("DOMContentLoaded", async () => {
-  const REMINDERS_URL = "https://locationnote1-iygwucy2fa-uc.a.run.app?uuid=reminders";
-  const FIREBASE_REMINDERS_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes.json";
+  const REMINDERS_URL = "https://us-central1-streetli.cloudfunctions.net/locationNote1?uuid=reminders";
+  const FIREBASE_REMINDERS_URL = "https://streetli-default-rtdb.firebaseio.com/locationNotes.json";
   const REMINDERS_CACHE_KEY = "remindersCache";
   const REMINDERS_FETCH_TIMEOUT_MS = 8000;
   const REMINDERS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -569,3 +569,4 @@ chrome.windows.onRemoved.addListener((id) => {
     remindersEventSource?.close();
   });
 });
+

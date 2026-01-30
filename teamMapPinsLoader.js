@@ -4,12 +4,31 @@
   const path = location.pathname || "/";
   if (path !== "/team" && path !== "/team/") return;
   if (!chrome?.runtime?.getURL) return;
+  let backgroundInjectRequested = false;
+  const requestBackgroundInject = () => {
+    if (backgroundInjectRequested) return;
+    backgroundInjectRequested = true;
+    if (!chrome?.runtime?.sendMessage) return;
+    try {
+      chrome.runtime.sendMessage({ type: 'INJECT_TEAM_MAP_PINS_PAGE' }, () => {
+        // best-effort fallback
+      });
+    } catch (err) {
+      // ignore messaging failures
+    }
+  };
   const injectScriptOnce = (attr, filename, onloadTag) => {
     if (document.querySelector(`script[${attr}]`)) return;
+    if (!chrome?.runtime?.id || !chrome?.runtime?.getURL) return;
     const script = document.createElement('script');
     script.async = true;
     script.setAttribute(attr, 'true');
-    script.src = chrome.runtime.getURL(filename);
+    try {
+      script.src = chrome.runtime.getURL(filename);
+    } catch (err) {
+      // Extension context may be invalidated after reload.
+      return;
+    }
     script.onload = () => {
       if (onloadTag) {
         document.documentElement.dataset[onloadTag] = 'true';
@@ -43,5 +62,12 @@
     );
   };
   deferInject(() => injectScriptOnce('data-gghost-service-api-monitor', 'serviceApiMonitor.js'));
-  deferInject(() => injectScriptOnce('data-gghost-team-map-pins', 'teamMapPinsPage.js', 'gghostTeamMapPinsInjected'));
+  deferInject(() => {
+    injectScriptOnce('data-gghost-team-map-pins', 'teamMapPinsPage.js', 'gghostTeamMapPinsInjected');
+    setTimeout(() => {
+      if (document.documentElement?.dataset?.gghostTeamMapPinsInjected !== 'true') {
+        requestBackgroundInject();
+      }
+    }, 1500);
+  });
 })();

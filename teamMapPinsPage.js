@@ -26,7 +26,7 @@
   const CUSTOM_MATCH_MIN_SCORE = 55;
   const CUSTOM_RESULTS_LIMIT = 25;
   const SEARCH_OVERLAY_HIDE_DELAY_MS = 160;
-  const FIREBASE_BASE_URL = 'https://doobneek-fe7b7-default-rtdb.firebaseio.com/';
+  const FIREBASE_BASE_URL = 'https://streetli-default-rtdb.firebaseio.com/';
   const FIREBASE_AUTH_TOKEN_STORAGE_KEY = 'gghostFirebaseAuthToken';
   const NOTES_CACHE_TTL_MS = 2 * 60 * 1000;
   const SITE_VISIT_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -89,6 +89,9 @@
     lastFetchAt: null,
     lastFetchCount: 0,
     lastError: null,
+    lastMinimapFetchAt: null,
+    lastMinimapFetchCount: 0,
+    lastMinimapFetchCenter: null,
     lastAttachAttempt: null,
     lastAttachSource: null,
     lastMapCapture: null,
@@ -112,6 +115,10 @@
     activeInfoToken: null,
     searchMarker: null,
     pendingFocus: null,
+    pendingMinimapLocations: null,
+    clickOverlay: null,
+    clickOverlayReady: false,
+    pendingMinimapGeocode: [],
     preferredMarker: null,
     preferredMarkerListener: null,
     pendingPreferredCenter: null
@@ -263,6 +270,24 @@
     window.__gghostMinimapBridge = true;
     window.addEventListener('gghost-minimap-focus', handleMinimapFocus);
     window.addEventListener('gghost-minimap-clear', handleMinimapClear);
+    window.addEventListener('gghost-minimap-locations', handleMinimapLocations);
+    window.addEventListener('gghost-minimap-geocode', handleMinimapGeocode);
+    const pending = window.__gghostMinimapPendingFocus;
+    if (pending && Number.isFinite(Number(pending.lat)) && Number.isFinite(Number(pending.lng))) {
+      try {
+        handleMinimapFocus({ detail: pending });
+      } finally {
+        window.__gghostMinimapPendingFocus = null;
+      }
+    }
+    const pendingAddress = window.__gghostMinimapPendingAddress;
+    if (pendingAddress && String(pendingAddress.address || '').trim()) {
+      try {
+        handleMinimapGeocode({ detail: pendingAddress });
+      } finally {
+        window.__gghostMinimapPendingAddress = null;
+      }
+    }
   }
   function installPageLocationCacheBridge() {
     if (window.__gghostPageLocationCacheBridge) return;
@@ -379,6 +404,98 @@
       state.searchMarker.setMap(null);
       state.searchMarker = null;
     }
+  }
+  function handleMinimapGeocode(event) {
+    const detail = event?.detail || {};
+    const address = String(detail.address || '').trim();
+    if (!address) return;
+    const request = {
+      address,
+      zoom: Number.isFinite(detail.zoom) ? detail.zoom : null,
+      requestId: detail.requestId || null,
+      triggerClick: detail.triggerClick !== false,
+      dropPin: detail.dropPin !== false
+    };
+    if (!window.google?.maps?.Geocoder) {
+      state.pendingMinimapGeocode.push(request);
+      return;
+    }
+    geocodeAndFocusMinimap(request);
+  }
+  function applyPendingMinimapGeocode() {
+    if (!state.pendingMinimapGeocode.length) return;
+    if (!window.google?.maps?.Geocoder) return;
+    const pending = state.pendingMinimapGeocode.slice();
+    state.pendingMinimapGeocode = [];
+    pending.forEach(geocodeAndFocusMinimap);
+  }
+  function geocodeAndFocusMinimap(request) {
+    if (!request || !window.google?.maps?.Geocoder) return;
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ address: request.address }, (results, status) => {
+      if (status !== 'OK' || !results || !results.length) {
+        if (request.requestId) {
+          window.dispatchEvent(new CustomEvent('gghost-minimap-geocode-ack', {
+            detail: { requestId: request.requestId, success: false }
+          }));
+        }
+        return;
+      }
+      const location = results[0]?.geometry?.location;
+      const lat = typeof location?.lat === 'function' ? location.lat() : location?.lat;
+      const lng = typeof location?.lng === 'function' ? location.lng() : location?.lng;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        if (request.requestId) {
+          window.dispatchEvent(new CustomEvent('gghost-minimap-geocode-ack', {
+            detail: { requestId: request.requestId, success: false }
+          }));
+        }
+        return;
+      }
+      const focus = {
+        lat,
+        lng,
+        zoom: Number.isFinite(request.zoom) ? request.zoom : null,
+        triggerClick: request.triggerClick !== false,
+        dropPin: request.dropPin !== false
+      };
+      if (state.map) {
+        focusMapAndDropPin(focus);
+      } else {
+        state.pendingFocus = focus;
+      }
+      if (request.requestId) {
+        window.dispatchEvent(new CustomEvent('gghost-minimap-geocode-ack', {
+          detail: { requestId: request.requestId, success: true, lat, lng }
+        }));
+      }
+    });
+  }
+  function handleMinimapLocations(event) {
+    const detail = event?.detail || {};
+    const locations = Array.isArray(detail.locations) ? detail.locations : null;
+    if (!locations) return;
+    const payload = {
+      locations,
+      receivedAt: Date.now(),
+      center: coerceLatLng(detail)
+    };
+    if (!state.map || !window.google?.maps?.Marker) {
+      state.pendingMinimapLocations = payload;
+      return;
+    }
+    applyMinimapLocations(payload);
+  }
+  function applyMinimapLocations(payload) {
+    if (!payload || !Array.isArray(payload.locations)) return;
+    payload.locations.forEach(normalizeLocationCity);
+    state.lastLocations = payload.locations;
+    state.lastLocationsAt = Date.now();
+    state.lastLocationsKey = 'minimap';
+    debugState.lastMinimapFetchAt = new Date().toISOString();
+    debugState.lastMinimapFetchCount = payload.locations.length;
+    debugState.lastMinimapFetchCenter = payload.center || null;
+    updateMarkers(payload.locations);
   }
   function coerceLatLng(value) {
     if (!value || typeof value !== 'object') return null;
@@ -1017,8 +1134,14 @@
     state.pendingFocus = null;
     focusMapAndDropPin(focus);
   }
+  function applyPendingMinimapLocations() {
+    if (!state.pendingMinimapLocations) return;
+    const payload = state.pendingMinimapLocations;
+    state.pendingMinimapLocations = null;
+    applyMinimapLocations(payload);
+  }
   function focusMapAndDropPin(focus) {
-    if (!state.map || !window.google?.maps?.Marker) return false;
+    if (!state.map) return false;
     const position = { lat: focus.lat, lng: focus.lng };
     if (Number.isFinite(focus.zoom) && typeof state.map.setZoom === 'function') {
       state.map.setZoom(focus.zoom);
@@ -1028,7 +1151,7 @@
     } else if (typeof state.map.setCenter === 'function') {
       state.map.setCenter(position);
     }
-    if (focus.dropPin !== false) {
+    if (focus.dropPin !== false && window.google?.maps?.Marker) {
       const icon = buildSearchMarkerIcon();
       if (!state.searchMarker) {
         state.searchMarker = new google.maps.Marker({
@@ -1055,11 +1178,96 @@
     return true;
   }
   function triggerMapClickAt(position) {
-    if (!state.map || !window.google?.maps?.event || !window.google?.maps?.LatLng) return false;
+    if (!state.map) return false;
+    let triggered = false;
+    if (window.google?.maps?.event && window.google?.maps?.LatLng) {
+      const latLng = position instanceof google.maps.LatLng
+        ? position
+        : new google.maps.LatLng(position.lat, position.lng);
+      window.google.maps.event.trigger(state.map, 'click', { latLng });
+      triggered = true;
+    }
+    if (!triggered) {
+      return triggerMapDomClick(position);
+    }
+    // Also dispatch a DOM click to satisfy handlers that rely on DOM events.
+    triggerMapDomClick(position);
+    return true;
+  }
+  function ensureClickOverlay() {
+    if (!state.map || state.clickOverlay || !window.google?.maps?.OverlayView) return;
+    const overlay = new google.maps.OverlayView();
+    overlay.onAdd = () => {
+      state.clickOverlayReady = true;
+      const panes = overlay.getPanes?.();
+      overlay.__mouseTarget = panes?.overlayMouseTarget || null;
+    };
+    overlay.draw = () => {
+      state.clickOverlayReady = true;
+    };
+    overlay.onRemove = () => {};
+    overlay.setMap(state.map);
+    state.clickOverlay = overlay;
+  }
+  function getMapDiv() {
+    if (state.map?.getDiv) return state.map.getDiv();
+    return document.querySelector('.gm-style');
+  }
+  function dispatchMapEvent(target, type, coords, options = {}) {
+    const base = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: coords.x,
+      clientY: coords.y,
+      screenX: coords.x,
+      screenY: coords.y,
+      button: options.button ?? 0,
+      buttons: options.buttons ?? 0,
+      detail: options.detail ?? 1
+    };
+    try {
+      if (type.startsWith('pointer') && window.PointerEvent) {
+        target.dispatchEvent(new PointerEvent(type, base));
+      } else {
+        target.dispatchEvent(new MouseEvent(type, base));
+      }
+    } catch (err) {
+      // ignore dispatch errors
+    }
+  }
+  function triggerMapDomClick(position, attempt = 0) {
+    if (!state.map || !state.clickOverlay || !window.google?.maps?.LatLng) return false;
+    const projection = state.clickOverlay.getProjection?.();
+    if (!projection) {
+      if (attempt < 4) {
+        setTimeout(() => triggerMapDomClick(position, attempt + 1), 200);
+      }
+      return false;
+    }
     const latLng = position instanceof google.maps.LatLng
       ? position
       : new google.maps.LatLng(position.lat, position.lng);
-    window.google.maps.event.trigger(state.map, 'click', { latLng });
+    const point = projection.fromLatLngToDivPixel(latLng);
+    const mapDiv = getMapDiv();
+    if (!mapDiv || !point) return false;
+    const rect = mapDiv ? mapDiv.getBoundingClientRect() : target.getBoundingClientRect();
+    const clientX = rect.left + point.x;
+    const clientY = rect.top + point.y;
+    const coords = { x: clientX, y: clientY };
+    const elementAtPoint = document.elementFromPoint(clientX, clientY);
+    const overlayTarget = state.clickOverlay.__mouseTarget
+      || mapDiv.querySelector?.('[role="region"]')
+      || mapDiv;
+    const target = elementAtPoint && mapDiv.contains(elementAtPoint)
+      ? elementAtPoint
+      : overlayTarget;
+    if (!target) return false;
+    dispatchMapEvent(target, 'pointerdown', coords, { button: 0, buttons: 1, detail: 1 });
+    dispatchMapEvent(target, 'mousedown', coords, { button: 0, buttons: 1, detail: 1 });
+    dispatchMapEvent(target, 'pointerup', coords, { button: 0, buttons: 0, detail: 1 });
+    dispatchMapEvent(target, 'mouseup', coords, { button: 0, buttons: 0, detail: 1 });
+    dispatchMapEvent(target, 'click', coords, { button: 0, buttons: 0, detail: 1 });
     return true;
   }
   function ensureMapsReady() {
@@ -1220,8 +1428,11 @@
       closeNotesOverlay();
       state.infoWindow?.close();
     }));
+    ensureClickOverlay();
     scheduleFetch();
     applyPendingMinimapFocus();
+    applyPendingMinimapLocations();
+    applyPendingMinimapGeocode();
   }
   function detachMap() {
     state.listeners.forEach(listener => listener.remove());
@@ -1229,6 +1440,15 @@
     if (state.searchMarker) {
       state.searchMarker.setMap(null);
       state.searchMarker = null;
+    }
+    if (state.clickOverlay) {
+      try {
+        state.clickOverlay.setMap(null);
+      } catch (err) {
+        // ignore detach errors
+      }
+      state.clickOverlay = null;
+      state.clickOverlayReady = false;
     }
     removePreferredMarker();
     state.map = null;

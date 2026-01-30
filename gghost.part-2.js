@@ -1098,6 +1098,60 @@ function buildApiFailureSummary(resourceLabel, method, status) {
   const statusText = status ? ` (status ${status})` : '';
   return `${label} ${String(method || '').toUpperCase()} failed${statusText}`;
 }
+function normalizeLocationKey(value) {
+  if (typeof normalizeId === 'function') return normalizeId(value);
+  return value ? String(value).trim().toLowerCase() : '';
+}
+function getCurrentLocationUuidForCache() {
+  const match = location.pathname.match(/\/(?:team|find)\/location\/([0-9a-f-]{12,36})/i);
+  return match ? match[1].toLowerCase() : '';
+}
+function extractLocationIdFromApiUrl(url) {
+  if (!url) return null;
+  if (typeof extractLocationUuidFromApiUrl === 'function') {
+    const id = extractLocationUuidFromApiUrl(url);
+    if (id) return id;
+  }
+  const match = String(url).match(/\/locations\/([0-9a-f-]{12,36})/i);
+  return match ? match[1] : null;
+}
+function writePageLocationCache(uuid, data) {
+  if (typeof PAGE_LOCATION_CACHE_KEY === 'undefined') return false;
+  const normalized = normalizeLocationKey(uuid);
+  if (!normalized) return false;
+  const pageUuid = getCurrentLocationUuidForCache();
+  if (!pageUuid || pageUuid !== normalized) return false;
+  try {
+    localStorage.setItem(PAGE_LOCATION_CACHE_KEY, JSON.stringify({
+      uuid: normalized,
+      timestamp: Date.now(),
+      data
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+function updateLocationCachesFromPayload(locationId, data, source = 'locationApiMonitor') {
+  if (!locationId || !data || typeof data !== 'object') return false;
+  const normalized = normalizeLocationKey(locationId);
+  if (!normalized) return false;
+  const dataId = normalizeLocationKey(data.id || data.locationId || data.uuid);
+  if (dataId && dataId !== normalized) return false;
+  const timestamp = Date.now();
+  locationRecordCache.set(normalized, { data, timestamp });
+  if (locationId && normalizeLocationKey(locationId) !== normalized) {
+    locationRecordCache.set(locationId, { data, timestamp });
+  }
+  if (typeof setCachedLocationData === 'function') {
+    setCachedLocationData(normalized, data);
+  }
+  writePageLocationCache(normalized, data);
+  if (typeof recordLocationStatsFromPayload === 'function') {
+    void recordLocationStatsFromPayload(normalized, data, { source });
+  }
+  return true;
+}
 function handleLocationApiMonitorMessage(event) {
   if (event.source !== window) return;
   const data = event.data;
@@ -1109,16 +1163,22 @@ function handleLocationApiMonitorMessage(event) {
   const ok = payload?.ok === true;
   if (!url || !method) return;
   if (!String(url).startsWith(LOCATION_API_BASE)) return;
-  if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) return;
   const requestData = safeJsonParse(payload.requestBody);
   const responseData = safeJsonParse(payload.responseBody);
-  const locationId = extractLocationUuidFromApiUrl(url)
+  const locationId = extractLocationIdFromApiUrl(url)
     || requestData?.id
     || requestData?.locationId
     || responseData?.id
     || responseData?.locationId
     || extractLocationIdFromPath();
   if (!locationId) return;
+  if (method === 'GET') {
+    if (!ok) return;
+    if (!responseData || typeof responseData !== 'object') return;
+    updateLocationCachesFromPayload(locationId, responseData, 'locationApiGet');
+    return;
+  }
+  if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) return;
   const requestMeta = {
     url,
     method,
@@ -1412,14 +1472,27 @@ async function fetchFullLocationRecord(uuid, { refresh = false } = {}) {
     if (pageEntry?.data) {
       locationRecordCache.set(uuid, { data: pageEntry.data, timestamp: Date.now() });
       setCachedLocationData(uuid, pageEntry.data);
-      return { data: pageEntry.data, fromCache: !!pageEntry.isStale };
+      return { data: pageEntry.data, fromCache: !!pageEntry.isStale, source: 'page-cache', stale: !!pageEntry.isStale };
+    }
+    const pageUuid = typeof getCurrentPageLocationUuid === 'function' ? getCurrentPageLocationUuid() : null;
+    if (pageUuid && normalizeLocationKey(pageUuid) === normalizeLocationKey(uuid)
+      && typeof waitForPageLocationCache === 'function') {
+      const awaited = await waitForPageLocationCache(uuid);
+      if (awaited) {
+        locationRecordCache.set(uuid, { data: awaited, timestamp: Date.now() });
+        setCachedLocationData(uuid, awaited);
+        if (typeof recordLocationStatsFromPayload === 'function') {
+          void recordLocationStatsFromPayload(uuid, awaited, { source: "page-cache-wait" });
+        }
+        return { data: awaited, fromCache: true, source: 'page-cache-wait', stale: false };
+      }
     }
   }
   // Check localStorage cache first if not forcing refresh
   if (!refresh) {
     const cachedData = getCachedLocationData(uuid);
     if (cachedData) {
-      return { data: cachedData, fromCache: true };
+      return { data: cachedData, fromCache: true, source: 'local-cache', stale: false };
     }
   }
   // Check memory cache
@@ -1427,7 +1500,7 @@ async function fetchFullLocationRecord(uuid, { refresh = false } = {}) {
     const memEntry = locationRecordCache.get(uuid);
     const age = Date.now() - (memEntry?.timestamp || 0);
     if (memEntry && age < CACHE_DURATION_MS) {
-      return { data: memEntry.data, fromCache: true };
+      return { data: memEntry.data, fromCache: true, source: 'memory', stale: false };
     }
     locationRecordCache.delete(uuid);
   }
@@ -1443,10 +1516,10 @@ async function fetchFullLocationRecord(uuid, { refresh = false } = {}) {
     // Store in both memory and localStorage cache
     locationRecordCache.set(uuid, { data, timestamp: Date.now() });
     setCachedLocationData(uuid, data);
-    return { data, fromCache: false };
+    return { data, fromCache: false, source: 'network', stale: false };
   } catch (err) {
     console.error('[Service Taxonomy] Failed to fetch location record', uuid, err);
-    return { data: null, fromCache: false };
+    return { data: null, fromCache: false, source: 'error', stale: false };
   }
 }
 function findServiceRecord(locationData, serviceId) {

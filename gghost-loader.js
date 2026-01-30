@@ -115,10 +115,18 @@
   }
   let attempts = 0;
   const maxAttempts = 3;
+  const ROOT_SELECTORS = ["#root", "#__next", "#app", "main", "[data-reactroot]"];
+  const findAppRoot = () => {
+    for (const selector of ROOT_SELECTORS) {
+      const node = document.querySelector(selector);
+      if (node) return node;
+    }
+    return document.body || document.documentElement;
+  };
   const isRootReady = () => {
-    const root = document.getElementById("root");
+    const root = findAppRoot();
     if (!root) return false;
-    if (root.childElementCount === 0) return false;
+    if (root.childElementCount > 0) return true;
     const text = (root.textContent || "").replace(/\s+/g, "");
     return text.length > 0 || root.querySelector("*") != null;
   };
@@ -154,19 +162,21 @@
       setTimeout(requestInject, 1500 * attempts);
     }
   };
-  const scheduleInject = () => {
+  const scheduleInject = (delayMs = 400) => {
     setTimeout(() => {
+      if (window.__GGHOST_LOADER_DONE__) return;
       if (window.requestIdleCallback) {
-        window.requestIdleCallback(requestInject, { timeout: 8000 });
+        window.requestIdleCallback(requestInject, { timeout: 2000 });
       } else {
         requestInject();
       }
-    }, 6000);
+    }, delayMs);
   };
-  if (document.readyState === "complete") {
-    scheduleInject();
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    scheduleInject(300);
   } else {
-    window.addEventListener("load", scheduleInject, { once: true });
+    window.addEventListener("DOMContentLoaded", () => scheduleInject(300), { once: true });
+    window.addEventListener("load", () => scheduleInject(800), { once: true });
   }
-  setTimeout(requestInject, 20000);
+  setTimeout(requestInject, 8000);
 })();

@@ -23,7 +23,7 @@
   const FETCH_RETRY_BASE_MS = 1200;
   const FETCH_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
   const PLAYBACK_INDEX_PATH = "locationNotesCache/playback/v1/pages";
-  const PLAYBACK_INDEX_API_DEFAULT = "https://us-central1-doobneek-fe7b7.cloudfunctions.net/locationNotesPlayback";
+  const PLAYBACK_INDEX_API_DEFAULT = "https://us-central1-streetli.cloudfunctions.net/locationNotesPlayback";
   const USER_ALIAS_MAP = {
     kiesha: "kieshaj10",
     kieshaj10: "kieshaj10",

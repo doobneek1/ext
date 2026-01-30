@@ -20,6 +20,7 @@ USER_MAP = {
     "4b29ecaf-34cb-44ab-8621-34ab1b893a85": "abdul_ayo",
     "52bbd857-b059-4047-9907-9a91d3877bc4": "ashenry",
     "338c2517-27d5-4d40-ad53-9e6ef71822a6": "doobneek",
+    "ec712c39-d8aa-4c08-9a17-1f66bddb3605": "extension",
     "364903f1-1c9a-46e9-bb3c-2884e1ba8bce": "kieshaj10",
     "3d9f45a6-3418-4415-ad08-52c5a10dc218": "gavilan",
     "283260dc-b39d-4e34-aefe-78a13934ee0f": "helena",

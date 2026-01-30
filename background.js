@@ -25,10 +25,10 @@ const CONTENT_SCRIPTS = [
       "https://test.gogetta.nyc/*",
       "https://www.test.gogetta.nyc/*",
       "https://yourpeer.nyc/locations*",
-      "http://localhost:3210/*",
+      "https://doobneek.org/*",
       "https://*.doobneek.org/*",
       "http://localhost:3000/*",
-      "http://localhost:3210/*"
+      "https://doobneek.org/*"
     ],
     excludeMatches: [
       "https://gogetta.nyc/team/location/*",
@@ -134,14 +134,15 @@ const CONTENT_SCRIPT_IDS = CONTENT_SCRIPTS.map((script) => script.id);
 let extensionPaused = false;
 const gghostInjectedTabs = new Set();
 const GGHOST_TEAM_URL_RE = /^https:\/\/(?:www\.)?(?:test\.)?gogetta\.nyc\/team\/location\/[0-9a-f-]+/i;
-const REMINDERS_URL = "https://locationnote1-iygwucy2fa-uc.a.run.app?uuid=reminders";
-const FIREBASE_REMINDERS_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes.json";
+const REMINDERS_URL = "https://us-central1-streetli.cloudfunctions.net/locationNote1?uuid=reminders";
+const REMINDERS_ENABLED = false;
+const FIREBASE_REMINDERS_URL = "https://streetli-default-rtdb.firebaseio.com/locationNotes.json";
 const REMINDERS_CACHE_KEY = "remindersCache";
 const REMINDERS_FETCH_TIMEOUT_MS = 8000;
 const REMINDERS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const REMINDERS_ALARM_NAME = "refreshReminders";
 const REMINDERS_POLL_MINUTES = 5;
-const LOCATION_NOTES_BASE_URL = "https://doobneek-fe7b7-default-rtdb.firebaseio.com/locationNotes";
+const LOCATION_NOTES_BASE_URL = "https://streetli-default-rtdb.firebaseio.com/locationNotes";
 const NOTES_CACHE_PREFIX = "ggNotesCache:";
 const NOTES_PREVIEW_PREFIX = "ggNotesPreview:";
 const NOTES_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -308,6 +309,16 @@ function updateReminderBadge(reminders) {
   chrome.action.setBadgeBackgroundColor({ color: "#f44336" });
 }
 function refreshReminders() {
+  if (!REMINDERS_ENABLED) {
+    return (async () => {
+      const cachedReminders = await readRemindersCache();
+      if (cachedReminders) {
+        updateReminderBadge(cachedReminders);
+        return;
+      }
+      updateReminderBadge([]);
+    })();
+  }
   if (remindersRefreshInFlight) return remindersRefreshInFlight;
   remindersRefreshInFlight = (async () => {
     let data = null;
@@ -341,6 +352,10 @@ function refreshReminders() {
   });
 }
 function ensureRemindersAlarm() {
+  if (!REMINDERS_ENABLED) {
+    chrome.alarms.clear(REMINDERS_ALARM_NAME);
+    return;
+  }
   chrome.alarms.get(REMINDERS_ALARM_NAME, (alarm) => {
     if (!alarm) {
       chrome.alarms.create(REMINDERS_ALARM_NAME, { periodInMinutes: REMINDERS_POLL_MINUTES });
@@ -427,6 +442,7 @@ chrome.runtime.onStartup.addListener(() => {
   });
 });
 chrome.alarms.onAlarm.addListener((alarm) => {
+  if (!REMINDERS_ENABLED) return;
   if (alarm && alarm.name === REMINDERS_ALARM_NAME) {
     refreshReminders().catch((err) => {
       console.warn("[Background] Failed to refresh reminders on alarm:", err);
@@ -533,7 +549,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
 //   if (message.type === 'getAddressSuggestions') {
 //     const input = message.input;
-//     const API_KEY = 'AIzaSyDZ56RnPItToFUoQugwXWO_3sLIcSX5508';
+//     const API_KEY = '';
 //     const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=address&location=40.7128,-74.0060&radius=30000&key=${API_KEY}`;
 //     try {
 //       const res = await fetch(url);
@@ -568,6 +584,20 @@ function normalizeLocationCity(data) {
   if (physical && physical.city) {
     physical.city = normalizeCityName(physical.city);
   }
+}
+function getStreetViewApiKey() {
+  return new Promise((resolve) => {
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+      resolve(null);
+      return;
+    }
+    chrome.storage.local.get(['googleMapsApiKey'], (result) => {
+      const rawKey = result && typeof result.googleMapsApiKey === 'string'
+        ? result.googleMapsApiKey.trim()
+        : '';
+      resolve(rawKey || null);
+    });
+  });
 }
 function fetchStreetViewLocation(uuid) {
   if (!uuid) {
@@ -671,6 +701,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ ok: true });
     }).catch((err) => {
       gghostInjectedTabs.delete(tabId);
+      sendResponse({ ok: false, error: err?.message || String(err) });
+    });
+    return true;
+  }
+  if (msg.type === "INJECT_TEAM_MAP_PINS_PAGE") {
+    const tabId = sender?.tab?.id;
+    if (!tabId) {
+      sendResponse({ ok: false, error: "Missing tabId" });
+      return true;
+    }
+    chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["teamMapPinsPage.js"],
+      world: "MAIN"
+    }).then(() => {
+      sendResponse({ ok: true });
+    }).catch((err) => {
       sendResponse({ ok: false, error: err?.message || String(err) });
     });
     return true;
@@ -832,7 +879,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 if (msg.type === 'getAddressSuggestions') {
   const input = encodeURIComponent(msg.input);
-  const proxyUrl = `https://placesproxy-iygwucy2fa-uc.a.run.app?input=${input}`;
+  const proxyUrl = `https://us-central1-streetli.cloudfunctions.net/placesProxy?input=${input}`;
   fetch(proxyUrl)
     .then(res => res.json())
     .then(data => {
@@ -849,7 +896,8 @@ if (msg.type === 'showStreetView') {
     const uuid = msg.uuid;
     console.log('[Background] Fetching Street View data for UUID:', uuid);
     fetchStreetViewLocation(uuid)
-      .then(data => {
+      .then(async data => {
+        const apiKey = await getStreetViewApiKey();
         console.log('[Background] Location data fetched, injecting Street View script');
         // Inject script with error handling
         chrome.scripting.executeScript({
@@ -868,7 +916,7 @@ if (msg.type === 'showStreetView') {
                   console.error('createStreetViewPicker function not found');
                 }
               },
-              args: [data, 'AIzaSyBFIrEjge5TMx-Zz-GAFhwFnrmkECLd28k'],
+              args: [data, apiKey || null],
               world: 'MAIN'
             }).catch(err => {
               console.error('[Background] Street View function execution failed:', err);
@@ -885,7 +933,7 @@ if (msg.type === 'showStreetView') {
   }
 if (msg.type === 'getPlaceDetails') {
   const placeId = encodeURIComponent(msg.placeId);
-  const proxyUrl = `https://placesproxy-iygwucy2fa-uc.a.run.app?placeId=${placeId}`;
+  const proxyUrl = `https://us-central1-streetli.cloudfunctions.net/placesProxy?placeId=${placeId}`;
   fetch(proxyUrl)
     .then(res => res.json())
     .then(data => {
@@ -1102,3 +1150,4 @@ function analyzePageText(text, url) {
     summary: 'Page appears to be active and accessible'
   };
 }
+

@@ -15,7 +15,7 @@ import urllib.parse
 import urllib.request
 DEFAULT_BASE_URL = "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations"
 DEFAULT_GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
-DEFAULT_NOTE_API = "https://locationnote1-iygwucy2fa-uc.a.run.app"
+DEFAULT_NOTE_API = "https://us-central1-streetli.cloudfunctions.net/locationNote1"
 DEFAULT_PATCH_PRIORITY_CSV = "locations_text_phone_patched.csv"
 DEFAULT_RUN_STATE_PATH = "locations_pipeline_run_state.json"
 RETRYABLE_HTTP_STATUS = {429, 500, 502, 503, 504}
@@ -401,6 +401,12 @@ def parse_args(argv):
         "--note-api",
         default=DEFAULT_NOTE_API,
         help="NOTE_API endpoint for locationNotes writes.",
+    )
+    parser.add_argument(
+        "--note-batch-size",
+        type=int,
+        default=50,
+        help="Number of locationNotes to send per batch request (0 = no limit).",
     )
     parser.add_argument(
         "--skip-google",
@@ -1520,6 +1526,32 @@ def note_payload(notes_user, note_text):
         "date": today,
         "note": note_text,
     }
+def iter_note_batches(items, batch_size):
+    size = max(int(batch_size or 0), 0)
+    if size <= 0:
+        size = len(items) or 1
+    for idx in range(0, len(items), size):
+        yield items[idx : idx + size]
+def parse_note_batch_errors(body_text):
+    if not body_text:
+        return []
+    try:
+        data = json.loads(body_text)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, dict):
+        return []
+    errors = data.get("errors")
+    if isinstance(errors, list):
+        return errors
+    results = data.get("results")
+    if isinstance(results, list):
+        return [
+            entry
+            for entry in results
+            if isinstance(entry, dict) and entry.get("status") == "error"
+        ]
+    return []
 def is_auth_error(status, body):
     if status in (401, 403):
         return True
@@ -1683,6 +1715,124 @@ def main(argv):
         "auth_errors": 0,
         "ai_errors": 0,
     }
+    note_queue = []
+    note_batch_size = max(int(args.note_batch_size or 0), 0)
+    def write_patch_rows(entry, patch_status, note_for_reports):
+        patched_writer, _ = ensure_writer(
+            args.patched_report_csv, PATCH_FIELDS, patched_holder
+        )
+        patched_writer.writerow(
+            {
+                "uuid": entry["uuid"],
+                "patch_status": patch_status,
+                "patch_notes": note_for_reports,
+                "payload": json.dumps(entry["payload"], ensure_ascii=True),
+                "distance_meters": entry["distance_meters"],
+                "suggested_address": entry["suggested_address"],
+                "ai_status": entry["ai_status"],
+                "ai_best_view": entry["ai_best_view"],
+                "ai_confidence": entry["ai_confidence"],
+                "ai_notes": entry["ai_notes"],
+                "default_streetview_url": entry["default_streetview_url"],
+                "search_streetview_url": entry["search_streetview_url"],
+                "source": entry["source"],
+            }
+        )
+        progress_writer, _ = ensure_writer(
+            args.progress_csv, PROGRESS_FIELDS, progress_holder
+        )
+        progress_writer.writerow(
+            {
+                "uuid": entry["uuid"],
+                "status": patch_status,
+                "note": note_for_reports,
+                "source": entry["source"],
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        )
+    def flush_note_queue():
+        nonlocal note_queue, stop_reason, stop_uuid
+        if not note_queue:
+            return True
+        batch_size = note_batch_size if note_batch_size > 0 else (len(note_queue) or 1)
+        while note_queue:
+            batch = note_queue[:batch_size]
+            note_queue = note_queue[batch_size:]
+            status, body = http_request(
+                "POST",
+                args.note_api,
+                headers=build_note_headers(token),
+                payload={"batch": [entry["note_body"] for entry in batch]},
+                timeout=args.timeout,
+            )
+            sleep_with_jitter(args.patch_sleep_min, args.patch_sleep_max)
+            batch_errors = {}
+            batch_error_note = ""
+            batch_auth_error = False
+            if status is None or status >= 300:
+                batch_error_note = format_http_error("POST", args.note_api, status, body)
+                batch_auth_error = is_auth_error(status or 0, body)
+                for idx in range(len(batch)):
+                    batch_errors[idx] = batch_error_note
+            else:
+                for entry in parse_note_batch_errors(body):
+                    idx = entry.get("index")
+                    if idx is None:
+                        uuid = entry.get("uuid")
+                        if uuid:
+                            idx = next(
+                                (i for i, item in enumerate(batch) if item["uuid"] == uuid),
+                                None,
+                            )
+                    if idx is None:
+                        continue
+                    error_text = entry.get("error") or entry.get("message") or "note_error"
+                    batch_errors[int(idx)] = error_text
+            if batch_errors:
+                batch_error_note = batch_error_note or next(iter(batch_errors.values()))
+            for idx, entry in enumerate(batch):
+                patch_status = "patched"
+                note_for_reports = entry["note_for_reports"]
+                error_note = batch_errors.get(idx)
+                if error_note:
+                    patch_status = (
+                        "auth_error" if batch_auth_error or is_auth_error(0, error_note)
+                        else "note_error"
+                    )
+                    totals["errors"] += 1
+                    if patch_status == "auth_error":
+                        totals["auth_errors"] += 1
+                    if note_for_reports:
+                        note_for_reports = f"{note_for_reports} | {error_note}"
+                    else:
+                        note_for_reports = error_note
+                    if not stop_reason:
+                        stop_reason = patch_status
+                        stop_uuid = entry["uuid"]
+                write_patch_rows(entry, patch_status, note_for_reports)
+            if batch_errors:
+                stop_status = (
+                    "auth_error" if batch_auth_error or is_auth_error(0, batch_error_note)
+                    else "note_error"
+                )
+                for entry in note_queue:
+                    error_note = batch_error_note or "note_error"
+                    patch_status = stop_status
+                    totals["errors"] += 1
+                    if patch_status == "auth_error":
+                        totals["auth_errors"] += 1
+                    note_for_reports = entry["note_for_reports"]
+                    if note_for_reports:
+                        note_for_reports = f"{note_for_reports} | {error_note}"
+                    else:
+                        note_for_reports = error_note
+                    write_patch_rows(entry, patch_status, note_for_reports)
+                note_queue = []
+                if not stop_reason:
+                    stop_reason = stop_status
+                    stop_uuid = batch[0]["uuid"] if batch else ""
+                return False
+        return True
     patch_attempts = 0
     patch_limit_reached_at = None
     patch_priority_exhausted_at = None
@@ -2330,69 +2480,54 @@ def main(argv):
                     note_text = f"{note} <<did not revalidate>>"
                     note_body = note_payload(args.notes_user, note_text)
                     note_body["uuid"] = uuid
-                    status, body = http_request(
-                        "POST",
-                        args.note_api,
-                        headers=build_note_headers(token),
-                        payload=note_body,
-                        timeout=args.timeout,
+                    note_queue.append(
+                        {
+                            "uuid": uuid,
+                            "note_body": note_body,
+                            "note_for_reports": note,
+                            "payload": payload,
+                            "distance_meters": distance_meters,
+                            "suggested_address": suggested_address,
+                            "ai_status": ai_status,
+                            "ai_best_view": ai_best_view,
+                            "ai_confidence": ai_confidence,
+                            "ai_notes": ai_notes,
+                            "default_streetview_url": default_streetview_url,
+                            "search_streetview_url": search_streetview_url,
+                            "source": source_label,
+                        }
                     )
-                    sleep_with_jitter(args.patch_sleep_min, args.patch_sleep_max)
-                    if status is None or status >= 300:
-                        patch_error_note = format_http_error(
-                            "POST", args.note_api, status, body
-                        )
-                        if is_auth_error(status or 0, body):
-                            print(f"[AUTH] {uuid}: {patch_error_note}")
-                            totals["auth_errors"] += 1
-                            totals["errors"] += 1
-                            patch_status = "auth_error"
+                    if note_batch_size > 0 and len(note_queue) >= note_batch_size:
+                        if not flush_note_queue():
+                            break
+                else:
+                    note_for_reports = note
+                    if patch_error_note:
+                        if note_for_reports:
+                            note_for_reports = f"{note_for_reports} | {patch_error_note}"
                         else:
-                            print(f"[ERROR] {uuid}: {patch_error_note}")
-                            totals["errors"] += 1
-                            patch_status = "note_error"
-                note_for_reports = note
-                if patch_error_note:
-                    if note_for_reports:
-                        note_for_reports = f"{note_for_reports} | {patch_error_note}"
-                    else:
-                        note_for_reports = patch_error_note
-                patched_writer, _ = ensure_writer(
-                    args.patched_report_csv, PATCH_FIELDS, patched_holder
-                )
-                patched_writer.writerow(
-                    {
-                        "uuid": uuid,
-                        "patch_status": patch_status,
-                        "patch_notes": note_for_reports,
-                        "payload": json.dumps(payload, ensure_ascii=True),
-                        "distance_meters": distance_meters,
-                        "suggested_address": suggested_address,
-                        "ai_status": ai_status,
-                        "ai_best_view": ai_best_view,
-                        "ai_confidence": ai_confidence,
-                        "ai_notes": ai_notes,
-                        "default_streetview_url": default_streetview_url,
-                        "search_streetview_url": search_streetview_url,
-                        "source": source_label,
-                    }
-                )
-                progress_writer, _ = ensure_writer(
-                    args.progress_csv, PROGRESS_FIELDS, progress_holder
-                )
-                progress_writer.writerow(
-                    {
-                        "uuid": uuid,
-                        "status": patch_status,
-                        "note": note_for_reports,
-                        "source": source_label,
-                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    }
-                )
-                if patch_status not in {"patched", "dry_run", "patch_limit"}:
-                    stop_reason = patch_status
-                    stop_uuid = uuid
-                    break
+                            note_for_reports = patch_error_note
+                    write_patch_rows(
+                        {
+                            "uuid": uuid,
+                            "payload": payload,
+                            "distance_meters": distance_meters,
+                            "suggested_address": suggested_address,
+                            "ai_status": ai_status,
+                            "ai_best_view": ai_best_view,
+                            "ai_confidence": ai_confidence,
+                            "ai_notes": ai_notes,
+                            "default_streetview_url": default_streetview_url,
+                            "search_streetview_url": search_streetview_url,
+                            "source": source_label,
+                        },
+                        patch_status,
+                        note_for_reports,
+                    )
+                    if patch_status not in {"patched", "dry_run", "patch_limit"}:
+                        stop_reason = patch_status
+                        stop_uuid = uuid
+                        break
             if not skip_recommendations and (
                 suggested_address
                 or discrepancy_flags
@@ -2420,6 +2555,8 @@ def main(argv):
             priority_remaining.discard(uuid)
             if args.sleep > 0:
                 time.sleep(args.sleep)
+        if not args.dry_run and note_queue:
+            flush_note_queue()
     except KeyboardInterrupt:
         interrupted = True
         stop_reason = "keyboard_interrupt"
@@ -2467,3 +2604,4 @@ def main(argv):
     return 0 if totals["errors"] == 0 else 1
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
+

@@ -1878,7 +1878,7 @@ function renderServiceTaxonomyBanner(taxonomies, services = [], locationId = nul
     const apiOverride = window.gghost?.PLAYBACK_INDEX_API;
     const apiBase = typeof apiOverride === 'string' && apiOverride.trim()
       ? apiOverride.trim()
-      : 'https://us-central1-doobneek-fe7b7.cloudfunctions.net/locationNotesPlayback';
+      : 'https://us-central1-streetli.cloudfunctions.net/locationNotesPlayback';
     if (apiBase) {
       try {
         const url = new URL(apiBase);
@@ -1886,7 +1886,7 @@ function renderServiceTaxonomyBanner(taxonomies, services = [], locationId = nul
         return url.toString();
       } catch {}
     }
-    const base = window.gghost?.baseURL || 'https://doobneek-fe7b7-default-rtdb.firebaseio.com/';
+    const base = window.gghost?.baseURL || 'https://streetli-default-rtdb.firebaseio.com/';
     const baseUrl = base.endsWith('/') ? base : `${base}/`;
     const encodedKey = encodeURIComponent(normalized);
     const safeKey = encodeURIComponent(encodedKey);

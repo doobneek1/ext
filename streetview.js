@@ -55,10 +55,17 @@
     return /\/questions\/street-view\/?$/.test(url);
   }
   const LOCATION_API_BASE = 'https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations';
+  const MAPS_JS_API_PROXY = 'https://us-central1-streetli.cloudfunctions.net/mapsJsApi';
+  const MAPS_JS_LIBRARIES = 'places,streetview,geometry';
+  const MAPS_JS_VERSION = 'weekly';
   const RELOCATE_PROMPT_DISTANCE_METERS = 20;
   const MIDTOWN_CENTER = { lat: 40.754932, lng: -73.984016 };
   const MIDTOWN_RADIUS_METERS = 15 * 1609.34;
   const STREETVIEW_REOPEN_BUTTON_ID = 'gghost-streetview-reopen-button';
+  const BACKGROUND_FETCH_MESSAGE = 'DOOBNEEK_BACKGROUND_FETCH';
+  const BACKGROUND_FETCH_RESPONSE = 'DOOBNEEK_BACKGROUND_FETCH_RESPONSE';
+  const BACKGROUND_FETCH_TIMEOUT_MS = 12000;
+  const BACKGROUND_FETCH_BRIDGE_FLAG = '__doobneekBackgroundFetchBridgeActive';
   function resolveLocationId(locationData) {
     const candidate = locationData?.id || locationData?.location_id || locationData?.uuid || locationData?.slug;
     if (typeof candidate !== 'string') return null;
@@ -183,6 +190,162 @@
     if (!expanded.length) expanded.push(null);
     return expanded;
   }
+  function buildBackgroundResponse(payload, options) {
+    const headers = new Headers(payload?.headers || {});
+    const rawStatus = typeof payload?.status === 'number' ? payload.status : 0;
+    const status = rawStatus >= 200 && rawStatus <= 599 ? rawStatus : 503;
+    const statusText = payload?.statusText || (rawStatus ? '' : 'fetch failed');
+    const method = String(options?.method || 'GET').toUpperCase();
+    const isNullBodyStatus = status === 204 || status === 205 || status === 304 || method === 'HEAD';
+    const body = isNullBodyStatus ? null : (payload?.body || '');
+    return new Response(body, { status, statusText, headers });
+  }
+  function fetchViaBackgroundMessage(url, options = {}) {
+    if (!chrome?.runtime?.sendMessage) {
+      return Promise.reject(new Error('Background fetch unavailable'));
+    }
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.runtime.sendMessage({ type: 'BACKGROUND_FETCH', url, options }, (response) => {
+          let lastError = null;
+          try {
+            lastError = chrome?.runtime?.lastError;
+          } catch (err) {
+            reject(err);
+            return;
+          }
+          if (lastError) {
+            reject(new Error(lastError.message || 'Background fetch failed'));
+            return;
+          }
+          if (!response) {
+            reject(new Error('Background fetch returned no response'));
+            return;
+          }
+          resolve(buildBackgroundResponse(response, options));
+        });
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+  function ensureBackgroundFetchBridge() {
+    if (!chrome?.runtime?.sendMessage) return;
+    if (window[BACKGROUND_FETCH_BRIDGE_FLAG]) return;
+    window[BACKGROUND_FETCH_BRIDGE_FLAG] = true;
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return;
+      const data = event.data || {};
+      if (data.type !== BACKGROUND_FETCH_MESSAGE) return;
+      const requestId = data.requestId;
+      if (!requestId) return;
+      const url = data.url;
+      const options = data.options && typeof data.options === 'object' ? data.options : {};
+      if (!url) {
+        window.postMessage({
+          type: BACKGROUND_FETCH_RESPONSE,
+          requestId,
+          ok: false,
+          status: 0,
+          statusText: 'Missing url',
+          body: '',
+          headers: {},
+          error: 'Missing url'
+        }, '*');
+        return;
+      }
+      chrome.runtime.sendMessage({ type: 'BACKGROUND_FETCH', url, options }, (response) => {
+        let lastError = null;
+        try {
+          lastError = chrome?.runtime?.lastError;
+        } catch (err) {
+          lastError = err;
+        }
+        if (lastError) {
+          window.postMessage({
+            type: BACKGROUND_FETCH_RESPONSE,
+            requestId,
+            ok: false,
+            status: 0,
+            statusText: lastError.message || 'Background fetch failed',
+            body: '',
+            headers: {},
+            error: lastError.message || 'Background fetch failed'
+          }, '*');
+          return;
+        }
+        if (!response) {
+          window.postMessage({
+            type: BACKGROUND_FETCH_RESPONSE,
+            requestId,
+            ok: false,
+            status: 0,
+            statusText: 'Background fetch returned no response',
+            body: '',
+            headers: {},
+            error: 'Background fetch returned no response'
+          }, '*');
+          return;
+        }
+        window.postMessage({
+          type: BACKGROUND_FETCH_RESPONSE,
+          requestId,
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText,
+          body: response.body || '',
+          headers: response.headers || {}
+        }, '*');
+      });
+    });
+  }
+  function fetchViaBackgroundBridge(url, options = {}) {
+    if (typeof window === 'undefined' || typeof window.postMessage !== 'function') {
+      return Promise.reject(new Error('Background fetch bridge unavailable'));
+    }
+    return new Promise((resolve, reject) => {
+      const requestId = `doobneek-bg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      let timeoutId = null;
+      const handleMessage = (event) => {
+        if (event.source !== window) return;
+        const data = event.data || {};
+        if (data.type !== BACKGROUND_FETCH_RESPONSE || data.requestId !== requestId) return;
+        cleanup();
+        if (data.error) {
+          reject(new Error(data.error));
+          return;
+        }
+        resolve(buildBackgroundResponse(data, options));
+      };
+      const cleanup = () => {
+        window.removeEventListener('message', handleMessage);
+        if (timeoutId) clearTimeout(timeoutId);
+      };
+      window.addEventListener('message', handleMessage);
+      timeoutId = setTimeout(() => {
+        cleanup();
+        reject(new Error('Background fetch timed out'));
+      }, BACKGROUND_FETCH_TIMEOUT_MS);
+      window.postMessage({ type: BACKGROUND_FETCH_MESSAGE, requestId, url, options }, '*');
+    });
+  }
+  async function fetchWithBackgroundSupport(url, options = {}) {
+    if (chrome?.runtime?.sendMessage) {
+      try {
+        return await fetchViaBackgroundMessage(url, options);
+      } catch (err) {
+        console.warn('[streetview.js] Background fetch failed, falling back to window.fetch:', err);
+      }
+    } else {
+      try {
+        return await fetchViaBackgroundBridge(url, options);
+      } catch (err) {
+        console.warn('[streetview.js] Background fetch bridge failed, falling back to window.fetch:', err);
+      }
+    }
+    return fetch(url, options);
+  }
+  ensureBackgroundFetchBridge();
   async function patchLocationRecord(locationId, payload) {
     if (!locationId) throw new Error('Missing location id.');
     const url = `${LOCATION_API_BASE}/${locationId}`;
@@ -194,7 +357,7 @@
         'content-type': 'application/json'
       };
       if (token) headers.Authorization = token;
-      const res = await fetch(url, {
+      const res = await fetchWithBackgroundSupport(url, {
         method: 'PATCH',
         headers,
         body: JSON.stringify(payload),
@@ -490,6 +653,24 @@
       if (style.parentNode) style.remove();
     }, 2000);
   }
+  function getMapsProxyUrl() {
+    if (typeof window !== 'undefined' && window.DOOBNEEK_MAPS_JS_API_PROXY) {
+      return window.DOOBNEEK_MAPS_JS_API_PROXY;
+    }
+    return MAPS_JS_API_PROXY;
+  }
+  function buildMapsScriptSrc(apiKey) {
+    if (apiKey) {
+      return `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=${encodeURIComponent(MAPS_JS_LIBRARIES)}&v=${encodeURIComponent(MAPS_JS_VERSION)}`;
+    }
+    const proxyUrl = getMapsProxyUrl();
+    if (!proxyUrl) return null;
+    const params = new URLSearchParams();
+    params.set('libraries', MAPS_JS_LIBRARIES);
+    params.set('v', MAPS_JS_VERSION);
+    const separator = proxyUrl.includes('?') ? '&' : '?';
+    return `${proxyUrl}${separator}${params.toString()}`;
+  }
   function loadGoogleMapsAPI(apiKey, callback) {
     if (window.google && window.google.maps && window.google.maps.StreetViewPanorama) {
       callback();
@@ -512,7 +693,8 @@
       return;
     }
     // Check if script is already loading
-    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+    const existingScript = document.querySelector('script[data-doobneek-maps-api]')
+      || document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
     if (existingScript) {
       window.doobneekMapsLoading = true;
       // Wait for existing script to load with timeout
@@ -535,10 +717,18 @@
     }
     window.doobneekMapsLoading = true;
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,streetview,geometry&v=weekly`;
+    const scriptSrc = buildMapsScriptSrc(apiKey);
+    if (!scriptSrc) {
+      window.doobneekMapsLoading = false;
+      console.error('Google Maps API key or proxy URL missing.');
+      alert('Could not load Google Maps API.');
+      return;
+    }
+    script.src = scriptSrc;
     script.async = true;
     script.defer = true;
     script.setAttribute('data-doobneek-script', 'true'); // Mark for cleanup
+    script.setAttribute('data-doobneek-maps-api', 'true');
     script.onload = () => {
       // Double check that Google Maps is fully loaded with timeout
       let attempts = 0;
@@ -586,8 +776,13 @@
       pending: null,
       dismissed: null,
       promptOpen: false,
-      lastPromptAt: 0
+      lastPromptAt: 0,
+      suppressPromptUntil: 0
     };
+    const suppressRelocatePrompt = (durationMs = 1200) => {
+      relocateState.suppressPromptUntil = Date.now() + durationMs;
+    };
+    let updateStreetViewForLocation = null;
     if (locationData) {
       const orgName = locationData.Organization?.name || '';
       const locName = locationData.name || '';
@@ -641,7 +836,9 @@
     // Add a style rule to ensure the autocomplete suggestions appear over the modal.
     const style = document.createElement('style');
     style.textContent = '.pac-container { z-index: 100002 !important; }';
+    let dismissRelocateOverlay = () => {};
     const closeModal = () => {
+      dismissRelocateOverlay();
       cleanupModalMaps(modal);
       modal.remove();
       const index = activeModals.indexOf(modal);
@@ -1276,6 +1473,25 @@
         relocateInputsDirty = false;
         setRelocateStatus('', 'info');
       };
+      const resetPinToOriginal = () => {
+        const original = toLatLngLiteral(relocateState.original);
+        if (!original) return;
+        suppressRelocatePrompt();
+        if (typeof updateStreetViewForLocation === 'function') {
+          updateStreetViewForLocation(original, {
+            draggable: true,
+            promptRelocate: false,
+            recenter: true
+          });
+        }
+      };
+      dismissRelocateOverlay = () => {
+        if (!relocateState.promptOpen && !relocateState.pending) return;
+        relocateState.dismissed = relocateState.pending;
+        relocateState.pending = null;
+        resetPinToOriginal();
+        hideRelocateOverlay();
+      };
       relocateLatInput.addEventListener('input', () => {
         relocateInputsDirty = true;
         evaluateRelocateInputs();
@@ -1292,6 +1508,7 @@
       relocateKeepButton.addEventListener('click', () => {
         relocateState.dismissed = relocateState.pending;
         relocateState.pending = null;
+        resetPinToOriginal();
         hideRelocateOverlay();
       });
       relocateConfirmButton.addEventListener('click', async () => {
@@ -1318,6 +1535,14 @@
             locationData.position = { type: 'Point', coordinates: [literal.lng, literal.lat] };
             locationData.latitude = literal.lat;
             locationData.longitude = literal.lng;
+          }
+          suppressRelocatePrompt();
+          if (typeof updateStreetViewForLocation === 'function') {
+            updateStreetViewForLocation(literal, {
+              draggable: true,
+              promptRelocate: false,
+              recenter: true
+            });
           }
           createBubble('Location relocated!');
           hideRelocateOverlay();
@@ -1463,6 +1688,7 @@
       const shouldPromptRelocate = () => {
         if (!locationId || !isYourPeerRedirectEnabled()) return false;
         if (!relocateState.original) return false;
+        if (Date.now() < relocateState.suppressPromptUntil) return false;
         return true;
       };
       const isDismissedCandidate = (candidate) => {
@@ -1470,22 +1696,26 @@
         const distance = computeDistanceMeters(relocateState.dismissed, candidate);
         return Number.isFinite(distance) && distance < RELOCATE_PROMPT_DISTANCE_METERS;
       };
-      const maybePromptRelocate = (candidate, { allowPrompt = true } = {}) => {
+      const maybePromptRelocate = (candidate, { allowPrompt = true, forcePrompt = false } = {}) => {
         if (!allowPrompt) return;
         const literal = toLatLngLiteral(candidate);
         if (!literal) return;
         if (!shouldPromptRelocate()) return;
-        const distance = computeDistanceMeters(relocateState.original, literal);
-        if (!Number.isFinite(distance) || distance < RELOCATE_PROMPT_DISTANCE_METERS) return;
+        if (!forcePrompt) {
+          const distance = computeDistanceMeters(relocateState.original, literal);
+          if (!Number.isFinite(distance) || distance < RELOCATE_PROMPT_DISTANCE_METERS) return;
+          if (isDismissedCandidate(literal)) return;
+          const now = Date.now();
+          if (now - relocateState.lastPromptAt < 800) return;
+          relocateState.lastPromptAt = now;
+        } else {
+          relocateState.lastPromptAt = Date.now();
+        }
         if (relocateState.promptOpen) {
           relocateState.pending = literal;
           updateRelocateOverlay(literal);
           return;
         }
-        if (isDismissedCandidate(literal)) return;
-        const now = Date.now();
-        if (now - relocateState.lastPromptAt < 800) return;
-        relocateState.lastPromptAt = now;
         relocateState.pending = literal;
         showRelocateOverlay(literal);
       };
@@ -1518,24 +1748,32 @@
           }
         });
       };
-      const updateStreetViewForLocation = (referenceLatLng, { draggable = false, promptRelocate = true } = {}) => {
+      updateStreetViewForLocation = (referenceLatLng, { draggable = false, promptRelocate = true, recenter = false } = {}) => {
         if (!referenceLatLng) return;
         if (marker) {
           google.maps.event.clearInstanceListeners(marker);
           marker.setMap(null);
         }
+        const markerDraggable = Boolean(draggable && canEditLocation);
         marker = new google.maps.Marker({
           position: referenceLatLng,
           map,
-          draggable
+          draggable: markerDraggable
         });
+        if (recenter && map) {
+          if (typeof map.panTo === 'function') {
+            map.panTo(referenceLatLng);
+          } else if (typeof map.setCenter === 'function') {
+            map.setCenter(referenceLatLng);
+          }
+        }
         requestPanorama(referenceLatLng);
         maybePromptRelocate(referenceLatLng, { allowPrompt: promptRelocate });
-        if (draggable) {
+        if (markerDraggable) {
           marker.addListener('dragend', () => {
             const newPosition = marker.getPosition();
             requestPanorama(newPosition);
-            maybePromptRelocate(newPosition);
+            maybePromptRelocate(newPosition, { forcePrompt: true });
           });
         }
       };
@@ -1972,3 +2210,4 @@
   }
   window.createStreetViewPicker = createStreetViewPicker;
 })();
+

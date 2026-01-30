@@ -20,6 +20,65 @@ function onUrlChange(callback) {
   window.addEventListener('popstate', check);
   setInterval(check, 500); // fallback check
 }
+function sendRuntimeMessage(message, callback) {
+  if (!chrome?.runtime?.sendMessage || !chrome?.runtime?.id) {
+    callback?.(null);
+    return;
+  }
+  try {
+    chrome.runtime.sendMessage(message, (response) => {
+      let lastError = null;
+      try {
+        lastError = chrome?.runtime?.lastError;
+      } catch (err) {
+        lastError = err;
+      }
+      if (lastError) {
+        console.warn('[Minimap] runtime message failed:', lastError?.message || lastError);
+        callback?.(null);
+        return;
+      }
+      callback?.(response || null);
+    });
+  } catch (err) {
+    console.warn('[Minimap] runtime message threw:', err?.message || err);
+    callback?.(null);
+  }
+}
+const MINIMAP_RADIUS_METERS = 5000;
+function fetchLocationsByRadius(lat, lng, radius = MINIMAP_RADIUS_METERS) {
+  const url = `https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lng)}&radius=${encodeURIComponent(radius)}`;
+  return fetch(url, {
+    headers: { accept: 'application/json, text/plain, */*' },
+    cache: 'no-store',
+    mode: 'cors',
+    credentials: 'omit'
+  })
+    .then(res => (res.ok ? res.json() : null))
+    .catch(() => null);
+}
+function dispatchMinimapLocations(lat, lng, radius, locations) {
+  if (!Array.isArray(locations)) return;
+  window.dispatchEvent(new CustomEvent('gghost-minimap-locations', {
+    detail: { lat, lng, radius, locations }
+  }));
+}
+function requestMinimapLocations(lat, lng, radius = MINIMAP_RADIUS_METERS) {
+  sendRuntimeMessage(
+    { type: 'FETCH_LOCATIONS_BY_RADIUS', query: { latitude: lat, longitude: lng, radius } },
+    (res) => {
+      if (res?.ok && Array.isArray(res.data)) {
+        dispatchMinimapLocations(lat, lng, radius, res.data);
+        return;
+      }
+      fetchLocationsByRadius(lat, lng, radius).then((data) => {
+        if (Array.isArray(data)) {
+          dispatchMinimapLocations(lat, lng, radius, data);
+        }
+      });
+    }
+  );
+}
 let container = null;
 let observer = null;
 let focusAckTimer = null;
@@ -173,7 +232,7 @@ function injectMapUI() {
       return;
     }
     debounce = setTimeout(() => {
-      chrome.runtime.sendMessage(
+      sendRuntimeMessage(
         { type: 'getAddressSuggestions', input: query },
         (res) => {
           const preds = res?.predictions || [];
@@ -187,10 +246,11 @@ function injectMapUI() {
               borderBottom: '1px solid #eee'
             });
             div.addEventListener('click', () => {
-              input.value = pred.description;
+              const description = pred.description || pred.name || input.value || '';
+              input.value = description;
               suggestions.innerHTML = '';
               suggestions.style.display = 'none';
-              showPlaceById(pred.place_id);
+              showPlaceById(pred.place_id, description);
             });
             suggestions.appendChild(div);
           });
@@ -203,17 +263,18 @@ function injectMapUI() {
     if (e.key === 'Enter') {
       const query = input.value.trim();
       if (!query) return;
-      chrome.runtime.sendMessage(
+      sendRuntimeMessage(
         { type: 'getAddressSuggestions', input: query },
         (res) => {
           const placeId = res?.predictions?.[0]?.place_id;
           if (placeId) {
             suggestions.innerHTML = '';
             suggestions.style.display = 'none';
-            showPlaceById(placeId);
+            showPlaceById(placeId, query);
           } else {
             iframe.src = `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=14&output=embed`;
             iframe.style.display = 'block';
+            requestMapFocusByAddress(query);
           }
         }
       );
@@ -231,6 +292,13 @@ function injectMapUI() {
       return Promise.resolve(false);
     }
     const requestId = `minimap-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const focusDetail = { lat, lng, zoom, requestId, triggerClick: true, dropPin: true };
+    try {
+      window.__gghostMinimapPendingFocus = focusDetail;
+      window.__gghostMinimapPendingFocusAt = Date.now();
+    } catch (err) {
+      // ignore if window is not writable
+    }
     return new Promise((resolve) => {
       let settled = false;
       const handleAck = (event) => {
@@ -239,11 +307,16 @@ function injectMapUI() {
         settled = true;
         window.removeEventListener('gghost-minimap-focus-ack', handleAck);
         clearTimeout(focusAckTimer);
+        try {
+          window.__gghostMinimapPendingFocus = null;
+        } catch (err) {
+          // ignore cleanup failures
+        }
         resolve(!!detail.success);
       };
       window.addEventListener('gghost-minimap-focus-ack', handleAck);
       window.dispatchEvent(new CustomEvent('gghost-minimap-focus', {
-        detail: { lat, lng, zoom, requestId, triggerClick: true, dropPin: false }
+        detail: focusDetail
       }));
       focusAckTimer = setTimeout(() => {
         if (settled) return;
@@ -252,20 +325,79 @@ function injectMapUI() {
       }, 700);
     });
   }
-  function showPlaceById(placeId) {
-    chrome.runtime.sendMessage(
+  function coerceLatLng(value) {
+    if (!value || typeof value !== 'object') return null;
+    const latValue = typeof value.lat === 'function'
+      ? value.lat()
+      : (value.lat ?? value.latitude);
+    const lngValue = typeof value.lng === 'function'
+      ? value.lng()
+      : (value.lng ?? value.longitude);
+    const lat = Number(latValue);
+    const lng = Number(lngValue);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng };
+  }
+  function requestMapFocusByAddress(address, zoom = 16) {
+    const trimmed = String(address || '').trim();
+    if (!trimmed) return Promise.resolve(false);
+    const requestId = `minimap-geocode-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const detail = {
+      address: trimmed,
+      zoom,
+      requestId,
+      triggerClick: true,
+      dropPin: true
+    };
+    try {
+      window.__gghostMinimapPendingAddress = detail;
+      window.__gghostMinimapPendingAddressAt = Date.now();
+    } catch (err) {
+      // ignore if window is not writable
+    }
+    return new Promise((resolve) => {
+      let settled = false;
+      const handleAck = (event) => {
+        const ack = event?.detail;
+        if (!ack || ack.requestId !== requestId) return;
+        settled = true;
+        window.removeEventListener('gghost-minimap-geocode-ack', handleAck);
+        const coords = coerceLatLng(ack);
+        if (coords) {
+          const { lat, lng } = coords;
+          iframe.src = `https://www.google.com/maps?q=${lat},${lng}&z=${Number.isFinite(zoom) ? zoom : 16}&output=embed`;
+          iframe.style.display = 'block';
+          requestMinimapLocations(lat, lng);
+        }
+        resolve(!!ack.success);
+      };
+      window.addEventListener('gghost-minimap-geocode-ack', handleAck);
+      window.dispatchEvent(new CustomEvent('gghost-minimap-geocode', { detail }));
+      setTimeout(() => {
+        if (settled) return;
+        window.removeEventListener('gghost-minimap-geocode-ack', handleAck);
+        resolve(false);
+      }, 1500);
+    });
+  }
+  function showPlaceById(placeId, fallbackAddress = '') {
+    sendRuntimeMessage(
       { type: 'getPlaceDetails', placeId },
       (res) => {
-        const loc = res?.location;
-        if (loc?.lat && loc?.lng) {
-          const lat = Number(loc.lat);
-          const lng = Number(loc.lng);
+        const coords = coerceLatLng(res?.location);
+        if (coords) {
+          const { lat, lng } = coords;
           requestMapFocus(lat, lng).then(() => {
             iframe.src = `https://www.google.com/maps?q=${lat},${lng}&z=16&output=embed`;
             iframe.style.display = 'block';
           });
+          requestMinimapLocations(lat, lng);
         } else {
-          alert('Location not found');
+          if (fallbackAddress) {
+            requestMapFocusByAddress(fallbackAddress);
+          } else {
+            alert('Location not found');
+          }
         }
       }
     );
