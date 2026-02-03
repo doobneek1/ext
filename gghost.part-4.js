@@ -1827,6 +1827,39 @@ function renderLocationContactOverlay(locationId, locationData) {
       status.textContent = text;
       status.style.color = color || '#666';
     };
+    const verifyPersistedEmail = async (expectedEmail) => {
+      const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+      const headers = typeof getAuthHeaders === 'function' ? getAuthHeaders() : { 'Content-Type': 'application/json' };
+      if (!headers.accept) headers.accept = 'application/json';
+      const url = `${LOCATION_API_BASE}/${locationId}?_=${Date.now()}`;
+      try {
+        const res = await fetcher(url, {
+          method: 'GET',
+          headers,
+          cache: 'no-store',
+          credentials: 'include',
+          mode: 'cors'
+        });
+        if (!res.ok) {
+          return { ok: false, status: res.status };
+        }
+        const data = await res.json().catch(() => null);
+        const orgEmail = data?.Organization?.email ?? data?.organization?.email ?? null;
+        const locEmail = data?.email ?? null;
+        const expected = String(expectedEmail || '').trim();
+        const orgMatch = String(orgEmail || '').trim() === expected;
+        const locMatch = String(locEmail || '').trim() === expected;
+        return {
+          ok: true,
+          orgEmail,
+          locEmail,
+          orgMatch,
+          locMatch
+        };
+      } catch (err) {
+        return { ok: false, error: err?.message || String(err) };
+      }
+    };
     input.addEventListener('input', () => {
       setStatus('', '#666');
       setSaveState();
@@ -1849,7 +1882,26 @@ function renderLocationContactOverlay(locationId, locationData) {
         }
         locationData.Organization.email = nextValue || null;
         updateCachedLocationOrganizationEmail(locationId, nextValue || null);
-        setStatus('Saved.', '#2e7d32');
+        setStatus('Saved. Verifying...', '#666');
+        const verification = await verifyPersistedEmail(nextValue || null);
+        if (verification?.ok) {
+          if (verification.orgMatch || verification.locMatch) {
+            setStatus('Saved (verified).', '#2e7d32');
+          } else {
+            const serverValue = verification.orgEmail ?? verification.locEmail;
+            const serverText = serverValue ? `"${serverValue}"` : '(empty)';
+            setStatus(`Saved, but server still has ${serverText}.`, '#b26a00');
+            console.warn('[Email Debug] Persist check mismatch', {
+              expected: nextValue || null,
+              serverOrganizationEmail: verification.orgEmail ?? null,
+              serverLocationEmail: verification.locEmail ?? null
+            });
+          }
+        } else {
+          const reason = verification?.status ? `status ${verification.status}` : (verification?.error || 'unknown error');
+          setStatus(`Saved, but verify failed (${reason}).`, '#b26a00');
+          console.warn('[Email Debug] Persist check failed', verification);
+        }
         setTimeout(() => {
           if (!document.getElementById(LOCATION_CONTACT_CONTAINER_ID)) return;
           renderLocationContactOverlay(locationId, locationData);
