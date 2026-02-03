@@ -84,6 +84,59 @@ async function writeNotesPreviewEntry(uuid, entry) {
     [previewKey]: { ts: Date.now(), latest: entry }
   });
 }
+function normalizeNotesBaseUrl(baseURL) {
+  if (!baseURL) return "";
+  return baseURL.endsWith("/") ? baseURL : `${baseURL}/`;
+}
+function resolveNoteText(raw) {
+  if (raw == null) return "";
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "object") {
+    return raw.note || raw.summary || raw.text || JSON.stringify(raw);
+  }
+  return String(raw);
+}
+function startTodayNoteListener({ baseURL, uuid, userName, dateKey, onUpdate }) {
+  if (!baseURL || !uuid || !userName || !dateKey || typeof EventSource === "undefined") {
+    return null;
+  }
+  const safeBase = normalizeNotesBaseUrl(baseURL);
+  const encodedUser = encodeURIComponent(userName);
+  const url = `${safeBase}locationNotes/${uuid}/${encodedUser}/${dateKey}.json`;
+  let closed = false;
+  let source = null;
+  try {
+    source = new EventSource(url);
+  } catch (err) {
+    console.warn("[Notes] Failed to start realtime listener:", err);
+    return null;
+  }
+  const handleEvent = (event) => {
+    if (!event?.data) return;
+    let payload = null;
+    try {
+      payload = JSON.parse(event.data);
+    } catch (_err) {
+      return;
+    }
+    if (!payload || typeof payload !== "object") return;
+    onUpdate?.(payload.data);
+  };
+  source.addEventListener("put", handleEvent);
+  source.addEventListener("patch", handleEvent);
+  source.onerror = () => {
+    if (closed) return;
+    console.warn("[Notes] Realtime listener error; stream will retry.");
+  };
+  return () => {
+    closed = true;
+    try {
+      source.close();
+    } catch (_err) {
+      // Ignore close failures.
+    }
+  };
+}
 async function injectGoGettaButtons() {
   const host = location.hostname;
   if (!host.includes('gogetta.nyc')) {
@@ -2919,6 +2972,7 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
         sectionTitle.style.borderBottom = '2px solid #eee';
         sectionTitle.style.paddingBottom = '5px';
         modal.appendChild(sectionTitle);
+        const USER_PAGE_SIZE = 25;
         const colorPalette = ['#1b9e77', '#d95f02', '#7570b3', '#e7298a', '#66a61e', '#e6ab02'];
         const userColors = new Map();
         const pickColor = (user) => {
@@ -2951,9 +3005,7 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
           legend.appendChild(item);
         });
         modal.appendChild(legend);
-        const detailsList = document.createElement('div');
-        Object.assign(detailsList.style, { display: 'flex', flexDirection: 'column', gap: '10px' });
-        locationEdits.forEach((edit) => {
+        const buildEditRow = (edit) => {
           const row = document.createElement('div');
           Object.assign(row.style, {
             border: '1px solid #e0e0e0',
@@ -3008,7 +3060,104 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
             details.appendChild(afterBlock);
             row.appendChild(details);
           }
-          detailsList.appendChild(row);
+          return row;
+        };
+        const detailsList = document.createElement('div');
+        Object.assign(detailsList.style, { display: 'flex', flexDirection: 'column', gap: '12px' });
+        const editsByUser = new Map();
+        locationEdits.forEach((edit) => {
+          const user = normalizeEditUserName(edit.userName || 'Unknown') || 'Unknown';
+          if (!editsByUser.has(user)) editsByUser.set(user, []);
+          editsByUser.get(user).push(edit);
+        });
+        const userGroups = Array.from(editsByUser.entries()).map(([user, edits]) => ({
+          user,
+          edits,
+          latestDate: edits[0]?.date || new Date(0)
+        })).sort((a, b) => b.latestDate - a.latestDate);
+        userGroups.forEach(({ user, edits }) => {
+          const total = edits.length;
+          const totalPages = Math.max(1, Math.ceil(total / USER_PAGE_SIZE));
+          const section = document.createElement('div');
+          Object.assign(section.style, { border: '1px solid #eee', borderRadius: '8px', padding: '10px' });
+          const headerRow = document.createElement('div');
+          Object.assign(headerRow.style, {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '8px'
+          });
+          const dot = document.createElement('span');
+          Object.assign(dot.style, {
+            width: '10px',
+            height: '10px',
+            borderRadius: '50%',
+            background: pickColor(user),
+            display: 'inline-block'
+          });
+          const userLabel = document.createElement('div');
+          userLabel.textContent = `${user} (${total})`;
+          userLabel.style.fontWeight = '600';
+          userLabel.style.fontSize = '13px';
+          const pager = document.createElement('div');
+          Object.assign(pager.style, { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' });
+          const prevBtn = document.createElement('button');
+          prevBtn.type = 'button';
+          prevBtn.textContent = 'Prev';
+          const nextBtn = document.createElement('button');
+          nextBtn.type = 'button';
+          nextBtn.textContent = 'Next';
+          [prevBtn, nextBtn].forEach((btn) => {
+            Object.assign(btn.style, {
+              border: '1px solid #d0d0d0',
+              background: '#fff',
+              borderRadius: '4px',
+              padding: '2px 6px',
+              fontSize: '11px',
+              cursor: 'pointer'
+            });
+          });
+          const pageInfo = document.createElement('span');
+          pageInfo.style.fontSize = '11px';
+          pageInfo.style.color = '#666';
+          pager.appendChild(prevBtn);
+          pager.appendChild(pageInfo);
+          pager.appendChild(nextBtn);
+          headerRow.appendChild(dot);
+          headerRow.appendChild(userLabel);
+          headerRow.appendChild(pager);
+          section.appendChild(headerRow);
+          const rowsWrap = document.createElement('div');
+          Object.assign(rowsWrap.style, { display: 'flex', flexDirection: 'column', gap: '10px' });
+          section.appendChild(rowsWrap);
+          const state = { page: 0 };
+          const renderPage = () => {
+            rowsWrap.innerHTML = '';
+            const start = state.page * USER_PAGE_SIZE;
+            const pageEdits = edits.slice(start, start + USER_PAGE_SIZE);
+            pageEdits.forEach((edit) => rowsWrap.appendChild(buildEditRow(edit)));
+            pageInfo.textContent = `Page ${state.page + 1} of ${totalPages}`;
+            prevBtn.disabled = state.page <= 0;
+            nextBtn.disabled = state.page >= totalPages - 1;
+            prevBtn.style.opacity = prevBtn.disabled ? '0.5' : '1';
+            nextBtn.style.opacity = nextBtn.disabled ? '0.5' : '1';
+            prevBtn.style.cursor = prevBtn.disabled ? 'default' : 'pointer';
+            nextBtn.style.cursor = nextBtn.disabled ? 'default' : 'pointer';
+          };
+          prevBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (state.page <= 0) return;
+            state.page -= 1;
+            renderPage();
+          });
+          nextBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (state.page >= totalPages - 1) return;
+            state.page += 1;
+            renderPage();
+          });
+          renderPage();
+          detailsList.appendChild(section);
         });
         modal.appendChild(detailsList);
       }
@@ -3973,9 +4122,10 @@ noteBox.style.scrollPaddingBottom = '40px';
     } else { 
         noteBox.style.background = "#e6ffe6"; 
         noteBox.setAttribute("aria-label", "Editable location notes. Previous notes are read-only.");
+        const todayKey = typeof today === "string" ? today : new Date().toISOString().slice(0, 10);
         let currentUserNoteForToday = "";
-        if (data && data[userName] && data[userName][today]) {
-            currentUserNoteForToday = data[userName][today];
+        if (data && data[userName] && data[userName][todayKey]) {
+            currentUserNoteForToday = data[userName][todayKey];
         }
 const noteWrapper = document.createElement("div");
 noteWrapper.id = "gg-note-wrapper";
@@ -4254,8 +4404,65 @@ noteActionWrapper.style.borderTop = "1px dashed #ccc";
 noteActionWrapper.style.display = "flex";
 noteActionWrapper.style.justifyContent = "space-between";
 const revalidationCode = "revalidated123435355342";
-const userNoteForToday = data?.[userName]?.[today] || null;
-const isRevalidatedToday = userNoteForToday?.trim().toLowerCase() === revalidationCode;
+let userNoteForToday = data?.[userName]?.[todayKey] || null;
+let isRevalidatedToday = resolveNoteText(userNoteForToday).trim().toLowerCase() === revalidationCode;
+const baseForNotes =
+  window.gghost?.baseURL ||
+  (typeof baseURL !== "undefined" ? baseURL : "https://streetli-default-rtdb.firebaseio.com/");
+const applyLiveNoteUpdate = (value) => {
+  if (!data || typeof data !== "object") {
+    data = {};
+  }
+  const noteText = resolveNoteText(value);
+  if (!data[userName] || typeof data[userName] !== "object") {
+    data[userName] = {};
+  }
+  if (!noteText) {
+    delete data[userName][todayKey];
+    if (!Object.keys(data[userName]).length) {
+      delete data[userName];
+    }
+  } else {
+    data[userName][todayKey] = noteText;
+  }
+  userNoteForToday = noteText || null;
+  isRevalidatedToday = resolveNoteText(userNoteForToday).trim().toLowerCase() === revalidationCode;
+  const isFocused = document.activeElement === editableDiv;
+  const normalizedForEdit =
+    resolveNoteText(userNoteForToday).trim().toLowerCase() === revalidationCode
+      ? ""
+      : resolveNoteText(userNoteForToday);
+  if (!isFocused) {
+    const currentText = editableDiv.innerText.trim();
+    if (currentText !== normalizedForEdit.trim()) {
+      editableDiv.innerText = normalizedForEdit;
+    }
+  }
+  const updatedNotesArray = buildNotesArray(data);
+  renderReadOnlyNotes(updatedNotesArray);
+  void writeNotesCache(uuid, data, updatedNotesArray);
+  toggleRevalidateCheckbox();
+  toggleLeftMessageButton();
+};
+if (userName && uuid) {
+  const streamKey = `${uuid}:${userName}:${todayKey}`;
+  const existingStream = window.__GG_TODAY_NOTE_STREAM__;
+  if (!existingStream || existingStream.key !== streamKey) {
+    if (existingStream?.stop) {
+      existingStream.stop();
+    }
+    const stop = startTodayNoteListener({
+      baseURL: baseForNotes,
+      uuid,
+      userName,
+      dateKey: todayKey,
+      onUpdate: applyLiveNoteUpdate
+    });
+    if (stop) {
+      window.__GG_TODAY_NOTE_STREAM__ = { key: streamKey, stop };
+    }
+  }
+}
 // Create the wrapper + checkbox (initially hidden)
 const checkboxWrapper = document.createElement("div");
 checkboxWrapper.style.padding = "10px";

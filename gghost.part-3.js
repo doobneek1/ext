@@ -58,7 +58,8 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
     backgroundClip: 'padding-box'
   });
   const svcList = Array.isArray(services) ? services : [];
-  if (!svcList.length) return panel;
+  const TAXONOMY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const isValidTaxonomyId = (value) => TAXONOMY_ID_RE.test(String(value || ''));
   const formatEntryText = (entry) => {
     const value = entry.value || entry.emptyLabel || 'Missing';
     return `${entry.label}: ${value}`;
@@ -101,7 +102,7 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
     marginTop: '6px',
     paddingTop: '6px',
     borderTop: '1px solid #efe7c8',
-    display: 'none',
+    display: 'flex',
     flexDirection: 'column',
     gap: '6px'
   });
@@ -115,9 +116,12 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
       return;
     }
     const fallbackTaxonomyId = localStorage.getItem(SERVICE_CREATE_TAXONOMY_KEY);
-    const taxonomyId = item?.taxonomyId || fallbackTaxonomyId;
-    if (!taxonomyId) {
-      window.alert('Select a taxonomy before creating a service.');
+    let taxonomyId = item?.taxonomyId || fallbackTaxonomyId;
+    if (!taxonomyId || !isValidTaxonomyId(taxonomyId)) {
+      if (fallbackTaxonomyId && fallbackTaxonomyId === taxonomyId) {
+        localStorage.removeItem(SERVICE_CREATE_TAXONOMY_KEY);
+      }
+      window.alert('Select a taxonomy with a valid ID before creating a service.');
       return;
     }
     const name = String(nameOverride || item?.name || 'New service').trim() || 'New service';
@@ -153,7 +157,8 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
     section.appendChild(buildSectionTitle('Create service'));
     const row = document.createElement('div');
     Object.assign(row.style, { display: 'flex', gap: '4px', alignItems: 'center' });
-    const options = getTaxonomyOptionsFromServices(svcList);
+    const options = getTaxonomyOptionsFromServices(svcList)
+      .filter(option => isValidTaxonomyId(option?.id));
     const select = document.createElement('select');
     Object.assign(select.style, {
       flex: '1 1 auto',
@@ -184,6 +189,37 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
         localStorage.setItem(SERVICE_CREATE_TAXONOMY_KEY, select.value);
       });
     }
+    const saveDraftBtn = document.createElement('button');
+    saveDraftBtn.type = 'button';
+    saveDraftBtn.textContent = 'save';
+    saveDraftBtn.title = 'Save draft';
+    Object.assign(saveDraftBtn.style, {
+      border: '1px solid #d0d0d0',
+      background: '#fff',
+      borderRadius: '4px',
+      minWidth: '34px',
+      height: '22px',
+      lineHeight: '18px',
+      fontSize: '10px',
+      color: '#1f5f9b',
+      cursor: options.length ? 'pointer' : 'not-allowed'
+    });
+    saveDraftBtn.disabled = !options.length;
+    saveDraftBtn.addEventListener('click', (evt) => {
+      evt.stopPropagation();
+      if (!options.length) return;
+      const taxonomyId = select.value;
+      const taxonomyLabel = select.options[select.selectedIndex]?.textContent || '';
+      const stashItem = {
+        stashId: typeof uuidv === 'function' ? uuidv() : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        taxonomyId,
+        taxonomyLabel: taxonomyLabel || null,
+        name: 'New service',
+        createdAt: new Date().toISOString()
+      };
+      upsertServiceStashItem(SERVICE_STASH_SAVED_KEY, stashItem);
+      refreshExtras();
+    });
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.textContent = '+';
@@ -213,6 +249,7 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
       }
     });
     row.appendChild(select);
+    row.appendChild(saveDraftBtn);
     row.appendChild(addBtn);
     section.appendChild(row);
     return section;
@@ -224,9 +261,60 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
     section.appendChild(buildSectionTitle(title));
     const list = document.createElement('div');
     Object.assign(list.style, { display: 'flex', flexDirection: 'column', gap: '4px' });
+    const expandOnly = key === SERVICE_STASH_SAVED_KEY;
+    const buildDetailRow = (label, value) => {
+      const row = document.createElement('div');
+      row.textContent = `${label}: ${value}`;
+      Object.assign(row.style, {
+        fontSize: '10px',
+        color: '#6b5a2b',
+        lineHeight: '1.2',
+        wordBreak: 'break-word',
+        overflowWrap: 'anywhere'
+      });
+      return row;
+    };
     stash.forEach(item => {
       const row = document.createElement('div');
       Object.assign(row.style, { display: 'flex', alignItems: 'center', gap: '4px' });
+      let details = null;
+      const toggleDetails = () => {
+        if (!details) {
+          details = document.createElement('div');
+          Object.assign(details.style, {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px',
+            padding: '4px 6px',
+            marginTop: '2px',
+            border: '1px dashed #e6ddb4',
+            borderRadius: '6px',
+            background: '#fffdf6'
+          });
+          const pairs = [
+            ['Name', item?.name],
+            ['Taxonomy', item?.taxonomyLabel],
+            ['Taxonomy ID', item?.taxonomyId],
+            ['Description', item?.description],
+            ['URL', item?.url],
+            ['Email', item?.email],
+            ['Additional info', item?.additional_info],
+            ['Fees', item?.fees],
+            ['Interpretation', item?.interpretation_services],
+            ['Created', item?.createdAt]
+          ];
+          pairs.forEach(([label, value]) => {
+            if (!value) return;
+            details.appendChild(buildDetailRow(label, value));
+          });
+          if (!details.children.length) {
+            details.appendChild(buildDetailRow('Details', 'No saved details.'));
+          }
+          list.insertBefore(details, row.nextSibling);
+        } else {
+          details.style.display = details.style.display === 'none' ? 'flex' : 'none';
+        }
+      };
       const label = item?.taxonomyLabel
         ? `${item.name} (${item.taxonomyLabel})`
         : item?.name || 'Saved service';
@@ -250,6 +338,10 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
       let clickTimer = null;
       btn.addEventListener('click', () => {
         if (!locationId) return;
+        if (expandOnly) {
+          toggleDetails();
+          return;
+        }
         if (clickTimer) clearTimeout(clickTimer);
         clickTimer = setTimeout(() => {
           clickTimer = null;
@@ -326,21 +418,34 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
     return section;
   };
   const refreshExtras = () => {
-    if (!redirectEnabled) return;
     extrasWrap.innerHTML = '';
     extrasWrap.style.display = 'flex';
     const createSection = buildCreateServiceSection();
     extrasWrap.appendChild(createSection);
-    const savedSection = buildServiceStashSection('Saved services', SERVICE_STASH_SAVED_KEY, { allowEdit: true });
-    if (savedSection) extrasWrap.appendChild(savedSection);
-    const deletedSection = buildServiceStashSection('Recently deleted', SERVICE_STASH_DELETED_KEY, { showSave: true });
-    if (deletedSection) extrasWrap.appendChild(deletedSection);
+    if (redirectEnabled) {
+      const savedSection = buildServiceStashSection('Saved services', SERVICE_STASH_SAVED_KEY, { allowEdit: true });
+      if (savedSection) extrasWrap.appendChild(savedSection);
+      const deletedSection = buildServiceStashSection('Recently deleted', SERVICE_STASH_DELETED_KEY, { showSave: true });
+      if (deletedSection) extrasWrap.appendChild(deletedSection);
+    }
   };
   redirectHandlers.push((enabled) => {
-    extrasWrap.style.display = enabled ? 'flex' : 'none';
-    if (enabled) refreshExtras();
+    extrasWrap.style.display = 'flex';
+    refreshExtras();
   });
   void getRedirectEnabledFlag().then(setRedirectEnabled);
+  if (!svcList.length) {
+    extrasWrap.style.marginTop = '0';
+    extrasWrap.style.paddingTop = '0';
+    extrasWrap.style.borderTop = 'none';
+    const empty = document.createElement('div');
+    empty.textContent = 'No services yet.';
+    Object.assign(empty.style, {
+      fontSize: '12px',
+      color: '#7a6b2b'
+    });
+    panel.appendChild(empty);
+  }
   svcList.forEach((service, idx) => {
     const entries = getServiceQuickEntries(service);
     const row = document.createElement('div');
@@ -469,6 +574,7 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
           const index = svcList.findIndex(item => normalizeId(item?.id) === normalizeId(service.id));
           if (index >= 0) svcList.splice(index, 1);
           row.remove();
+          window.location.href = 'https://gogetta.nyc/team/location/1ebd1a5d-c3a1-404d-aaf2-830552e4deea/services/recap';
         } catch (err) {
           console.warn('[Service Taxonomy] Failed to delete service', err);
           deleteBtn.disabled = false;

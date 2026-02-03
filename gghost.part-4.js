@@ -11,7 +11,8 @@ function removeTaxonomyHeartOverlay() {
 }
 function renderTaxonomyHeartOverlay(services, locationId) {
   removeTaxonomyHeartOverlay();
-  if (!Array.isArray(services) || services.length === 0 || !locationId) return;
+  if (!locationId) return;
+  const safeServices = Array.isArray(services) ? services : [];
   const container = document.createElement('div');
   container.id = TAXONOMY_HEART_ID;
   Object.assign(container.style, {
@@ -41,7 +42,7 @@ function renderTaxonomyHeartOverlay(services, locationId) {
     cursor: 'pointer',
     boxShadow: '0 4px 10px rgba(0,0,0,0.12)'
   });
-  const hoverPanel = createServiceHoverPanel(services, locationId, null);
+  const hoverPanel = createServiceHoverPanel(safeServices, locationId, null);
   hoverPanel.style.position = 'fixed';
   hoverPanel.style.left = '0';
   hoverPanel.style.top = '0';
@@ -112,14 +113,20 @@ async function showTaxonomyHeartOverlay(locationId) {
     removeTaxonomyHeartOverlay();
     return;
   }
-  const { data: locationData, fromCache, source } = await fetchFullLocationRecord(locationId, { refresh: false });
-  if (!locationData) {
-    removeTaxonomyHeartOverlay();
-    return;
+  let locationData = null;
+  let fromCache = false;
+  let source = null;
+  try {
+    const result = await fetchFullLocationRecord(locationId, { refresh: false });
+    locationData = result?.data || null;
+    fromCache = !!result?.fromCache;
+    source = result?.source || null;
+  } catch (err) {
+    console.error('[Taxonomy Heart] Failed to fetch location record', err);
   }
-  const services = normalizeServices(locationData.Services || locationData.services);
+  const services = locationData ? normalizeServices(locationData.Services || locationData.services) : [];
   renderTaxonomyHeartOverlay(services, locationId);
-  if (fromCache && source !== 'page-cache' && source !== 'page-cache-wait') {
+  if (locationData && fromCache && source !== 'page-cache' && source !== 'page-cache-wait') {
     fetchFullLocationRecord(locationId, { refresh: true })
       .then(({ data: freshData }) => {
         if (!freshData) return;
@@ -1398,15 +1405,18 @@ function buildLocationContactData(locationData, locationId) {
     serviceEmails.forEach(email => addEmail(email, `Service: ${serviceName} (details)`, descTarget));
   });
   const locationPhones = Array.isArray(locationData?.Phones) ? locationData.Phones : [];
-  const visibleLocationPhoneIndex = locationPhones.length > 1 ? 0 : -1;
   const phoneQuestionUrl = buildLocationQuestionUrl(locationId, 'phone-number');
-  locationPhones.forEach((phone, index) => {
+  locationPhones.forEach((phone) => {
     if (phone?.number) {
       const phoneTarget = phone?.id ? buildLocationPhoneEditUrl(locationId, phone.id) : phoneQuestionUrl;
-      let label = 'Location phone';
-      if (visibleLocationPhoneIndex !== -1) {
-        label = index === visibleLocationPhoneIndex ? 'Location phone (visible)' : 'Location phone (invisible)';
+      const rawType = phone?.type;
+      let typeText = '';
+      if (typeof rawType === 'string') {
+        typeText = rawType.trim();
+      } else if (rawType && typeof rawType === 'object') {
+        typeText = String(rawType.name || rawType.label || rawType.description || rawType.type || '').trim();
       }
+      const label = `Location phone (${typeText || 'add description'})`;
       addPhone(phone.number, phoneTarget, label);
     }
   });
