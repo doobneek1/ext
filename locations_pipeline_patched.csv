@@ -1415,3 +1415,705 @@ a83ad0cc-5f6c-421b-9110-b6d524aee2f9,patched,streetview_url set (default),"{""st
 17bd886f-22b1-40a6-841d-f1d79fc44b51,patched,address '921 East New York Ave' -> '921 E New York Ave' | streetview_url set (default),"{""address"": {""street"": ""921 E New York Ave"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11203"", ""country"": ""US""}, ""streetview_url"": ""https://www.google.com/maps/@40.66290484982478,-73.93243303504396,3a,75y,338.8h,0.0t/data=!3m6!1e1!3m4!1s7-QVGxe67cWg7pWFEl92VQ!2e0!7i16384!8i8192""}",28.547462064889356,,ok,default,0.9,The storefront is clearly visible and matches the organization.,"https://www.google.com/maps/@40.66290484982478,-73.93243303504396,3a,75y,338.8h,0.0t/data=!3m6!1e1!3m4!1s7-QVGxe67cWg7pWFEl92VQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.66294476245486,-73.9323284475557,3a,75y,314.2h,0.0t/data=!3m6!1e1!3m4!1svbvTa6RLhaFkz8CAFj54pg!2e0!7i16384!8i8192",missingstreetview
 8545b5ba-6ab6-43eb-abb9-b5a9caa7aefa,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.71416179078087,-73.99594431723092,3a,75y,170.1h,0.0t/data=!3m6!1e1!3m4!1shaDQ_A7-2a4SW0TKj6KiMw!2e0!7i16384!8i8192""}",9.94786499900955,,ok,default,0.8,"The storefront is visible in the default view, but it appears to be different from the expected storefront for LESC.","https://www.google.com/maps/@40.71416179078087,-73.99594431723092,3a,75y,170.1h,0.0t/data=!3m6!1e1!3m4!1shaDQ_A7-2a4SW0TKj6KiMw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.71359480693446,-73.99579098470464,3a,75y,343.0h,0.0t/data=!3m6!1e1!3m4!1simJgoaeIzrkjHUR-partjg!2e0!7i16384!8i8192",missingstreetview
 6f262eb1-ff7b-4711-bb9e-e6ddee3ffe93,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.81374600928289,-73.94401211760346,3a,75y,11.6h,0.0t/data=!3m6!1e1!3m4!1slDOwAnGNECMt85QsebkSgA!2e0!7i16384!8i8192""}",10.07535375383223,,ok,default,0.9,The storefront is visible and appears to match the organization.,"https://www.google.com/maps/@40.81374600928289,-73.94401211760346,3a,75y,11.6h,0.0t/data=!3m6!1e1!3m4!1slDOwAnGNECMt85QsebkSgA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.81374600928289,-73.94401211760346,3a,75y,16.2h,0.0t/data=!3m6!1e1!3m4!1slDOwAnGNECMt85QsebkSgA!2e0!7i16384!8i8192",missingstreetview
+d900ee5c-5bcd-44d1-b461-951f01ee0be8,patched,city 'BROOKLYN' -> 'Brooklyn' | address '1151 Bushwick Avenue' -> '1151 Bushwick Ave',"{""address"": {""street"": ""1151 Bushwick Ave"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11221"", ""country"": ""US""}}",1.1559947342105514,,ok,neither,0.0,All views are obstructed or do not show the storefront.,"https://www.google.com/maps/@40.68951347141444,-73.91737284334995,3a,75y,128.3h,0.0t/data=!3m6!1e1!3m4!1shQi8Q254fjwoQS3uLMGSpA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.68951347141444,-73.91737284334995,3a,75y,128.3h,0.0t/data=!3m6!1e1!3m4!1shQi8Q254fjwoQS3uLMGSpA!2e0!7i16384!8i8192",missingstreetview
+a9d640e7-25a9-4d5f-8afb-73bca5a5b515,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.65546606149839,-73.94947932356054,3a,75y,2.2h,0.0t/data=!3m6!1e1!3m4!1sCHUH4RDH4jNdECKga34ymg!2e0!7i16384!8i8192""}",1.0174052057875802,,ok,default,0.9,"The storefront is visible and identifiable as East Flatbush Village, though it is closed.","https://www.google.com/maps/@40.65546606149839,-73.94947932356054,3a,75y,2.2h,0.0t/data=!3m6!1e1!3m4!1sCHUH4RDH4jNdECKga34ymg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.65546606149839,-73.94947932356054,3a,75y,1.2h,0.0t/data=!3m6!1e1!3m4!1sCHUH4RDH4jNdECKga34ymg!2e0!7i16384!8i8192",missingstreetview
+90aa5132-5a62-418f-b4de-204ab731f4b4,patched,city 'NEW YORK' -> 'New York',"{""address"": {""street"": ""2348 Adam Clayton Powell Jr Blvd"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10030"", ""country"": ""US""}}",11.534071415767619,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3366. Please try again in 1.009s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3366. Please try again in 1.009s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.81702688631714,-73.94257192315108,3a,75y,300.9h,0.0t/data=!3m6!1e1!3m4!1s7i23aHD4Dvl9oIy6gs1cDw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.81702688631714,-73.94257192315108,3a,75y,301.8h,0.0t/data=!3m6!1e1!3m4!1s7i23aHD4Dvl9oIy6gs1cDw!2e0!7i16384!8i8192",missingstreetview
+364f84e1-1baa-432d-8b0e-b55b2284a12b,patched,address '1 Centre Street' -> '1 Centre St' | zip '10007' -> '10013',"{""address"": {""street"": ""1 Centre St"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10013"", ""country"": ""US""}}",32.89147658025636,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4163. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4163. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.71291760865419,-74.0035769835524,3a,75y,226.8h,0.0t/data=!3m6!1e1!3m4!1smNgLA9aAXA2dNAegPLG_4Q!2e0!7i16384!8i8192","https://www.google.com/maps/@40.71300778182787,-74.00378473616702,3a,75y,50.6h,0.0t/data=!3m6!1e1!3m4!1sr9rJEAiDkM7zblAbAZH7Xg!2e0!7i16384!8i8192",missingstreetview
+1c1137de-dc01-489d-9b7a-b4a53744d2f0,patched,zip '11433' -> '11434',"{""address"": {""street"": ""172-1 Linden Blvd"", ""city"": ""Jamaica"", ""state"": ""NY"", ""postalCode"": ""11434"", ""country"": ""US""}}",39.88109755985475,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4947. Please try again in 1.484s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4947. Please try again in 1.484s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.69240861408989,-73.77734935706933,3a,75y,262.8h,0.0t/data=!3m6!1e1!3m4!1s66WuubgQwvSV-3zZrD1hyQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.69195776966547,-73.77797504151077,3a,75y,357.5h,0.0t/data=!3m6!1e1!3m4!1sw9UI8lZcsLwIoh1YzTOdSA!2e0!7i16384!8i8192",missingstreetview
+49f74c0b-f484-451f-af34-2ee7e66b39a6,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.70103463926643,-73.93931433724448,3a,75y,130.4h,0.0t/data=!3m6!1e1!3m4!1sPkNKpp37QmwzRx1IJmj8xw!2e0!7i16384!8i8192""}",7.2712986265845485,,ok,default,0.8,"The storefront is visible in the default view, but it appears to be a hotel rather than the specified health organization.","https://www.google.com/maps/@40.70103463926643,-73.93931433724448,3a,75y,130.4h,0.0t/data=!3m6!1e1!3m4!1sPkNKpp37QmwzRx1IJmj8xw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.70100333203091,-73.9390456124385,3a,75y,230.6h,0.0t/data=!3m6!1e1!3m4!1sqXVIoU4FIoKRZVc0ScUBKw!2e0!7i16384!8i8192",missingstreetview
+b04187f7-74ac-4a1c-8eca-5dfa1bbd584d,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.81394620562961,-73.9568387659316,3a,75y,218.2h,0.0t/data=!3m6!1e1!3m4!1shjLSKVoz-TV4Is41-CtvIw!2e0!7i16384!8i8192""}",1.8039525510860994,,ok,default,0.9,The storefront is visible and facing the street in the default view.,"https://www.google.com/maps/@40.81394620562961,-73.9568387659316,3a,75y,218.2h,0.0t/data=!3m6!1e1!3m4!1shjLSKVoz-TV4Is41-CtvIw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.81394620562961,-73.9568387659316,3a,75y,224.5h,0.0t/data=!3m6!1e1!3m4!1shjLSKVoz-TV4Is41-CtvIw!2e0!7i16384!8i8192",missingstreetview
+1f3e1501-1389-4ed7-b054-40337ef8586c,patched,address '430 West 25th St' -> '430 W 25th St',"{""address"": {""street"": ""430 W 25th St"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10001"", ""country"": ""US""}}",4.27233936259002,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4160. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4160. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.74843200159561,-74.0019241003798,3a,75y,212.1h,0.0t/data=!3m6!1e1!3m4!1sozSs5IsfbxmO43I3L0l0qQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.74843200159561,-74.0019241003798,3a,75y,213.1h,0.0t/data=!3m6!1e1!3m4!1sozSs5IsfbxmO43I3L0l0qQ!2e0!7i16384!8i8192",missingstreetview
+ebfa581f-3a95-4ce8-aa52-e6b5fedcdaa3,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.6347266124152,-74.10922678681679,3a,75y,182.5h,0.0t/data=!3m6!1e1!3m4!1sQa4JbQ6OE43aK_sxsg3nmg!2e0!7i16384!8i8192""}",4.230800910919223,,ok,default,0.7,The default view shows part of the building but does not clearly display the storefront.,"https://www.google.com/maps/@40.6347266124152,-74.10922678681679,3a,75y,182.5h,0.0t/data=!3m6!1e1!3m4!1sQa4JbQ6OE43aK_sxsg3nmg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.6347266124152,-74.10922678681679,3a,75y,179.1h,0.0t/data=!3m6!1e1!3m4!1sQa4JbQ6OE43aK_sxsg3nmg!2e0!7i16384!8i8192",missingstreetview
+8baf4bef-4a8e-47be-969d-a534b28eccc8,patched,zip '11433' -> '11432',"{""address"": {""street"": ""161-10 Jamaica Ave, 5th Fl"", ""city"": ""Jamaica"", ""state"": ""NY"", ""postalCode"": ""11432"", ""country"": ""US""}}",89.29922378304846,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 198970, Requested 5025. Please try again in 1.198s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 198970, Requested 5025. Please try again in 1.198s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.70407686297207,-73.7978545370517,3a,75y,230.2h,0.0t/data=!3m6!1e1!3m4!1sCWXUJL0871KaRHTVQohlkw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.70333619726118,-73.79732747079272,3a,75y,254.0h,0.0t/data=!3m6!1e1!3m4!1sugi2UNcryTY9-JjMnXQ7vA!2e0!7i16384!8i8192",missingstreetview
+0718f9da-9d49-4bde-bfff-f2db8fd55f69,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.66928483888283,-73.93108092795337,3a,75y,276.4h,0.0t/data=!3m6!1e1!3m4!1sw9nNX27z_MeZH6MNlr5wgQ!2e0!7i16384!8i8192""}",2.631105212877778,,ok,default,0.8,The storefront is visible but is not the correct organization (Snipes instead of CAMBA).,"https://www.google.com/maps/@40.66928483888283,-73.93108092795337,3a,75y,276.4h,0.0t/data=!3m6!1e1!3m4!1sw9nNX27z_MeZH6MNlr5wgQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.66937703992708,-73.93107222722047,3a,75y,261.1h,0.0t/data=!3m6!1e1!3m4!1sZ-WyZJ6Tohm-2gKtsSDdZQ!2e0!7i16384!8i8192",missingstreetview
+0efdb041-8d7c-403e-9ae1-5febcb4c2b67,patched,address 'P.O. Box 100372' -> 'PO. Box 100372',"{""address"": {""street"": ""PO. Box 100372"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11226"", ""country"": ""US""}}",696.8375200153699,"Brooklyn, NY 11226, USA","openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4157. Please try again in 1.247s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4157. Please try again in 1.247s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.64334425824396,-73.94724442133916,3a,75y,165.6h,0.0t/data=!3m6!1e1!3m4!1sJOouGOBkeXaT5HXMpX95nw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.62842683235291,-73.94522071743197,3a,75y,74.5h,0.0t/data=!3m6!1e1!3m4!1sLj1-hgy1792BHRIXzFuUtw!2e0!7i16384!8i8192",missingstreetview
+a2c8503e-e899-4f26-bd23-2ef52073235f,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.85432795363121,-73.89072552404389,3a,75y,327.7h,0.0t/data=!3m6!1e1!3m4!1sNJW6Qz0MlNT83vUAZhXI3A!2e0!7i16384!8i8192""}",42.15088724749502,,ok,default,0.8,The default view shows a storefront that is not the same as the specified address.,"https://www.google.com/maps/@40.85432795363121,-73.89072552404389,3a,75y,327.7h,0.0t/data=!3m6!1e1!3m4!1sNJW6Qz0MlNT83vUAZhXI3A!2e0!7i16384!8i8192","https://www.google.com/maps/@40.85418360447861,-73.89101198978265,3a,75y,239.5h,0.0t/data=!3m6!1e1!3m4!1smyoj3T-mrltXADuy2mA-YQ!2e0!7i16384!8i8192",missingstreetview
+76b0b6b6-f0dc-47dc-8c1e-371f6af76ae0,patched,city 'BROOKLYN' -> 'Brooklyn',"{""address"": {""street"": ""263 Marcy Ave"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11211"", ""country"": ""US""}}",1.9272998314549132,,openai_error:<urlopen error [WinError 10054] An existing connection was forcibly closed by the remote host>,,,<urlopen error [WinError 10054] An existing connection was forcibly closed by the remote host>,"https://www.google.com/maps/@40.70518218267409,-73.95604566801323,3a,75y,55.5h,0.0t/data=!3m6!1e1!3m4!1shPUboGgoq3KMxdvwQlXL3g!2e0!7i16384!8i8192","https://www.google.com/maps/@40.70518218267409,-73.95604566801323,3a,75y,53.8h,0.0t/data=!3m6!1e1!3m4!1shPUboGgoq3KMxdvwQlXL3g!2e0!7i16384!8i8192",missingstreetview
+ed06ad2a-1a48-4d84-8de2-75a63f900f73,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.81282336258745,-73.93989223782563,3a,75y,183.2h,0.0t/data=!3m6!1e1!3m4!1semJLw-ztCH-p_vYNTA-PPA!2e0!7i16384!8i8192""}",54.92695224835502,,ok,default,0.8,The default view shows the building but is not directly facing the storefront.,"https://www.google.com/maps/@40.81282336258745,-73.93989223782563,3a,75y,183.2h,0.0t/data=!3m6!1e1!3m4!1semJLw-ztCH-p_vYNTA-PPA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.8127850136128,-73.93978684711406,3a,75y,228.0h,0.0t/data=!3m6!1e1!3m4!1src5ywqNeE1LsDskzDUQ8qA!2e0!7i16384!8i8192",missingstreetview
+c6c5c134-7e97-4855-8802-82db58ca51d1,patched,zip '10021' -> '10065',"{""address"": {""street"": ""227 E 69th St"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10065"", ""country"": ""US""}}",18.8472681786643,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4153. Please try again in 1.245s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4153. Please try again in 1.245s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.76718258996463,-73.96050358398291,3a,75y,44.0h,0.0t/data=!3m6!1e1!3m4!1sCI_1GWDg-0Fl_Tk5u7nSTg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.76718258996463,-73.96050358398291,3a,75y,39.4h,0.0t/data=!3m6!1e1!3m4!1sCI_1GWDg-0Fl_Tk5u7nSTg!2e0!7i16384!8i8192",missingstreetview
+2ad50741-3989-45db-8617-28a835f0c7d4,patched,address '1416 Avenue M' -> '1416 Ave M',"{""address"": {""street"": ""1416 Ave M"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11230"", ""country"": ""US""}}",5.856492242676411,,openai_error:[WinError 10054] An existing connection was forcibly closed by the remote host,,,[WinError 10054] An existing connection was forcibly closed by the remote host,"https://www.google.com/maps/@40.61770460641656,-73.96030349745776,3a,75y,330.5h,0.0t/data=!3m6!1e1!3m4!1smzCYy2gsnXUmHmst3hUing!2e0!7i16384!8i8192","https://www.google.com/maps/@40.61767124099271,-73.9604031371652,3a,75y,343.9h,0.0t/data=!3m6!1e1!3m4!1sAzifXJCgXkxPZloSYtWckA!2e0!7i16384!8i8192",missingstreetview
+22fdc4f0-2546-48ff-8c39-8f1dd1a6411c,patched,address '75 East 116th Street' -> '75 E 116th St',"{""address"": {""street"": ""75 E 116th St"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10029"", ""country"": ""US""}}",3.287453393231705,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4163. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4163. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.79982387184739,-73.94444927732931,3a,75y,33.3h,0.0t/data=!3m6!1e1!3m4!1sSoT_O0x6frlqX21pokjHng!2e0!7i16384!8i8192","https://www.google.com/maps/@40.79982387184739,-73.94444927732931,3a,75y,31.7h,0.0t/data=!3m6!1e1!3m4!1sSoT_O0x6frlqX21pokjHng!2e0!7i16384!8i8192",missingstreetview
+a66451d8-a8e7-430b-8140-8a98d4da9225,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.70649656494596,-73.95321109884777,3a,75y,320.7h,0.0t/data=!3m6!1e1!3m4!1skNkk3Ly6IWt0YfKP4DdO5g!2e0!7i16384!8i8192""}",5.8461416817154,,ok,default,0.9,The storefront is visible and matches the organization name.,"https://www.google.com/maps/@40.70649656494596,-73.95321109884777,3a,75y,320.7h,0.0t/data=!3m6!1e1!3m4!1skNkk3Ly6IWt0YfKP4DdO5g!2e0!7i16384!8i8192","https://www.google.com/maps/@40.69925649670154,-73.96000628203913,3a,75y,184.3h,0.0t/data=!3m6!1e1!3m4!1sbsRkMHwTkWyInM5UCpfspQ!2e0!7i16384!8i8192",missingstreetview
+51c82c18-8891-4fdd-8401-23ee50bd1fd0,patched,address '99 Avenue P' -> '99 Ave P',"{""address"": {""street"": ""99 Ave P"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11204"", ""country"": ""US""}}",23.65152661136974,,ok,neither,0.0,All views are obstructed or do not show a storefront.,"https://www.google.com/maps/@40.60775020199302,-73.98539296004711,3a,75y,83.1h,0.0t/data=!3m6!1e1!3m4!1snj9qJepF8_GEwEt2gkMNFg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.60795823521307,-73.98543286454563,3a,75y,83.1h,0.0t/data=!3m6!1e1!3m4!1s3AzjjmHqeCJ0cOOj1k0gOQ!2e0!7i16384!8i8192",missingstreetview
+50ac796c-547d-4c6d-8111-72c630585e88,patched,city 'BRONX' -> 'Bronx',"{""address"": {""street"": ""3401 White Plains Rd"", ""city"": ""Bronx"", ""state"": ""NY"", ""postalCode"": ""10467"", ""country"": ""US""}}",0.0,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3372. Please try again in 1.011s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3372. Please try again in 1.011s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.87529039579277,-73.8672659396976,3a,75y,352.2h,0.0t/data=!3m6!1e1!3m4!1seW_DmTTQSKwSzwI2rEa69w!2e0!7i16384!8i8192","https://www.google.com/maps/@40.87529039579277,-73.8672659396976,3a,75y,347.1h,0.0t/data=!3m6!1e1!3m4!1seW_DmTTQSKwSzwI2rEa69w!2e0!7i16384!8i8192",missingstreetview
+9c15e0ce-08ab-4c22-ac26-c46f9fa43cb4,patched,address '22 Chapel Street' -> '22 Chapel St',"{""address"": {""street"": ""22 Chapel St"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11201"", ""country"": ""US""}}",17.00111929644465,,ok,neither,0.0,No visible storefront in any views.,"https://www.google.com/maps/@40.69725006816453,-73.98603941190233,3a,75y,187.9h,0.0t/data=!3m6!1e1!3m4!1sgdi4-c4bBEUng7wX3yGqTQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.697245069181,-73.98592122319747,3a,75y,168.8h,0.0t/data=!3m6!1e1!3m4!1s6aa1qLGIh4ck7xA_L-1KZA!2e0!7i16384!8i8192",missingstreetview
+46f7268e-204b-40ee-9f27-3ce408f3677b,patched,city 'BRONX' -> 'Bronx',"{""address"": {""street"": ""120 E 184 St"", ""city"": ""Bronx"", ""state"": ""NY"", ""postalCode"": ""10468"", ""country"": ""US""}}",6.27152873574846,,openai_error:[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),,,[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),"https://www.google.com/maps/@40.85980537108122,-73.90027278006445,3a,75y,204.4h,0.0t/data=!3m6!1e1!3m4!1s3UapdPLBRem4rQmchp4FFA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.85919071023901,-73.90068402163577,3a,75y,24.8h,0.0t/data=!3m6!1e1!3m4!1sjQAfd4pkyGG2mhbaQeMQUQ!2e0!7i16384!8i8192",missingstreetview
+ad4810a1-110b-4632-b909-9373bae8ef26,patched,city 'BRONX' -> 'Bronx' | address '1101 Boston Road' -> '1101 Boston Rd',"{""address"": {""street"": ""1101 Boston Rd"", ""city"": ""Bronx"", ""state"": ""NY"", ""postalCode"": ""10456"", ""country"": ""US""}}",6.361610223769345,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3365. Please try again in 1.009s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3365. Please try again in 1.009s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.82742190296018,-73.9047561096949,3a,75y,321.5h,0.0t/data=!3m6!1e1!3m4!1sHKjvzmAh4rbXzDoehWazOQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.82742190296018,-73.9047561096949,3a,75y,321.5h,0.0t/data=!3m6!1e1!3m4!1sHKjvzmAh4rbXzDoehWazOQ!2e0!7i16384!8i8192",missingstreetview
+b087503a-ab86-49bb-b870-9655a04490db,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.59256034015338,-73.78394093844746,3a,75y,342.5h,0.0t/data=!3m6!1e1!3m4!1szr8wUQqmRxtt32XbOPwO0A!2e0!7i16384!8i8192""}",4.783021895697107,,ok,default,0.8,"The default view shows the building associated with MUNA Social Services, confirming its presence at the specified address.","https://www.google.com/maps/@40.59256034015338,-73.78394093844746,3a,75y,342.5h,0.0t/data=!3m6!1e1!3m4!1szr8wUQqmRxtt32XbOPwO0A!2e0!7i16384!8i8192","https://www.google.com/maps/@40.59256034015338,-73.78394093844746,3a,75y,350.2h,0.0t/data=!3m6!1e1!3m4!1szr8wUQqmRxtt32XbOPwO0A!2e0!7i16384!8i8192",missingstreetview
+3672e00e-8849-4d56-9a1c-67299ee77a8d,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.70686422065372,-73.80875045730991,3a,75y,160.3h,0.0t/data=!3m6!1e1!3m4!1sFOuGkgHZk6RdT1wazWYOTQ!2e0!7i16384!8i8192""}",5.079692906545342,,ok,default,0.9,"The default view shows the storefront clearly, with no obstructions.","https://www.google.com/maps/@40.70686422065372,-73.80875045730991,3a,75y,160.3h,0.0t/data=!3m6!1e1!3m4!1sFOuGkgHZk6RdT1wazWYOTQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.70686422065372,-73.80875045730991,3a,75y,161.4h,0.0t/data=!3m6!1e1!3m4!1sFOuGkgHZk6RdT1wazWYOTQ!2e0!7i16384!8i8192",missingstreetview
+a02de4dc-97cd-4aae-9a75-c397a298e9fe,patched,zip '11372' -> '11370',"{""address"": {""street"": ""78-04 31st Ave"", ""city"": ""Jackson Heights"", ""state"": ""NY"", ""postalCode"": ""11370"", ""country"": ""US""}}",5.734471898616152,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3377. Please try again in 1.013s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3377. Please try again in 1.013s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.75866607899148,-73.88972571674833,3a,75y,84.0h,0.0t/data=!3m6!1e1!3m4!1sh_2XZP0DirYMW_6Dp_nTTw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.75866607899148,-73.88972571674833,3a,75y,104.4h,0.0t/data=!3m6!1e1!3m4!1sh_2XZP0DirYMW_6Dp_nTTw!2e0!7i16384!8i8192",missingstreetview
+f02643bb-67cf-4ae6-9963-a111bfd6410e,patched,streetview_url set (parallel_plus_15m),"{""streetview_url"": ""https://www.google.com/maps/@40.6803911468929,-73.84993724953387,3a,75y,196.4h,0.0t/data=!3m6!1e1!3m4!1s_9B3quOdUU9M9PtvDHf14A!2e0!7i16384!8i8192""}",9.18696913466357,,ok,parallel_plus_15m,0.9,The storefront for MUNA Social Services is visible in the parallel_plus_15m view.,"https://www.google.com/maps/@40.68022203744073,-73.84985262892666,3a,75y,250.2h,0.0t/data=!3m6!1e1!3m4!1sZI-CY8B7_sqGx_DmFj0s7Q!2e0!7i16384!8i8192","https://www.google.com/maps/@40.68022203744073,-73.84985262892666,3a,75y,228.3h,0.0t/data=!3m6!1e1!3m4!1sZI-CY8B7_sqGx_DmFj0s7Q!2e0!7i16384!8i8192",missingstreetview
+c086799e-8c3f-4fee-8f45-8f5812dba59e,patched,address '101 Ave and Drew Street' -> '101 Ave and Drew St' | zip '11208' -> '11416' | streetview_url set (default),"{""address"": {""street"": ""101 Ave and Drew St"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11416"", ""country"": ""US""}, ""streetview_url"": ""https://www.google.com/maps/@40.67935904295564,-73.86332192310384,3a,75y,316.9h,0.0t/data=!3m6!1e1!3m4!1sKiSlDhjQ5WNzGgy9OHd0qg!2e0!7i16384!8i8192""}",2.466898724111748,,ok,default,0.8,"The storefront is visible in the default view, but it appears to be a pharmacy, not MUNA Social Services.","https://www.google.com/maps/@40.67935904295564,-73.86332192310384,3a,75y,316.9h,0.0t/data=!3m6!1e1!3m4!1sKiSlDhjQ5WNzGgy9OHd0qg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.67666403684578,-73.87031755191792,3a,75y,263.3h,0.0t/data=!3m6!1e1!3m4!1s9A6FaWQsL02ELCCh62ayQg!2e0!7i16384!8i8192",missingstreetview
+72281850-2626-4eef-9957-29b2801f80f5,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.64881395995091,-73.95196487975105,3a,75y,193.5h,0.0t/data=!3m6!1e1!3m4!1sNu4DWBE731ypVzg1zOOyJA!2e0!7i16384!8i8192""}",10.747314986625131,,ok,default,0.9,The default view shows a visible storefront with clear signage.,"https://www.google.com/maps/@40.64881395995091,-73.95196487975105,3a,75y,193.5h,0.0t/data=!3m6!1e1!3m4!1sNu4DWBE731ypVzg1zOOyJA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.64881395995091,-73.95196487975105,3a,75y,170.8h,0.0t/data=!3m6!1e1!3m4!1sNu4DWBE731ypVzg1zOOyJA!2e0!7i16384!8i8192",missingstreetview
+d91cba01-7f17-4e02-9694-25bd4fca9b70,patched,streetview_url set (parallel_minus_15m),"{""streetview_url"": ""https://www.google.com/maps/@40.72274738721019,-73.9542398177312,3a,75y,72.9h,0.0t/data=!3m6!1e1!3m4!1sqazZ_JBDR8fI0G_qemL1hg!2e0!7i16384!8i8192""}",1.2948445891875677,,ok,parallel_minus_15m,0.8,"The storefront is not directly visible, but the area appears to be related to the organization.","https://www.google.com/maps/@40.7227001822526,-73.95405900755529,3a,75y,355.3h,0.0t/data=!3m6!1e1!3m4!1s-4mpNl1WuyodWBgKdG50QQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.7227001822526,-73.95405900755529,3a,75y,353.0h,0.0t/data=!3m6!1e1!3m4!1s-4mpNl1WuyodWBgKdG50QQ!2e0!7i16384!8i8192",missingstreetview
+a17c3801-9a22-45eb-98ea-81b93c948599,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.84271609701396,-73.91592536445398,3a,75y,289.6h,0.0t/data=!3m6!1e1!3m4!1sYL3XUk0-qUl_tt790Gi4RA!2e0!7i16384!8i8192""}",21.8248437508868,,ok,default,0.9,The storefront is visible and facing the street in the default view.,"https://www.google.com/maps/@40.84271609701396,-73.91592536445398,3a,75y,289.6h,0.0t/data=!3m6!1e1!3m4!1sYL3XUk0-qUl_tt790Gi4RA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.8428075362767,-73.91585952077266,3a,75y,304.1h,0.0t/data=!3m6!1e1!3m4!1sNBHVDI1zCOqtVBy0yxPT_Q!2e0!7i16384!8i8192",missingstreetview
+d1423f0f-092b-45e4-bdb8-959130ce6d2b,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.77122564605857,-73.92880670455241,3a,75y,227.7h,0.0t/data=!3m6!1e1!3m4!1sP8np5-zoIKCeh1DNgeJrow!2e0!7i16384!8i8192""}",335.4837723939923,"23-14 29th Ave, Long Island City, NY 11102, USA",ok,default,0.9,The storefront is obscured by construction scaffolding and barriers.,"https://www.google.com/maps/@40.77122564605857,-73.92880670455241,3a,75y,227.7h,0.0t/data=!3m6!1e1!3m4!1sP8np5-zoIKCeh1DNgeJrow!2e0!7i16384!8i8192","https://www.google.com/maps/@40.7696741829275,-73.92545936592298,3a,75y,221.0h,0.0t/data=!3m6!1e1!3m4!1sff6ai4WM4LqCZkkvdrjKKw!2e0!7i16384!8i8192",missingstreetview
+23f6946f-44fb-4e77-91ab-b22bca2df98f,patched,zip '10017' -> '10036',"{""address"": {""street"": ""9 E 45th St"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10036"", ""country"": ""US""}}",7.79760601007058,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4155. Please try again in 1.246s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4155. Please try again in 1.246s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.75508487248177,-73.97870009615283,3a,75y,32.5h,0.0t/data=!3m6!1e1!3m4!1sGcOvhUkvrUNqEAchRpaqzw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.75508487248177,-73.97870009615283,3a,75y,39.4h,0.0t/data=!3m6!1e1!3m4!1sGcOvhUkvrUNqEAchRpaqzw!2e0!7i16384!8i8192",missingstreetview
+2f7de0d6-23fb-43e8-a1cf-7c11d905f260,patched,"address '2222 Lawrence Street, Denver, Colorado 80205' -> '2222 Lawrence St, Denver, Colorado 80205'","{""address"": {""street"": ""2222 Lawrence St, Denver, Colorado 80205"", ""city"": ""Denver"", ""state"": ""CO"", ""postalCode"": ""80205"", ""country"": ""US""}}",36.54577449902497,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 197888, Requested 4967. Please try again in 856ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 197888, Requested 4967. Please try again in 856ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@39.75459720530731,-104.9887699549269,3a,75y,144.4h,0.0t/data=!3m6!1e1!3m4!1sNslSf1-LADx1V3vvTOqH0w!2e0!7i16384!8i8192","https://www.google.com/maps/@39.75472481541055,-104.9886054742645,3a,75y,136.4h,0.0t/data=!3m6!1e1!3m4!1s2Xy3oQ9tP8THpQwCLwrEjg!2e0!7i16384!8i8192",missingstreetview
+2141e99d-2ab4-4c3e-b750-b5ddd6b56e65,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.87137043483561,-73.86291643548519,3a,75y,3.6h,0.0t/data=!3m6!1e1!3m4!1sYR4kE_TpAXJ9t4IOilbcfQ!2e0!7i16384!8i8192""}",4.932168587658822,,ok,default,0.9,Storefront is visible and facing the street in the default view.,"https://www.google.com/maps/@40.87137043483561,-73.86291643548519,3a,75y,3.6h,0.0t/data=!3m6!1e1!3m4!1sYR4kE_TpAXJ9t4IOilbcfQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.87137043483561,-73.86291643548519,3a,75y,11.1h,0.0t/data=!3m6!1e1!3m4!1sYR4kE_TpAXJ9t4IOilbcfQ!2e0!7i16384!8i8192",missingstreetview
+4d12ed37-fe12-4144-9986-2260dda6ab84,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.86396176662836,-73.86459643549912,3a,75y,307.4h,0.0t/data=!3m6!1e1!3m4!1sKXdfZGnbxh_e4HstN3htDA!2e0!7i16384!8i8192""}",4.737383089018097,,ok,default,0.9,The storefront is visible and appears to match the address provided.,"https://www.google.com/maps/@40.86396176662836,-73.86459643549912,3a,75y,307.4h,0.0t/data=!3m6!1e1!3m4!1sKXdfZGnbxh_e4HstN3htDA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.86396176662836,-73.86459643549912,3a,75y,303.4h,0.0t/data=!3m6!1e1!3m4!1sKXdfZGnbxh_e4HstN3htDA!2e0!7i16384!8i8192",missingstreetview
+4498fb18-eab9-4150-8a5b-882ec8cbd019,patched,"address '4600 East 48th Avenue, Denver, Colorado 80216' -> '4600 E 48th Ave, Denver, Colorado 80216'","{""address"": {""street"": ""4600 E 48th Ave, Denver, Colorado 80216"", ""city"": ""4600 E 48th Ave"", ""state"": ""CO"", ""postalCode"": ""80216"", ""country"": ""US""}}",8.906830133345748,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3381. Please try again in 1.014s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3381. Please try again in 1.014s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@39.78325153445841,-104.9342702908408,3a,75y,172.8h,0.0t/data=!3m6!1e1!3m4!1sAzj-dtghf7Yz5iNxYHp5Nw!2e0!7i16384!8i8192","https://www.google.com/maps/@39.78325153445841,-104.9342702908408,3a,75y,173.5h,0.0t/data=!3m6!1e1!3m4!1sAzj-dtghf7Yz5iNxYHp5Nw!2e0!7i16384!8i8192",missingstreetview
+43dd97c9-b1db-4602-b48c-553138a5834a,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.87513318264588,-73.8593679569176,3a,75y,191.5h,0.0t/data=!3m6!1e1!3m4!1stBbIJ4LVuN_yZHF92B_-Xg!2e0!7i16384!8i8192""}",9.589421135880771,,ok,default,0.8,"The storefront is visible in the default view, confirming the location.","https://www.google.com/maps/@40.87513318264588,-73.8593679569176,3a,75y,191.5h,0.0t/data=!3m6!1e1!3m4!1stBbIJ4LVuN_yZHF92B_-Xg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.87509839790464,-73.85925947184995,3a,75y,192.0h,0.0t/data=!3m6!1e1!3m4!1sEE7VpJSh9oeGTAX5YMVUEw!2e0!7i16384!8i8192",missingstreetview
+a0dbbfe9-aa17-472b-a6ca-be62c5a8b815,patched,"address '92 Main St, Suite 101' -> '92 Main St, Ste 101' | streetview_url set (default)","{""address"": {""street"": ""92 Main St, Ste 101"", ""city"": ""Yonkers"", ""state"": ""NY"", ""postalCode"": ""10701"", ""country"": ""US""}, ""streetview_url"": ""https://www.google.com/maps/@40.9340981505355,-73.90268414689166,3a,75y,287.3h,0.0t/data=!3m6!1e1!3m4!1sxukzgc16ZBwfnKL3m-P2aA!2e0!7i16384!8i8192""}",4.801898168440483,,ok,default,0.9,"The default view shows the entrance to the building where YPIE is located, confirming the storefront's presence.","https://www.google.com/maps/@40.9340981505355,-73.90268414689166,3a,75y,287.3h,0.0t/data=!3m6!1e1!3m4!1sxukzgc16ZBwfnKL3m-P2aA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.9340981505355,-73.90268414689166,3a,75y,274.5h,0.0t/data=!3m6!1e1!3m4!1sxukzgc16ZBwfnKL3m-P2aA!2e0!7i16384!8i8192",missingstreetview
+94d56b76-0705-4607-850b-c13003e38147,patched,zip '10001' -> '10119',"{""address"": {""street"": ""Pennsylvania Station"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10119"", ""country"": ""US""}}",9.596716353999357,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 967. Please try again in 290ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 967. Please try again in 290ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.75014000970059,-73.9944555518497,3a,75y,55.9h,0.0t/data=!3m6!1e1!3m4!1sd6ReHuTAoSq8S1qXCjGbEw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.75014000970059,-73.9944555518497,3a,75y,58.9h,0.0t/data=!3m6!1e1!3m4!1sd6ReHuTAoSq8S1qXCjGbEw!2e0!7i16384!8i8192",missingstreetview
+c5614deb-b341-493f-bc6c-afa04085ade8,patched,streetview_url set (search),"{""streetview_url"": ""https://www.google.com/maps/@40.75751930236822,-73.98255918141552,3a,75y,211.5h,0.0t/data=!3m6!1e1!3m4!1snvBDU4vLkTdSecPVJ5IcOA!2e0!7i16384!8i8192""}",16.178103524947655,,ok,search,0.8,"The storefront is not visible in the images, but the search view indicates the location is likely empty or under renovation.","https://www.google.com/maps/@40.75759420538169,-73.98273637787426,3a,75y,205.8h,0.0t/data=!3m6!1e1!3m4!1scZKCzohrL8uONQaXtuFIvg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.75751930236822,-73.98255918141552,3a,75y,211.5h,0.0t/data=!3m6!1e1!3m4!1snvBDU4vLkTdSecPVJ5IcOA!2e0!7i16384!8i8192",missingstreetview
+04dcd3a8-5ed0-4d2a-a357-56b0703f3c8d,patched,address '126 West 60th Street' -> '126 W 60th St',"{""address"": {""street"": ""126 W 60th St"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10023"", ""country"": ""US""}}",0.0,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4169. Please try again in 1.25s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4169. Please try again in 1.25s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.77048047457002,-73.98574842364755,3a,75y,212.0h,0.0t/data=!3m6!1e1!3m4!1sA-E0xX9AVc6oCYl7CWzUvg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.77048047457002,-73.98574842364755,3a,75y,212.0h,0.0t/data=!3m6!1e1!3m4!1sA-E0xX9AVc6oCYl7CWzUvg!2e0!7i16384!8i8192",missingstreetview
+a07a21a9-9a5c-4285-a5a2-6d337cc433fa,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.81689273783705,-73.91515488434096,3a,75y,301.6h,0.0t/data=!3m6!1e1!3m4!1sy56bD9782cJzZC6NhkUCCg!2e0!7i16384!8i8192""}",7.143114357500198,,ok,default,0.9,The storefront is visible and clearly labeled as Olgam Life Plasma Donation Center.,"https://www.google.com/maps/@40.81689273783705,-73.91515488434096,3a,75y,301.6h,0.0t/data=!3m6!1e1!3m4!1sy56bD9782cJzZC6NhkUCCg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.81728629058013,-73.91591899537953,3a,75y,117.0h,0.0t/data=!3m6!1e1!3m4!1szkBhFvEdL2VTO3WIb9FSqA!2e0!7i16384!8i8192",missingstreetview
+9152e276-3896-4751-b0dd-8c557a6751ee,patched,zip '10016' -> '10026',"{""address"": {""street"": ""1400 5th Ave"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10026"", ""country"": ""US""}}",10.415691957240346,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4944. Please try again in 1.483s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4944. Please try again in 1.483s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.80030030731011,-73.9467387439974,3a,75y,309.1h,0.0t/data=!3m6!1e1!3m4!1s08w5_4-SB73yQ7dTi35bcQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.80041424150036,-73.94665560039873,3a,75y,300.2h,0.0t/data=!3m6!1e1!3m4!1sdw3s5I0DqL8gDXVU-MynKQ!2e0!7i16384!8i8192",missingstreetview
+c8af1994-2904-4955-aaea-525a8220a1d1,patched,address '400-430 East 30th St' -> '400-430 E 30th St',"{""address"": {""street"": ""400-430 E 30th St"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10016"", ""country"": ""US""}}",172.92096123653639,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4956. Please try again in 1.486s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4956. Please try again in 1.486s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.74162784959147,-73.97613713433687,3a,75y,28.2h,0.0t/data=!3m6!1e1!3m4!1sMm3-r-0n_1fD9-zDaKmhbw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.74090687042593,-73.97448571870201,3a,75y,215.2h,0.0t/data=!3m6!1e1!3m4!1sQenQY_RPUbUustMF-fRmug!2e0!7i16384!8i8192",missingstreetview
+7982ae8a-ff39-4574-b925-f590395499ec,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.68568186972281,-73.98158782626503,3a,75y,203.8h,0.0t/data=!3m6!1e1!3m4!1sZVIWDSwqjy84QF7FnD0npQ!2e0!7i16384!8i8192""}",1.2121087954950915,,ok,default,0.8,The storefront for New Directions is not visible; other businesses are present.,"https://www.google.com/maps/@40.68568186972281,-73.98158782626503,3a,75y,203.8h,0.0t/data=!3m6!1e1!3m4!1sZVIWDSwqjy84QF7FnD0npQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.68568186972281,-73.98158782626503,3a,75y,206.3h,0.0t/data=!3m6!1e1!3m4!1sZVIWDSwqjy84QF7FnD0npQ!2e0!7i16384!8i8192",missingstreetview
+f3014439-70d6-4c47-bec0-fc4c1c1541ae,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.71528156027981,-73.96039694892204,3a,75y,210.5h,0.0t/data=!3m6!1e1!3m4!1sl0RFpUTT_Z2ylcnsYKkCyg!2e0!7i16384!8i8192""}",26.05238675245313,,ok,default,0.9,"The default view shows the storefront clearly, confirming its presence.","https://www.google.com/maps/@40.71528156027981,-73.96039694892204,3a,75y,210.5h,0.0t/data=!3m6!1e1!3m4!1sl0RFpUTT_Z2ylcnsYKkCyg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.7151956026059,-73.96018116744952,3a,75y,217.7h,0.0t/data=!3m6!1e1!3m4!1sZL3D3giYPWQDZZhxVmfh4g!2e0!7i16384!8i8192",missingstreetview
+73cd3578-456a-4928-ae26-9f908454852f,patched,city 'BRONX' -> 'Bronx',"{""address"": {""street"": ""3482 Park Ave"", ""city"": ""Bronx"", ""state"": ""NY"", ""postalCode"": ""10456"", ""country"": ""US""}}",0.0,,openai_error:[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),,,[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),"https://www.google.com/maps/@40.83099747021561,-73.90847923587278,3a,75y,116.2h,0.0t/data=!3m6!1e1!3m4!1sLLHiUs5EHB6y89HtjUrOrA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.83099747021561,-73.90847923587278,3a,75y,116.2h,0.0t/data=!3m6!1e1!3m4!1sLLHiUs5EHB6y89HtjUrOrA!2e0!7i16384!8i8192",missingstreetview
+abebb472-e65f-4f65-af3b-6d8b42eea84e,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.82585161144536,-73.88139797754255,3a,75y,273.1h,0.0t/data=!3m6!1e1!3m4!1shXb2ZVNt4mQ-xX8nnPh_SQ!2e0!7i16384!8i8192""}",3.0817701619536026,,ok,default,0.9,"The default view shows the storefront clearly, confirming the location.","https://www.google.com/maps/@40.82585161144536,-73.88139797754255,3a,75y,273.1h,0.0t/data=!3m6!1e1!3m4!1shXb2ZVNt4mQ-xX8nnPh_SQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.82596965835022,-73.88142561165222,3a,75y,248.6h,0.0t/data=!3m6!1e1!3m4!1sziIH-82omcSipx4mbc76EA!2e0!7i16384!8i8192",missingstreetview
+a055119f-10aa-481c-b745-8506c48d1b28,patched,city 'BROOKLYN' -> 'Brooklyn' | address '650-656 Washington Avenue' -> '650-656 Washington Ave',"{""address"": {""street"": ""650-656 Washington Ave"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11238"", ""country"": ""US""}}",0.0,,openai_error:[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),,,[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),"https://www.google.com/maps/@40.6789469600501,-73.96399246411512,3a,75y,268.1h,0.0t/data=!3m6!1e1!3m4!1sqoF-zjVOQILwyoGp2TTjZw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.67885587017606,-73.96397443782867,3a,75y,247.4h,0.0t/data=!3m6!1e1!3m4!1s8_IiRx97dJj-uR326I5TIQ!2e0!7i16384!8i8192",missingstreetview
+f0092a9c-6d01-4ed6-9489-326a25530028,patched,city 'BROOKLYN' -> 'Brooklyn' | address '409 East 95th Street' -> '409 E 95th St',"{""address"": {""street"": ""409 E 95th St"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11212"", ""country"": ""US""}}",0.0,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4952. Please try again in 1.485s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4952. Please try again in 1.485s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.65714124550644,-73.91856689768532,3a,75y,54.7h,0.0t/data=!3m6!1e1!3m4!1smaudUB7w8RfoHgtdOqIEcg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.65706965478773,-73.9184872404686,3a,75y,246.3h,0.0t/data=!3m6!1e1!3m4!1sgn8WKoG1HAD_8JpjCQQafg!2e0!7i16384!8i8192",missingstreetview
+fcae1ed6-e089-4b7b-a154-ac07413d1404,patched,address '415 Atlantic Avenue' -> '415 Atlantic Ave',"{""address"": {""street"": ""415 Atlantic Ave"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11217"", ""country"": ""US""}}",0.4569410985172755,,openai_error:[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),,,[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),"https://www.google.com/maps/@40.68668961066649,-73.98417627239046,3a,75y,18.9h,0.0t/data=!3m6!1e1!3m4!1slimh-MspAfTZJMnjl23ieg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.68668961066649,-73.98417627239046,3a,75y,18.1h,0.0t/data=!3m6!1e1!3m4!1slimh-MspAfTZJMnjl23ieg!2e0!7i16384!8i8192",missingstreetview
+9225ff46-8b0a-4483-9631-e616acdb97da,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.68793505945168,-73.98019902737407,3a,75y,104.3h,0.0t/data=!3m6!1e1!3m4!1sVOp5KJETcbVOH0feV-7kHg!2e0!7i16384!8i8192""}",10.35806207302308,,ok,default,0.8,The storefront visible in the images is not Rainbow Heights; it shows Nathan's and Popeyes instead.,"https://www.google.com/maps/@40.68793505945168,-73.98019902737407,3a,75y,104.3h,0.0t/data=!3m6!1e1!3m4!1sVOp5KJETcbVOH0feV-7kHg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.68793505945168,-73.98019902737407,3a,75y,49.6h,0.0t/data=!3m6!1e1!3m4!1sVOp5KJETcbVOH0feV-7kHg!2e0!7i16384!8i8192",missingstreetview
+8ad6dd3a-9ec6-4ee5-bbf6-4d98ad8dde0f,patched,zip '10455' -> '10454',"{""address"": {""street"": ""519 St Ann's Ave"", ""city"": ""Bronx"", ""state"": ""NY"", ""postalCode"": ""10454"", ""country"": ""US""}}",59.746564779864016,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3369. Please try again in 1.01s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3369. Please try again in 1.01s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.81292630169354,-73.9136203738194,3a,75y,111.4h,0.0t/data=!3m6!1e1!3m4!1syGSIqYj69YjebyX7qh6ZfA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.81292630169354,-73.9136203738194,3a,75y,92.2h,0.0t/data=!3m6!1e1!3m4!1syGSIqYj69YjebyX7qh6ZfA!2e0!7i16384!8i8192",missingstreetview
+fb58573d-e43d-4537-be26-a0a71c00832c,auth_error,"streetview_url set (default) | PATCH https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations/fb58573d-e43d-4537-be26-a0a71c00832c -> 401 {""message"":""The incoming token has expired""}","{""streetview_url"": ""https://www.google.com/maps/@40.69546458836859,-73.80342930820464,3a,75y,236.6h,0.0t/data=!3m6!1e1!3m4!1sOt3hHZqEuvewuYyuTV03Rw!2e0!7i16384!8i8192""}",7.451672555845059,,ok,default,0.9,"The default view shows the storefront clearly, confirming the presence of Sun River Health.","https://www.google.com/maps/@40.69546458836859,-73.80342930820464,3a,75y,236.6h,0.0t/data=!3m6!1e1!3m4!1sOt3hHZqEuvewuYyuTV03Rw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.69546458836859,-73.80342930820464,3a,75y,247.6h,0.0t/data=!3m6!1e1!3m4!1sOt3hHZqEuvewuYyuTV03Rw!2e0!7i16384!8i8192",missingstreetview
+97fbbbf2-95d7-43ce-b183-6989eebedb59,patched,"address '882 3rd Ave Suite 10-10NE, Unit 18' -> '882 3rd Ave Ste 10-10ne, Unit 18'","{""address"": {""street"": ""882 3rd Ave Ste 10-10ne, Unit 18"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11232"", ""country"": ""US""}}",44.308782398090614,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4200. Please try again in 1.26s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4200. Please try again in 1.26s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.65783412350788,-74.00430111296632,3a,75y,300.0h,0.0t/data=!3m6!1e1!3m4!1sBT2l2OcCz5qFgx6o0vLS4g!2e0!7i16384!8i8192","https://www.google.com/maps/@40.65754996797976,-74.00522832816701,3a,75y,54.4h,0.0t/data=!3m6!1e1!3m4!1sQg7lAwBDUAme4Yk63c0DTw!2e0!7i16384!8i8192",missingstreetview
+1c02a756-8ed4-4519-b1d4-d50aeb7af7fc,patched,address '280 Wyckoff Avenue' -> '280 Wyckoff Ave',"{""address"": {""street"": ""280 Wyckoff Ave"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11237"", ""country"": ""US""}}",6.495366602558869,,ok,neither,0.0,All views are obstructed or do not show the storefront.,"https://www.google.com/maps/@40.69979624307896,-73.91195774950165,3a,75y,313.4h,0.0t/data=!3m6!1e1!3m4!1so_A86IB7JWhRu-AUy7cR4g!2e0!7i16384!8i8192","https://www.google.com/maps/@40.69979624307896,-73.91195774950165,3a,75y,317.9h,0.0t/data=!3m6!1e1!3m4!1so_A86IB7JWhRu-AUy7cR4g!2e0!7i16384!8i8192",missingstreetview
+591e5323-58c4-48c2-8164-82f3ea3a52b9,patched,zip '10040' -> '10034',"{""address"": {""street"": ""3579 Harlem River Dr"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10034"", ""country"": ""US""}}",247.86578912161755,"3579 Harlem River Dr, New York, NY 10034, USA",ok,neither,0.0,All views are obstructed or do not show the storefront.,"https://www.google.com/maps/@40.85867719639002,-73.92272077896179,3a,75y,82.7h,0.0t/data=!3m6!1e1!3m4!1sbi7m4dRAkoaUmSr28_-Q4Q!2e0!7i16384!8i8192","https://www.google.com/maps/@40.85648104389566,-73.92289515983916,3a,75y,85.5h,0.0t/data=!3m6!1e1!3m4!1sGnlEk2Hr9DgSBYI3LIyXXQ!2e0!7i16384!8i8192",missingstreetview
+94bc764b-4398-4556-a921-105433c23546,patched,city 'BROOKLYN' -> 'Brooklyn' | address '3014 Brighton 6 Street' -> '3014 Brighton 6 St',"{""address"": {""street"": ""3014 Brighton 6 St"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11235"", ""country"": ""US""}}",1.590921768590286,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4165. Please try again in 1.249s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4165. Please try again in 1.249s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.579141624789,-73.96205009963585,3a,75y,270.4h,0.0t/data=!3m6!1e1!3m4!1sjZtRYixGWTHXxMQPgQ47mw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.579141624789,-73.96205009963585,3a,75y,273.0h,0.0t/data=!3m6!1e1!3m4!1sjZtRYixGWTHXxMQPgQ47mw!2e0!7i16384!8i8192",missingstreetview
+270844c7-0a1d-42ba-9b2e-eda8ed17c9b4,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.76668305810207,-73.95738325092358,3a,75y,37.3h,0.0t/data=!3m6!1e1!3m4!1snKfT3KIWzPDSgx-N6TkulQ!2e0!7i16384!8i8192""}",0.0,,ok,default,0.9,"The default view shows the storefront clearly, with visible signage and access.","https://www.google.com/maps/@40.76668305810207,-73.95738325092358,3a,75y,37.3h,0.0t/data=!3m6!1e1!3m4!1snKfT3KIWzPDSgx-N6TkulQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.76668305810207,-73.95738325092358,3a,75y,37.3h,0.0t/data=!3m6!1e1!3m4!1snKfT3KIWzPDSgx-N6TkulQ!2e0!7i16384!8i8192",missingstreetview
+29c0cc85-0c9b-4172-90f7-6d11a7ff1350,patched,address '475 Riverside Drive' -> '475 Riverside Dr' | zip '10002' -> '10115',"{""address"": {""street"": ""475 Riverside Dr"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10115"", ""country"": ""US""}}",1265.571695417112,"475 Riverside Dr, New York, NY 10025, USA","openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4161. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4161. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.81067358343008,-73.96326890020812,3a,75y,307.7h,0.0t/data=!3m6!1e1!3m4!1sGb0irE2TK_yX7FMh3CBcRA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.81090497087168,-73.96425971930886,3a,75y,108.9h,0.0t/data=!3m6!1e1!3m4!1seof1T4uLVR5vCVu02mtFRg!2e0!7i16384!8i8192",missingstreetview
+425a08b8-e45c-456f-871d-8b6fa8e00fa2,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.85202220447722,-73.91700639969226,3a,75y,202.8h,0.0t/data=!3m6!1e1!3m4!1sEjUJ-B1Qm4FpcpOlO2Zx9A!2e0!7i16384!8i8192""}",4.0693561931432845,,ok,default,0.9,"The default view shows the building where BronxWorks is located, with visible storefronts.","https://www.google.com/maps/@40.85202220447722,-73.91700639969226,3a,75y,202.8h,0.0t/data=!3m6!1e1!3m4!1sEjUJ-B1Qm4FpcpOlO2Zx9A!2e0!7i16384!8i8192","https://www.google.com/maps/@40.85202220447722,-73.91700639969226,3a,75y,208.7h,0.0t/data=!3m6!1e1!3m4!1sEjUJ-B1Qm4FpcpOlO2Zx9A!2e0!7i16384!8i8192",missingstreetview
+383f544b-6df9-4b85-85f6-3d3460a21734,patched,address '328 East 150th Street' -> '328 E 150th St',"{""address"": {""street"": ""328 E 150th St"", ""city"": ""Bronx"", ""state"": ""NY"", ""postalCode"": ""10451"", ""country"": ""US""}}",0.0,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4162. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4162. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.81747770269767,-73.92022094371166,3a,75y,188.1h,0.0t/data=!3m6!1e1!3m4!1sTqTK4j_yc6VsPn3mr1RP6w!2e0!7i16384!8i8192","https://www.google.com/maps/@40.81747770269767,-73.92022094371166,3a,75y,188.1h,0.0t/data=!3m6!1e1!3m4!1sTqTK4j_yc6VsPn3mr1RP6w!2e0!7i16384!8i8192",missingstreetview
+1c542e7c-6680-4ac8-98f6-4d80358c00b3,patched,zip '10001' -> '10014',"{""address"": {""street"": ""27 Barrow St, 5th Floor"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10014"", ""country"": ""US""}}",21.549753519774395,,ok,neither,0.0,No visible storefront or signage indicating the presence of Greenwich House.,"https://www.google.com/maps/@40.73252951428095,-74.00302285592464,3a,75y,180.1h,0.0t/data=!3m6!1e1!3m4!1s4j4VGW_1a4p_Nc5bcIL9uQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.7324909897286,-74.00313305392532,3a,75y,166.9h,0.0t/data=!3m6!1e1!3m4!1stsdgJwrx5sXZuC0d6hcx_A!2e0!7i16384!8i8192",missingstreetview
+f956a5f3-03e0-4887-84a2-f7b1f93f8fac,patched,"address '40 Exchange Place, #1300' -> '40 Exchange Pl, #1300'","{""address"": {""street"": ""40 Exchange Pl, #1300"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10005"", ""country"": ""US""}}",0.0,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4198. Please try again in 1.259s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4198. Please try again in 1.259s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.70592468716357,-74.01019967080116,3a,75y,195.6h,0.0t/data=!3m6!1e1!3m4!1sBxMJHnJNAjQVMxkFOQ3HMA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.70592468716357,-74.01019967080116,3a,75y,195.6h,0.0t/data=!3m6!1e1!3m4!1sBxMJHnJNAjQVMxkFOQ3HMA!2e0!7i16384!8i8192",missingstreetview
+1d82ae1d-7505-41ae-9e7b-c83065b3ffa5,patched,zip '10455' -> '10465',"{""address"": {""street"": ""2770 3rd Ave, 1st Floor"", ""city"": ""The Bronx"", ""state"": ""NY"", ""postalCode"": ""10465"", ""country"": ""US""}}",9500.540386578705,"2770 Third Ave 1st floor, Bronx, NY 10455, USA","openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 1009. Please try again in 302ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 1009. Please try again in 302ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.82238,-73.80739,3a,75y","https://www.google.com/maps/@40.81445126231806,-73.91992079626685,3a,75y,27.2h,0.0t/data=!3m6!1e1!3m4!1s_1fmRqX2WHBI7K_wZLfA5Q!2e0!7i16384!8i8192",missingstreetview
+46bd9fd9-49ab-4a48-ae02-6295c72d6eb8,patched,address '260 East 188th Street' -> '260 E 188th St',"{""address"": {""street"": ""260 E 188th St"", ""city"": ""Bronx"", ""state"": ""NY"", ""postalCode"": ""10458"", ""country"": ""US""}}",20.1692593974645,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4973. Please try again in 1.491s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4973. Please try again in 1.491s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.86089400332184,-73.89596725127716,3a,75y,188.8h,0.0t/data=!3m6!1e1!3m4!1selGfuktFycTYh4dJS1QNVQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.86086810634549,-73.89585968361258,3a,75y,205.4h,0.0t/data=!3m6!1e1!3m4!1s7SLJNwA8aaQzRsVDsydVsA!2e0!7i16384!8i8192",missingstreetview
+768415e9-1af3-4a6e-9bea-c8d74a817c5f,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.84691300863085,-73.89607356288076,3a,75y,284.8h,0.0t/data=!3m6!1e1!3m4!1s-7_oGw2C-JjUBzpPSBvSlQ!2e0!7i16384!8i8192""}",2.6021342941596015,,ok,default,0.8,The storefront is visible but appears to be different from the specified organization.,"https://www.google.com/maps/@40.84691300863085,-73.89607356288076,3a,75y,284.8h,0.0t/data=!3m6!1e1!3m4!1s-7_oGw2C-JjUBzpPSBvSlQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.84691300863085,-73.89607356288076,3a,75y,283.6h,0.0t/data=!3m6!1e1!3m4!1s-7_oGw2C-JjUBzpPSBvSlQ!2e0!7i16384!8i8192",missingstreetview
+3cda1c61-2d74-4e97-8827-661fd32a8e78,patched,streetview_url set (search),"{""streetview_url"": ""https://www.google.com/maps/@40.72489141373187,-73.98077303916094,3a,75y,16.6h,0.0t/data=!3m6!1e1!3m4!1sEEas3NoK8wGA1Sz3ohorJg!2e0!7i16384!8i8192""}",20.536050353661462,,ok,search,0.9,The search view clearly shows the storefront of St. Brigid School.,"https://www.google.com/maps/@40.72497350532387,-73.98096987611545,3a,75y,9.3h,0.0t/data=!3m6!1e1!3m4!1sIUJ8ZUFXM1oYMkl6IJQiMw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.72489141373187,-73.98077303916094,3a,75y,16.6h,0.0t/data=!3m6!1e1!3m4!1sEEas3NoK8wGA1Sz3ohorJg!2e0!7i16384!8i8192",missingstreetview
+fc583965-480a-47af-8979-efb2483a0eb5,patched,address '13w W 100th St' -> '13W W 100th St',"{""address"": {""street"": ""13W W 100th St"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10025"", ""country"": ""US""}}",16.329648214305138,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 2554. Please try again in 766ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 2554. Please try again in 766ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.79452401143498,-73.96366027794858,3a,75y,107.2h,0.0t/data=!3m6!1e1!3m4!1sGpM4tzmKZaPOx5pCsrTKKw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.79448008419455,-73.96355633512935,3a,75y,24.4h,0.0t/data=!3m6!1e1!3m4!1sWjm3J0OF46Hj3r1e1g1opA!2e0!7i16384!8i8192",missingstreetview
+ffac4f54-96f4-4838-a1f2-3a80385b87aa,patched,city 'BROOKLYN' -> 'Brooklyn',"{""address"": {""street"": ""387 Kingston Ave Brooklyn"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11213"", ""country"": ""US""}}",27.114354556223255,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4954. Please try again in 1.486s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4954. Please try again in 1.486s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.6658321647826,-73.94221359945638,3a,75y,0.2h,0.0t/data=!3m6!1e1!3m4!1sCw-oqFBa_iCO99UiS2GCGw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.6630289031233,-73.94280126790619,3a,75y,275.8h,0.0t/data=!3m6!1e1!3m4!1svUCurnAqPf94cui0n-AfkA!2e0!7i16384!8i8192",missingstreetview
+59979320-33fd-4a00-b3cb-167d6fcb5d35,patched,city 'BROOKLYN' -> 'Brooklyn' | address '1170 Pennsylvania Avenue' -> '1170 Pennsylvania Ave' | zip '11239' -> '11207',"{""address"": {""street"": ""1170 Pennsylvania Ave"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11207"", ""country"": ""US""}}",3.1789588567578257,,ok,neither,0.0,The images do not show a visible storefront for the Jewish Community Council of Canarsie.,"https://www.google.com/maps/@40.65163177016014,-73.88555614941544,3a,75y,231.2h,0.0t/data=!3m6!1e1!3m4!1sHAigH5gkhHqHUcUwmcUvKg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.65155185280347,-73.88549711414932,3a,75y,247.5h,0.0t/data=!3m6!1e1!3m4!1s8niJ2HOoeY-OGrkocykxIg!2e0!7i16384!8i8192",missingstreetview
+153cbb35-29f8-44e9-983d-29c493500006,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.68571672506759,-73.98044186837672,3a,75y,281.8h,0.0t/data=!3m6!1e1!3m4!1s7JyRJotzlpwGSLasqiE7zw!2e0!7i16384!8i8192""}",9.5752606769881,,ok,default,0.9,The storefront is visible and facing the street in the default view.,"https://www.google.com/maps/@40.68571672506759,-73.98044186837672,3a,75y,281.8h,0.0t/data=!3m6!1e1!3m4!1s7JyRJotzlpwGSLasqiE7zw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.68563932024149,-73.98049414909896,3a,75y,280.6h,0.0t/data=!3m6!1e1!3m4!1sBTxyUM8FuhqRamVvpMsfRw!2e0!7i16384!8i8192",missingstreetview
+8b3fe6d9-c813-4d40-b25a-c7ea796da58e,patched,address '2211 Church Avenue' -> '2211 Church Ave',"{""address"": {""street"": ""2211 Church Ave"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11226"", ""country"": ""US""}}",6.118537237529668,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 196871, Requested 4155. Please try again in 307ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 196871, Requested 4155. Please try again in 307ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.65042688994951,-73.95825185870605,3a,75y,355.2h,0.0t/data=!3m6!1e1!3m4!1st2gMQDdIRYgJ1KM_vlAnHw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.65042688994951,-73.95825185870605,3a,75y,355.2h,0.0t/data=!3m6!1e1!3m4!1st2gMQDdIRYgJ1KM_vlAnHw!2e0!7i16384!8i8192",missingstreetview
+c18c75c1-100e-419d-9121-97e7f1e6858d,patched,address '268 Canal Street' -> '268 Canal St' | streetview_url set (default),"{""address"": {""street"": ""268 Canal St"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10013"", ""country"": ""US""}, ""streetview_url"": ""https://www.google.com/maps/@40.71882541489931,-74.00140000593068,3a,75y,144.4h,0.0t/data=!3m6!1e1!3m4!1s9VNejyYC6lXoIjRmVP2dWA!2e0!7i16384!8i8192""}",0.9678288115339326,,ok,default,0.9,The default view clearly shows the storefront of the Charles B. Wang Community Health Center.,"https://www.google.com/maps/@40.71882541489931,-74.00140000593068,3a,75y,144.4h,0.0t/data=!3m6!1e1!3m4!1s9VNejyYC6lXoIjRmVP2dWA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.71882541489931,-74.00140000593068,3a,75y,130.1h,0.0t/data=!3m6!1e1!3m4!1s9VNejyYC6lXoIjRmVP2dWA!2e0!7i16384!8i8192",missingstreetview
+f571a96f-0dbe-4c1b-8e3f-335850367e2e,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.62768541529286,-74.00693614620329,3a,75y,322.2h,0.0t/data=!3m6!1e1!3m4!1stbfi1Wo_jfrt3L_4Ty1vCw!2e0!7i16384!8i8192""}",23.443971636451455,,ok,default,0.9,The storefront is visible and matches the address provided.,"https://www.google.com/maps/@40.62768541529286,-74.00693614620329,3a,75y,322.2h,0.0t/data=!3m6!1e1!3m4!1stbfi1Wo_jfrt3L_4Ty1vCw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.62775559946898,-74.00686307087635,3a,75y,299.2h,0.0t/data=!3m6!1e1!3m4!1sG0pgUPGCDUz-ToRIUNTywg!2e0!7i16384!8i8192",missingstreetview
+8fd90c74-0019-40ff-9ef5-d5eda5206eb6,patched,address '137 W 19th St 2nd fl' -> '137 W 19th St 2nd Fl',"{""address"": {""street"": ""137 W 19th St 2nd Fl"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10011"", ""country"": ""US""}}",19.706787071501104,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4205. Please try again in 1.261s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4205. Please try again in 1.261s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.74114772627251,-73.99625429963017,3a,75y,14.1h,0.0t/data=!3m6!1e1!3m4!1sM63N6wswGUE3OA-Ck-bn2w!2e0!7i16384!8i8192","https://www.google.com/maps/@40.7411032405752,-73.99614956742062,3a,75y,43.3h,0.0t/data=!3m6!1e1!3m4!1sCueYzJiP32hIu_E9jZcPtg!2e0!7i16384!8i8192",missingstreetview
+14fbe857-c181-4fba-b939-2d3f4ee38ac0,patched,city 'BRONX' -> 'Bronx',"{""address"": {""street"": ""2430 Walton Ave"", ""city"": ""Bronx"", ""state"": ""NY"", ""postalCode"": ""10468"", ""country"": ""US""}}",27.67670290087344,,ok,neither,0.0,No visible storefronts in the provided images.,"https://www.google.com/maps/@40.86121304333708,-73.9001547184061,3a,75y,301.3h,0.0t/data=!3m6!1e1!3m4!1sAFM7xhrWcfpP3JKjg_yhbQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.86173196084427,-73.90185009849831,3a,75y,109.2h,0.0t/data=!3m6!1e1!3m4!1slpbYl5zyqXIVDINkVVSBJg!2e0!7i16384!8i8192",missingstreetview
+6f849403-476d-43ee-9b5c-2138903dee4f,patched,address 'Moore Hempstead Playground (Broadway and 45th Ave)' -> 'Moore Hempstead Playground (broadway and 45th Ave)',"{""address"": {""street"": ""Moore Hempstead Playground (broadway and 45th Ave)"", ""city"": ""Queens"", ""state"": ""NY"", ""postalCode"": ""11373"", ""country"": ""US""}}",21.37007734240468,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 5759. Please try again in 1.727s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 5759. Please try again in 1.727s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.74195283192003,-73.88120633309028,3a,75y,231.2h,0.0t/data=!3m6!1e1!3m4!1sMv-beICqjW9HhbvBfaX0zQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.74659364412106,-73.89381696331561,3a,75y,173.7h,0.0t/data=!3m6!1e1!3m4!1s5u8GA68tY8pQYb39QZJQUQ!2e0!7i16384!8i8192",missingstreetview
+0db74a16-98f8-4074-8b36-c76d7e30a3b6,patched,address 'Park of the Americas (41st Ave and 103rd Street)' -> 'Park of The Americas (41st Ave and 103rd St)',"{""address"": {""street"": ""Park of The Americas (41st Ave and 103rd St)"", ""city"": ""Queens"", ""state"": ""NY"", ""postalCode"": ""11368"", ""country"": ""US""}}",87.49553157838949,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3384. Please try again in 1.015s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3384. Please try again in 1.015s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.74888217498717,-73.86283451234844,3a,75y,194.8h,0.0t/data=!3m6!1e1!3m4!1sHgmthE9CLokYrmCKCPSSug!2e0!7i16384!8i8192","https://www.google.com/maps/@40.7484612,-73.8619406,3a,75y",missingstreetview
+5e7a90df-5760-41c7-a5bb-b0e2f2638870,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.72682747209939,-73.97979665314679,3a,75y,41.0h,0.0t/data=!3m6!1e1!3m4!1sDx3XqGVD543QQq3bnVSdTQ!2e0!7i16384!8i8192""}",11.59436415219473,,ok,default,0.8,"The default view shows the building where the organization is located, with visible entrance.","https://www.google.com/maps/@40.72682747209939,-73.97979665314679,3a,75y,41.0h,0.0t/data=!3m6!1e1!3m4!1sDx3XqGVD543QQq3bnVSdTQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.7267814091606,-73.9796868004423,3a,75y,26.8h,0.0t/data=!3m6!1e1!3m4!1sn-ZqnY1HJXgmFn7UROR4ww!2e0!7i16384!8i8192",missingstreetview
+846f6346-ba8e-4925-a19f-f11d7caa31e3,patched,zip '10282' -> '10013',"{""address"": {""street"": ""Pier 26"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10013"", ""country"": ""US""}}",18.137269134590415,,openai_error:[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),,,[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),"https://www.google.com/maps/@40.72087437415594,-74.01284780280452,3a,75y,316.9h,0.0t/data=!3m6!1e1!3m4!1sSWj1Q8h_cKZOLDil5pcAQA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.72132006698754,-74.01257399089106,3a,75y,278.7h,0.0t/data=!3m6!1e1!3m4!1sVjDrN5L9c0WAu0-8ts6T3Q!2e0!7i16384!8i8192",missingstreetview
+69ccccb5-9843-46cc-9034-3d954089522f,patched,address '210 East 43rd Street' -> '210 E 43rd St' | zip '10011' -> '10017',"{""address"": {""street"": ""210 E 43rd St"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10017"", ""country"": ""US""}}",24.869430837644575,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4161. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4161. Please try again in 1.248s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.75116684246743,-73.97328653904235,3a,75y,13.7h,0.0t/data=!3m6!1e1!3m4!1sZNgLlvGn8pafh4YTLsEkxQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.75116684246743,-73.97328653904235,3a,75y,201.5h,0.0t/data=!3m6!1e1!3m4!1sZNgLlvGn8pafh4YTLsEkxQ!2e0!7i16384!8i8192",missingstreetview
+1fc725de-81be-4af3-b4d1-80fc7483a5bd,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.73491793101198,-73.90681567057337,3a,75y,16.3h,0.0t/data=!3m6!1e1!3m4!1sJl8izAdIZ0HQL8fco7Ec5A!2e0!7i16384!8i8192""}",19.38928229270322,,ok,default,0.8,The storefront is visible and appears to match the organization.,"https://www.google.com/maps/@40.73491793101198,-73.90681567057337,3a,75y,16.3h,0.0t/data=!3m6!1e1!3m4!1sJl8izAdIZ0HQL8fco7Ec5A!2e0!7i16384!8i8192","https://www.google.com/maps/@40.73481454241784,-73.90642597224883,3a,75y,24.1h,0.0t/data=!3m6!1e1!3m4!1sE1QhSIX-PQHV2alP3qeU3g!2e0!7i16384!8i8192",missingstreetview
+84767006-11b2-4635-906e-db06663c2937,patched,"address '79-25 Winchester Blvd, Building 40 room, 16-2A' -> '79-25 Winchester Blvd, Building 40 Room, 16-2A'","{""address"": {""street"": ""79-25 Winchester Blvd, Building 40 Room, 16-2A"", ""city"": ""Queens"", ""state"": ""NY"", ""postalCode"": ""11427"", ""country"": ""US""}}",37.81606379199933,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 1016. Please try again in 304ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 1016. Please try again in 304ms. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.74108717711052,-73.73324427309016,3a,75y,72.4h,0.0t/data=!3m6!1e1!3m4!1sf61BjqTWE7ji_0bzBcn-Aw!2e0!7i16384!8i8192","https://www.google.com/maps/@40.74108717711052,-73.73324427309016,3a,75y,69.1h,0.0t/data=!3m6!1e1!3m4!1sf61BjqTWE7ji_0bzBcn-Aw!2e0!7i16384!8i8192",missingstreetview
+7efc72f8-351d-4f15-acbd-1c3a583f9b32,patched,zip '11211' -> '11249',"{""address"": {""street"": ""80 Clymer St"", ""city"": ""Brooklyn"", ""state"": ""NY"", ""postalCode"": ""11249"", ""country"": ""US""}}",22.002304802893633,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3366. Please try again in 1.009s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 3366. Please try again in 1.009s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.70507774558128,-73.96595328354128,3a,75y,134.9h,0.0t/data=!3m6!1e1!3m4!1sev9lXO2LAh-d0nwwvafyDQ!2e0!7i16384!8i8192","https://www.google.com/maps/@40.70451804373686,-73.96597597311145,3a,75y,52.3h,0.0t/data=!3m6!1e1!3m4!1sgNYsjhINBGi6S09hSrxCgg!2e0!7i16384!8i8192",missingstreetview
+40719e07-f376-4545-9804-72b1bb5b8b26,patched,"address '80 Maiden Lane 3rd Floor, Suite #305' -> '80 Maiden Ln 3rd Floor, Ste #305'","{""address"": {""street"": ""80 Maiden Ln 3rd Floor, Ste #305"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10038"", ""country"": ""US""}}",8.378976391835694,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4225. Please try again in 1.267s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4225. Please try again in 1.267s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.70726986118056,-74.00752191342875,3a,75y,206.8h,0.0t/data=!3m6!1e1!3m4!1smqL17B1AFJgMnsZLaM-t0w!2e0!7i16384!8i8192","https://www.google.com/maps/@40.70726986118056,-74.00752191342875,3a,75y,213.0h,0.0t/data=!3m6!1e1!3m4!1smqL17B1AFJgMnsZLaM-t0w!2e0!7i16384!8i8192",missingstreetview
+c736c1d1-8ad4-4d35-a647-e8e995b0a848,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.74034602131368,-73.94943313333138,3a,75y,190.1h,0.0t/data=!3m6!1e1!3m4!1sOezm7D7jI8Al_zTq2iWcOg!2e0!7i16384!8i8192""}",16.21530412047872,,ok,default,0.9,The default view clearly shows the storefront of the Institute for Community Living.,"https://www.google.com/maps/@40.74034602131368,-73.94943313333138,3a,75y,190.1h,0.0t/data=!3m6!1e1!3m4!1sOezm7D7jI8Al_zTq2iWcOg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.74032325885598,-73.94931393558225,3a,75y,200.5h,0.0t/data=!3m6!1e1!3m4!1sMAARcdTUprHbXLa1DmCeog!2e0!7i16384!8i8192",missingstreetview
+eaeb9bb7-d030-40aa-a0cd-9e51e708da00,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.73759794070896,-74.00038732047966,3a,75y,290.5h,0.0t/data=!3m6!1e1!3m4!1sAFZ9oulbYQ6vvXGohYAJcg!2e0!7i16384!8i8192""}",25.266811100315163,,ok,default,0.9,The default view clearly shows the storefront of Lenox Health Greenwich Village.,"https://www.google.com/maps/@40.73759794070896,-74.00038732047966,3a,75y,290.5h,0.0t/data=!3m6!1e1!3m4!1sAFZ9oulbYQ6vvXGohYAJcg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.73810055028716,-74.00072051915261,3a,75y,210.1h,0.0t/data=!3m6!1e1!3m4!1sSGzgFx58Y5I5Xix9nzDqCA!2e0!7i16384!8i8192",missingstreetview
+587583da-18a9-47f0-84dc-7104a68b8592,patched,address 'P.O. Box 2892 Church St. Station' -> 'PO. Box 2892 Church St. Station',"{""address"": {""street"": ""PO. Box 2892 Church St. Station"", ""city"": ""New York"", ""state"": ""NY"", ""postalCode"": ""10007"", ""country"": ""US""}}",330.50390425781865,"Church St, New York, NY 10007, USA",openai_error:[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),,,[SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2638),"https://www.google.com/maps/@40.71517954934604,-74.00775270504359,3a,75y,15.3h,0.0t/data=!3m6!1e1!3m4!1ssP2jItBUFasrMmzYHrlfdA!2e0!7i16384!8i8192","https://www.google.com/maps/@40.71260314901887,-74.00973872083144,3a,75y,29.4h,0.0t/data=!3m6!1e1!3m4!1sGpitzZhPLCaABHgdjHeDGg!2e0!7i16384!8i8192",missingstreetview
+8384ece1-12a4-4e2f-b3cf-3bf944b9ed3a,patched,streetview_url set (default),"{""streetview_url"": ""https://www.google.com/maps/@40.73181908777677,-73.99779936207455,3a,75y,23.8h,0.0t/data=!3m6!1e1!3m4!1sN1yett3ils_ctTI66EQvww!2e0!7i16384!8i8192""}",3.524593227175489,,ok,default,0.8,The default view shows the entrance of the building associated with Greenwich House.,"https://www.google.com/maps/@40.73181908777677,-73.99779936207455,3a,75y,23.8h,0.0t/data=!3m6!1e1!3m4!1sN1yett3ils_ctTI66EQvww!2e0!7i16384!8i8192","https://www.google.com/maps/@40.73181908777677,-73.99779936207455,3a,75y,29.6h,0.0t/data=!3m6!1e1!3m4!1sN1yett3ils_ctTI66EQvww!2e0!7i16384!8i8192",missingstreetview
+95c668f1-8c59-430f-a1ae-e64d396a7f5d,patched,"address '163-18 Jamaica Ave, Suite 502' -> '163-18 Jamaica Ave, Ste 502'","{""address"": {""street"": ""163-18 Jamaica Ave, Ste 502"", ""city"": ""Jamaica"", ""state"": ""NY"", ""postalCode"": ""11432"", ""country"": ""US""}}",9.126097531468604,,"openai_error:HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4996. Please try again in 1.498s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+",,,"HTTP 429 {
+    ""error"": {
+        ""message"": ""Rate limit reached for gpt-4o-mini in organization org-mxl8NqX3Mnchx6r6VL1PqYz9 on tokens per min (TPM): Limit 200000, Used 200000, Requested 4996. Please try again in 1.498s. Visit https://platform.openai.com/account/rate-limits to learn more."",
+        ""type"": ""tokens"",
+        ""param"": null,
+        ""code"": ""rate_limit_exceeded""
+    }
+}
+","https://www.google.com/maps/@40.7048892657287,-73.79636650477357,3a,75y,150.3h,0.0t/data=!3m6!1e1!3m4!1s8m3WBuiNRro6fKktT8t8Lg!2e0!7i16384!8i8192","https://www.google.com/maps/@40.70493234229162,-73.796260139391,3a,75y,154.5h,0.0t/data=!3m6!1e1!3m4!1sEqcoCcRtCG9s-WsUfrmkLQ!2e0!7i16384!8i8192",missingstreetview
+84ec9388-1ab5-440b-98e6-2a39966fb3fd,patched,"address '332 East 149th Street, 8th Floor' -> '332 E 149th St, 8th Floor' | streetview_url set (default)","{""address"": {""street"": ""332 E 149th St, 8th Floor"", ""city"": ""Bronx"", ""state"": ""NY"", ""postalCode"": ""10451"", ""country"": ""US""}, ""streetview_url"": ""https://www.google.com/maps/@40.81668072150109,-73.92020955139331,3a,75y,206.4h,0.0t/data=!3m6!1e1!3m4!1sRB8kn5IKeH8VwSJw149V0A!2e0!7i16384!8i8192""}",0.0,,ok,default,0.8,"The storefront is not directly visible, but the building is identifiable and the location is confirmed.","https://www.google.com/maps/@40.81668072150109,-73.92020955139331,3a,75y,206.4h,0.0t/data=!3m6!1e1!3m4!1sRB8kn5IKeH8VwSJw149V0A!2e0!7i16384!8i8192","https://www.google.com/maps/@40.81668072150109,-73.92020955139331,3a,75y,206.4h,0.0t/data=!3m6!1e1!3m4!1sRB8kn5IKeH8VwSJw149V0A!2e0!7i16384!8i8192",missingstreetview

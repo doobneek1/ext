@@ -152,6 +152,480 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
     });
     return title;
   };
+  const submitLocationUpdate = async (targetLocationId, payload) => {
+    if (!targetLocationId) throw new Error('Missing location id.');
+    const url = `${LOCATION_API_BASE}/${targetLocationId}`;
+    const tokens = (() => {
+      const { accessToken, idToken } = getCognitoTokens();
+      const list = [];
+      if (idToken) list.push(idToken);
+      if (accessToken && accessToken !== idToken) list.push(accessToken);
+      if (!list.length) list.push(null);
+      return list;
+    })();
+    const attemptRequest = async (token) => {
+      const headers = {
+        accept: 'application/json, text/plain, */*',
+        'Content-Type': 'application/json'
+      };
+      if (token) headers.Authorization = token;
+      const options = {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(payload),
+        mode: 'cors',
+        credentials: 'omit'
+      };
+      const backgroundRes = typeof fetchViaBackground === 'function'
+        ? await fetchViaBackground(url, options)
+        : null;
+      if (backgroundRes) return backgroundRes;
+      return fetch(url, options);
+    };
+    let res = null;
+    for (const token of tokens) {
+      res = await attemptRequest(token);
+      if (res.ok) break;
+      if (res.status !== 401 && res.status !== 403) break;
+    }
+    if (!res) throw new Error('Location update failed: no response');
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Failed to update location: HTTP ${res.status} ${text}`);
+    }
+    return res.json().catch(() => null);
+  };
+  const resolveLocationRoot = (data) => {
+    if (!data || typeof data !== 'object') return null;
+    if (data.Location && typeof data.Location === 'object') return data.Location;
+    if (data.location && typeof data.location === 'object') return data.location;
+    return data;
+  };
+  const buildLocationRevalidatePayload = (data) => {
+    const root = resolveLocationRoot(data);
+    if (!root) return {};
+    const payload = {};
+    const baseName = root?.name ?? root?.location_name ?? root?.locationName ?? null;
+    if (typeof baseName === 'string') {
+      payload.name = baseName.trim();
+    }
+    const description = root?.description;
+    if (typeof description === 'string') {
+      payload.description = description.trim();
+    }
+    const additionalInfo = root?.additionalInfo ?? root?.additional_info;
+    if (typeof additionalInfo === 'string') {
+      payload.additionalInfo = additionalInfo.trim();
+    }
+    const orgId = root?.organizationId
+      || root?.organization_id
+      || root?.Organization?.id
+      || root?.organization?.id
+      || data?.Organization?.id
+      || data?.organization?.id;
+    if (typeof orgId === 'string' && orgId.trim()) {
+      payload.organizationId = orgId.trim();
+    }
+    const streetviewUrl = root?.streetview_url || root?.streetViewUrl || root?.street_view_url;
+    if (typeof streetviewUrl === 'string' && streetviewUrl.trim()) {
+      payload.streetview_url = streetviewUrl.trim();
+    }
+    const rawAddress = root?.address
+      || root?.Address
+      || (Array.isArray(root?.PhysicalAddresses) ? root.PhysicalAddresses[0] : null)
+      || (Array.isArray(data?.PhysicalAddresses) ? data.PhysicalAddresses[0] : null);
+    if (rawAddress && typeof rawAddress === 'object') {
+      const addressPayload = {};
+      const street = rawAddress.street || rawAddress.address_1 || rawAddress.address1 || rawAddress.address;
+      const city = rawAddress.city;
+      const state = rawAddress.state || rawAddress.state_province || rawAddress.region;
+      const postalCode = rawAddress.postalCode || rawAddress.postal_code || rawAddress.zip || rawAddress.postal;
+      const country = rawAddress.country || rawAddress.country_code;
+      const region = rawAddress.region;
+      if (street) addressPayload.street = String(street).trim();
+      if (city) addressPayload.city = String(city).trim();
+      if (state) addressPayload.state = String(state).trim();
+      if (postalCode) addressPayload.postalCode = String(postalCode).trim();
+      if (country) addressPayload.country = String(country).trim();
+      if (region && !addressPayload.state) addressPayload.region = String(region).trim();
+      if (Object.keys(addressPayload).length) {
+        payload.address = addressPayload;
+      }
+    }
+    const coords = Array.isArray(root?.position?.coordinates)
+      ? root.position.coordinates
+      : (Array.isArray(data?.position?.coordinates) ? data.position.coordinates : null);
+    let lat = null;
+    let lng = null;
+    if (coords && coords.length >= 2) {
+      const parsedLng = Number(coords[0]);
+      const parsedLat = Number(coords[1]);
+      if (Number.isFinite(parsedLat) && Number.isFinite(parsedLng)) {
+        lat = parsedLat;
+        lng = parsedLng;
+      }
+    }
+    if (lat == null || lng == null) {
+      const parsedLat = Number(root?.latitude ?? root?.lat ?? data?.latitude ?? data?.lat);
+      const parsedLng = Number(root?.longitude ?? root?.lng ?? data?.longitude ?? data?.lng);
+      if (Number.isFinite(parsedLat) && Number.isFinite(parsedLng)) {
+        lat = parsedLat;
+        lng = parsedLng;
+      }
+    }
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      payload.latitude = lat;
+      payload.longitude = lng;
+      payload.position = { type: 'Point', coordinates: [lng, lat] };
+    }
+    return payload;
+  };
+  const buildOrganizationRevalidatePayload = (data) => {
+    const root = resolveLocationRoot(data);
+    if (!root) return null;
+    const org = root?.Organization || root?.organization || data?.Organization || data?.organization;
+    if (!org || typeof org !== 'object') return null;
+    const payload = {};
+    if (typeof org.name === 'string') payload.name = org.name.trim();
+    if (typeof org.description === 'string') payload.description = org.description.trim();
+    if (typeof org.url === 'string') payload.url = org.url.trim();
+    if ('email' in org) payload.email = org.email ?? null;
+    const orgId = org.id
+      || root?.organizationId
+      || root?.organization_id
+      || data?.organizationId
+      || data?.organization_id;
+    if (!orgId || typeof orgId !== 'string') return null;
+    if (!Object.keys(payload).length) return null;
+    return { orgId, payload };
+  };
+  const buildPhoneRevalidatePayloads = (data) => {
+    const root = resolveLocationRoot(data);
+    const candidates = []
+      .concat(Array.isArray(root?.Phones) ? root.Phones : [])
+      .concat(Array.isArray(root?.phones) ? root.phones : [])
+      .concat(Array.isArray(data?.Phones) ? data.Phones : [])
+      .concat(Array.isArray(data?.phones) ? data.phones : []);
+    const seen = new Set();
+    return candidates.reduce((acc, phone) => {
+      if (!phone || typeof phone !== 'object') return acc;
+      const phoneId = phone.id || phone.phoneId || phone.phone_id;
+      if (!phoneId || seen.has(phoneId)) return acc;
+      const payload = {};
+      if (typeof phone.number === 'string' && phone.number.trim()) {
+        payload.number = phone.number.trim();
+      }
+      if ('extension' in phone) payload.extension = phone.extension ?? null;
+      if (typeof phone.type === 'string') payload.type = phone.type.trim();
+      if (typeof phone.language === 'string') payload.language = phone.language.trim();
+      if (typeof phone.description === 'string') payload.description = phone.description.trim();
+      if (!Object.keys(payload).length) return acc;
+      seen.add(phoneId);
+      acc.push({ id: phoneId, payload });
+      return acc;
+    }, []);
+  };
+  const getRevalidateTokens = () => {
+    if (typeof getCognitoTokens !== 'function') return [null];
+    const { accessToken, idToken } = getCognitoTokens();
+    const list = [];
+    if (idToken) list.push(idToken);
+    if (accessToken && accessToken !== idToken) list.push(accessToken);
+    if (!list.length) list.push(null);
+    return list;
+  };
+  const getServicePayloadLabel = (payload) => {
+    if (!payload || typeof payload !== 'object') return 'unknown';
+    if (payload.description != null) return 'description';
+    if (payload.eventRelatedInfo != null) return 'other-info';
+    if (payload.documents != null) return 'required-docs';
+    if (payload.whoDoesItServe != null) return 'age';
+    if (payload.irregularHours != null) return 'hours';
+    return 'base';
+  };
+  const patchWithDebug = async (url, payload, label, debugEnabled) => {
+    const tokens = getRevalidateTokens();
+    const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    let status = 0;
+    let responseText = '';
+    for (const token of tokens) {
+      const headers = {
+        accept: 'application/json, text/plain, */*',
+        'Content-Type': 'application/json'
+      };
+      if (token) headers.Authorization = token;
+      const res = await fetcher(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(payload),
+        mode: 'cors',
+        credentials: 'omit'
+      });
+      status = res.status;
+      responseText = await res.text().catch(() => '');
+      if (debugEnabled) {
+        console.warn('[Revalidate] PATCH response', {
+          label,
+          url,
+          status,
+          response: responseText
+        });
+      }
+      if (res.ok) {
+        return { ok: true, status, label, url, responseText };
+      }
+      if (res.status !== 401 && res.status !== 403) {
+        break;
+      }
+    }
+    return { ok: false, status, label, url, responseText };
+  };
+  const buildServiceRevalidatePayloads = (service) => {
+    if (!service || typeof service !== 'object') return [];
+    const payloads = [];
+    const basePayload = {};
+    const baseFields = [
+      'name',
+      'url',
+      'email',
+      'fees',
+      'application_process',
+      'wait_time',
+      'interpretation_services',
+      'additional_info',
+      'status'
+    ];
+    baseFields.forEach((key) => {
+      const value = service[key];
+      if (value == null) return;
+      const valueType = typeof value;
+      if (valueType === 'string') {
+        const trimmed = value.trim();
+        if (trimmed) basePayload[key] = trimmed;
+        return;
+      }
+      if (valueType === 'number' && Number.isFinite(value)) {
+        basePayload[key] = value;
+        return;
+      }
+      if (valueType === 'boolean') {
+        basePayload[key] = value;
+      }
+    });
+    if (Object.keys(basePayload).length) {
+      payloads.push(basePayload);
+    }
+    const rawDesc = typeof service.description === 'string' ? service.description.trim() : '';
+    if (rawDesc) {
+      payloads.push({ description: rawDesc });
+    }
+    const eventInfos = Array.isArray(service.EventRelatedInfos) ? service.EventRelatedInfos : [];
+    const eventInfo = eventInfos.find(info => info?.event === SERVICE_EDIT_OCCASION) || null;
+    const eventText = typeof eventInfo?.information === 'string'
+      ? eventInfo.information.trim()
+      : '';
+    if (eventInfo || eventText) {
+      payloads.push({
+        eventRelatedInfo: {
+          event: SERVICE_EDIT_OCCASION,
+          information: eventText || null
+        }
+      });
+    }
+    const requiredDocs = Array.isArray(service.RequiredDocuments) ? service.RequiredDocuments : [];
+    const docNames = requiredDocs
+      .map(doc => (doc?.document || '').trim())
+      .filter(name => name && name.toLowerCase() !== 'none');
+    if (docNames.length) {
+      payloads.push({ documents: { proofs: docNames } });
+    }
+    const eligibilities = Array.isArray(service.Eligibilities) ? service.Eligibilities : [];
+    const ageEligibility = eligibilities.find(e => e?.EligibilityParameter?.name?.toLowerCase?.() === 'age');
+    const ageValues = Array.isArray(ageEligibility?.eligible_values) ? ageEligibility.eligible_values : [];
+    if (ageValues.length) {
+      payloads.push({ whoDoesItServe: ageValues });
+    }
+    const normalizeScheduleDate = (value) => {
+      if (value == null) return null;
+      if (typeof value === 'number' && Number.isFinite(value)) return value;
+      const text = String(value).trim();
+      if (!text) return null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+      const parsed = Date.parse(text);
+      if (Number.isNaN(parsed)) return null;
+      return parsed;
+    };
+    const holidaySchedules = Array.isArray(service.HolidaySchedules) ? service.HolidaySchedules : [];
+    if (holidaySchedules.length) {
+      const payloadRows = holidaySchedules.map(schedule => {
+        const weekdayNum = toWeekdayNumber(schedule.weekday);
+        if (!weekdayNum) return null;
+        const closed = !!schedule.closed;
+        const opensAt = toTimeInputValue(schedule.opens_at || schedule.opensAt);
+        const closesAt = toTimeInputValue(schedule.closes_at || schedule.closesAt);
+        const row = {
+          weekday: toWeekdayName(weekdayNum),
+          closed,
+          occasion: schedule.occasion || SERVICE_EDIT_OCCASION
+        };
+        if (closed) {
+          row.opensAt = null;
+          row.closesAt = null;
+        } else {
+          if (!opensAt || !closesAt) return null;
+          row.opensAt = opensAt;
+          row.closesAt = closesAt;
+        }
+        const startDate = normalizeScheduleDate(schedule.start_date || schedule.startDate);
+        const endDate = normalizeScheduleDate(schedule.end_date || schedule.endDate);
+        if (startDate !== null) row.startDate = startDate;
+        if (endDate !== null) row.endDate = endDate;
+        return row;
+      }).filter(row => row && row.weekday);
+      if (payloadRows.length) {
+        payloads.push({ irregularHours: payloadRows });
+      }
+    }
+    return payloads;
+  };
+  const triggerRevalidateCheckbox = () => {
+    const checkbox = document.getElementById('revalidate-checkbox');
+    if (checkbox && !checkbox.checked) {
+      checkbox.click();
+      return true;
+    }
+    return false;
+  };
+  const buildRevalidateSection = () => {
+    const section = document.createElement('div');
+    section.appendChild(buildSectionTitle('Revalidate'));
+    const row = document.createElement('div');
+    Object.assign(row.style, {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px'
+    });
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Revalidate all';
+    Object.assign(button.style, {
+      border: '1px solid #d0d0d0',
+      background: '#fff',
+      borderRadius: '6px',
+      height: '24px',
+      padding: '0 8px',
+      fontSize: '11px',
+      cursor: locationId ? 'pointer' : 'not-allowed'
+    });
+    button.disabled = !locationId;
+    const status = document.createElement('div');
+    status.textContent = '';
+    Object.assign(status.style, {
+      fontSize: '10px',
+      color: '#666'
+    });
+    const setStatus = (text, tone = '#666') => {
+      status.textContent = text || '';
+      status.style.color = tone;
+    };
+    let running = false;
+    button.addEventListener('click', async (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      if (running) return;
+      if (!locationId) {
+        setStatus('Missing location id.', '#b42318');
+        return;
+      }
+      if (typeof fetchFullLocationRecord !== 'function') {
+        setStatus('Location fetch unavailable.', '#b42318');
+        return;
+      }
+      if (typeof submitServiceUpdate !== 'function') {
+        setStatus('Service update unavailable.', '#b42318');
+        return;
+      }
+      const confirmed = window.confirm(
+        'Revalidate entire location? This will PATCH all location + service fields.'
+      );
+      if (!confirmed) return;
+      running = true;
+      button.disabled = true;
+      button.textContent = 'Working...';
+      setStatus('Fetching location...', '#666');
+      try {
+        if (typeof fetchFullLocationRecord !== 'function') {
+          throw new Error('Location fetch unavailable.');
+        }
+        const debugRevalidate = (() => {
+          if (window?.gghost?.DEBUG_REVALIDATE === true) return true;
+          try {
+            return localStorage.getItem('gghostRevalidateDebug') === 'true';
+          } catch (_err) {
+            return false;
+          }
+        })();
+        const result = await fetchFullLocationRecord(locationId, { refresh: true });
+        const data = result?.data;
+        if (!data) throw new Error('Failed to load location data.');
+        const rawServices = data?.Services || data?.services || [];
+        const servicesList = typeof normalizeServices === 'function'
+          ? normalizeServices(rawServices)
+          : (Array.isArray(rawServices) ? rawServices : []);
+        const locationPayload = buildLocationRevalidatePayload(data);
+        const orgPayloadEntry = buildOrganizationRevalidatePayload(data);
+        const phonePayloads = buildPhoneRevalidatePayloads(data);
+        setStatus('Patching location + org + services...', '#666');
+        const tasks = [];
+        const locationUrl = `${LOCATION_API_BASE}/${locationId}`;
+        if (locationPayload && Object.keys(locationPayload).length) {
+          tasks.push(patchWithDebug(locationUrl, locationPayload, 'location', debugRevalidate));
+        }
+        if (orgPayloadEntry?.orgId && orgPayloadEntry?.payload) {
+          const orgBase = (typeof ORGANIZATION_API_BASE !== 'undefined' && ORGANIZATION_API_BASE)
+            ? ORGANIZATION_API_BASE
+            : 'https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/organizations';
+          const orgUrl = `${orgBase}/${orgPayloadEntry.orgId}`;
+          tasks.push(patchWithDebug(orgUrl, orgPayloadEntry.payload, 'organization', debugRevalidate));
+        }
+        const phoneBase = (typeof PHONE_API_BASE !== 'undefined' && PHONE_API_BASE)
+          ? PHONE_API_BASE
+          : 'https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/phones';
+        phonePayloads.forEach((phoneEntry) => {
+          const phoneUrl = `${phoneBase}/${phoneEntry.id}`;
+          tasks.push(patchWithDebug(phoneUrl, phoneEntry.payload, `phone:${phoneEntry.id}`, debugRevalidate));
+        });
+        servicesList.forEach((service) => {
+          if (!service?.id) return;
+          const payloads = buildServiceRevalidatePayloads(service);
+          payloads.forEach((payload) => {
+            const label = `service:${service.id}:${getServicePayloadLabel(payload)}`;
+            const serviceUrl = `${SERVICE_API_BASE}/${service.id}`;
+            tasks.push(patchWithDebug(serviceUrl, payload, label, debugRevalidate));
+          });
+        });
+        const results = await Promise.all(tasks);
+        const failures = results.filter(r => !r.ok);
+        if (failures.length) {
+          console.warn('[Revalidate] Failures', failures);
+          setStatus(`Done with ${failures.length} failures. See console.`, '#b26a00');
+        } else {
+          setStatus('Revalidated.', '#2e7d32');
+          triggerRevalidateCheckbox();
+        }
+      } catch (err) {
+        setStatus(err?.message || 'Revalidate failed.', '#b42318');
+      } finally {
+        running = false;
+        button.disabled = !locationId;
+        button.textContent = 'Revalidate all';
+      }
+    });
+    row.appendChild(button);
+    section.appendChild(row);
+    section.appendChild(status);
+    return section;
+  };
   const buildCreateServiceSection = () => {
     const section = document.createElement('div');
     section.appendChild(buildSectionTitle('Create service'));
@@ -422,6 +896,8 @@ function createServiceHoverPanel(services, locationId, currentServiceId = null) 
     extrasWrap.style.display = 'flex';
     const createSection = buildCreateServiceSection();
     extrasWrap.appendChild(createSection);
+    const revalidateSection = buildRevalidateSection();
+    if (revalidateSection) extrasWrap.appendChild(revalidateSection);
     if (redirectEnabled) {
       const savedSection = buildServiceStashSection('Saved services', SERVICE_STASH_SAVED_KEY, { allowEdit: true });
       if (savedSection) extrasWrap.appendChild(savedSection);

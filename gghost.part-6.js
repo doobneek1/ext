@@ -190,6 +190,194 @@ document.addEventListener('visibilitychange', () => {
   function setupTitleCaseFormatting() {
     let observer = null;
     let okButtonListener = null;
+    const LOCATION_API_BASE = 'https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/locations';
+    const LOCATION_ADDRESS_PATTERN = /\/questions\/location-address\/?$/;
+    const US_STATES = [
+      { name: 'Alabama', abbr: 'AL' },
+      { name: 'Alaska', abbr: 'AK' },
+      { name: 'Arizona', abbr: 'AZ' },
+      { name: 'Arkansas', abbr: 'AR' },
+      { name: 'California', abbr: 'CA' },
+      { name: 'Colorado', abbr: 'CO' },
+      { name: 'Connecticut', abbr: 'CT' },
+      { name: 'Delaware', abbr: 'DE' },
+      { name: 'Florida', abbr: 'FL' },
+      { name: 'Georgia', abbr: 'GA' },
+      { name: 'Hawaii', abbr: 'HI' },
+      { name: 'Idaho', abbr: 'ID' },
+      { name: 'Illinois', abbr: 'IL' },
+      { name: 'Indiana', abbr: 'IN' },
+      { name: 'Iowa', abbr: 'IA' },
+      { name: 'Kansas', abbr: 'KS' },
+      { name: 'Kentucky', abbr: 'KY' },
+      { name: 'Louisiana', abbr: 'LA' },
+      { name: 'Maine', abbr: 'ME' },
+      { name: 'Maryland', abbr: 'MD' },
+      { name: 'Massachusetts', abbr: 'MA' },
+      { name: 'Michigan', abbr: 'MI' },
+      { name: 'Minnesota', abbr: 'MN' },
+      { name: 'Mississippi', abbr: 'MS' },
+      { name: 'Missouri', abbr: 'MO' },
+      { name: 'Montana', abbr: 'MT' },
+      { name: 'Nebraska', abbr: 'NE' },
+      { name: 'Nevada', abbr: 'NV' },
+      { name: 'New Hampshire', abbr: 'NH' },
+      { name: 'New Jersey', abbr: 'NJ' },
+      { name: 'New Mexico', abbr: 'NM' },
+      { name: 'New York', abbr: 'NY' },
+      { name: 'North Carolina', abbr: 'NC' },
+      { name: 'North Dakota', abbr: 'ND' },
+      { name: 'Ohio', abbr: 'OH' },
+      { name: 'Oklahoma', abbr: 'OK' },
+      { name: 'Oregon', abbr: 'OR' },
+      { name: 'Pennsylvania', abbr: 'PA' },
+      { name: 'Rhode Island', abbr: 'RI' },
+      { name: 'South Carolina', abbr: 'SC' },
+      { name: 'South Dakota', abbr: 'SD' },
+      { name: 'Tennessee', abbr: 'TN' },
+      { name: 'Texas', abbr: 'TX' },
+      { name: 'Utah', abbr: 'UT' },
+      { name: 'Vermont', abbr: 'VT' },
+      { name: 'Virginia', abbr: 'VA' },
+      { name: 'Washington', abbr: 'WA' },
+      { name: 'West Virginia', abbr: 'WV' },
+      { name: 'Wisconsin', abbr: 'WI' },
+      { name: 'Wyoming', abbr: 'WY' },
+      { name: 'District of Columbia', abbr: 'DC' },
+      { name: 'Puerto Rico', abbr: 'PR' },
+      { name: 'Guam', abbr: 'GU' },
+      { name: 'Virgin Islands', abbr: 'VI' }
+    ];
+    const isLocationAddressPage = () => LOCATION_ADDRESS_PATTERN.test(window.location.pathname || '');
+    const normalizeCityName = (value) => {
+      const text = String(value || '').trim();
+      if (!text) return '';
+      const lower = text.toLowerCase();
+      return lower.replace(/(^|[\s-])([a-z])/g, (match, sep, letter) => `${sep}${letter.toUpperCase()}`);
+    };
+    const normalizeStateInput = (value) => {
+      const trimmed = String(value || '').trim();
+      if (!trimmed) return '';
+      const upper = trimmed.toUpperCase();
+      const match = US_STATES.find(state => state.abbr === upper || state.name.toUpperCase() === upper);
+      if (match) return match.abbr;
+      if (upper.length === 2) return upper;
+      return upper;
+    };
+    const formatZipCode = (value) => {
+      if (!value) return '';
+      const digits = String(value).replace(/\D/g, '');
+      if (digits.length <= 5) return digits;
+      if (digits.length <= 9) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+      return `${digits.slice(0, 5)}-${digits.slice(5, 9)}`;
+    };
+    const extractZipCode = (value) => {
+      if (!value) return null;
+      const match = String(value).match(/\b(\d{5})(?:-?(\d{4}))?\b/);
+      if (!match) return null;
+      return match[2] ? `${match[1]}-${match[2]}` : match[1];
+    };
+    const parseInlineAddress = (rawValue, fallback = {}) => {
+      const raw = String(rawValue || '').trim();
+      const fallbackZipRaw = String(fallback.postalCode || '').trim();
+      const fallbackZipExtracted = extractZipCode(fallbackZipRaw);
+      const result = {
+        street: raw,
+        city: normalizeCityName(String(fallback.city || '').trim()),
+        state: normalizeStateInput(String(fallback.state || '').trim()),
+        postalCode: formatZipCode(fallbackZipExtracted || fallbackZipRaw)
+      };
+      if (!raw) return result;
+      let working = raw;
+      const zip = extractZipCode(working);
+      if (zip) {
+        result.postalCode = formatZipCode(zip);
+        working = working.replace(zip, '').replace(/[,\s]+$/g, '').trim();
+      }
+      const parts = working.split(',').map(part => part.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        result.street = parts[0];
+        if (parts.length >= 3) {
+          result.city = normalizeCityName(parts[1]);
+          const statePart = parts.slice(2).join(' ');
+          const normalizedState = normalizeStateInput(statePart);
+          if (normalizedState) result.state = normalizedState;
+        } else {
+          const normalizedState = normalizeStateInput(parts[1]);
+          if (normalizedState) {
+            result.state = normalizedState;
+          } else {
+            result.city = normalizeCityName(parts[1]);
+          }
+        }
+      } else {
+        const stateMatch = working.match(/\b([A-Za-z]{2})$/);
+        if (stateMatch) {
+          const normalizedState = normalizeStateInput(stateMatch[1]);
+          if (normalizedState) {
+            result.state = normalizedState;
+            const withoutState = working.slice(0, stateMatch.index).trim();
+            if (withoutState) result.street = withoutState;
+          }
+        }
+      }
+      return result;
+    };
+    const setInputValue = (input, value) => {
+      if (!input || value == null) return false;
+      const nextValue = String(value);
+      if (input.value === nextValue) return false;
+      const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value');
+      if (descriptor && typeof descriptor.set === 'function') {
+        descriptor.set.call(input, nextValue);
+      } else {
+        input.value = nextValue;
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    };
+    const getAddressInputs = () => {
+      const allInputs = Array.from(document.querySelectorAll('input.Input-fluid'));
+      const byPlaceholder = (needle) =>
+        allInputs.find((input) =>
+          (input.placeholder || '').toLowerCase().includes(needle)
+        ) || null;
+      return {
+        street: byPlaceholder('address of the location') || byPlaceholder('address'),
+        city: byPlaceholder('city'),
+        state: byPlaceholder('state'),
+        zip: byPlaceholder('zip') || byPlaceholder('postal')
+      };
+    };
+    const patchLocationAddress = async (locationId, address) => {
+      if (!locationId) return;
+      if (!address?.street) return;
+      if (typeof getCognitoTokens !== 'function') return;
+      const { accessToken, idToken } = getCognitoTokens() || {};
+      const tokens = [idToken, accessToken].filter(Boolean);
+      if (!tokens.length) tokens.push(null);
+      const url = `${LOCATION_API_BASE}/${locationId}`;
+      for (const token of tokens) {
+        const headers = {
+          accept: 'application/json, text/plain, */*',
+          'content-type': 'application/json'
+        };
+        if (token) headers.Authorization = token;
+        const res = await fetch(url, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ address })
+        });
+        if (res.ok) {
+          return res.json().catch(() => null);
+        }
+        if (res.status !== 401 && res.status !== 403) {
+          break;
+        }
+      }
+      return null;
+    };
     // Helper to attach listeners to an input
     function attachListeners(input) {
       if (input.dataset.titleCaseEnabled) return;
@@ -324,6 +512,50 @@ document.addEventListener('visibilitychange', () => {
               }
             }
           });
+          if (isLocationAddressPage()) {
+            const { street, city, state, zip } = getAddressInputs();
+            if (street) {
+              const parsed = parseInlineAddress(street.value, {
+                city: city?.value || '',
+                state: state?.value || '',
+                postalCode: zip?.value || ''
+              });
+              let changed = false;
+              if (parsed.street) {
+                changed = setInputValue(street, parsed.street) || changed;
+              }
+              if (city && parsed.city) {
+                changed = setInputValue(city, parsed.city) || changed;
+              }
+              if (state && parsed.state) {
+                changed = setInputValue(state, parsed.state) || changed;
+              }
+              if (zip && parsed.postalCode) {
+                changed = setInputValue(zip, parsed.postalCode) || changed;
+              }
+              if (!city || !state || !zip) {
+                const locationId = typeof getGoGettaLocationUuid === 'function'
+                  ? getGoGettaLocationUuid()
+                  : null;
+                if (locationId) {
+                  const addressPayload = {
+                    street: parsed.street || street.value.trim(),
+                    city: parsed.city || city?.value || '',
+                    state: parsed.state || state?.value || '',
+                    postalCode: parsed.postalCode || zip?.value || ''
+                  };
+                  if (addressPayload.street) {
+                    patchLocationAddress(locationId, addressPayload).catch(err => {
+                      console.warn('[gghost] Address patch failed:', err);
+                    });
+                  }
+                }
+              } else if (changed) {
+                // ensure updated inputs propagate for React-controlled forms
+                street.dispatchEvent(new Event('blur', { bubbles: true }));
+              }
+            }
+          }
         }
       };
       document.addEventListener('click', okButtonListener, true);

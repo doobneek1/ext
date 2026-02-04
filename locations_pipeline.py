@@ -1898,12 +1898,11 @@ def main(argv):
                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     }
                 )
-                stop_reason = "error"
-                stop_uuid = uuid
-                break
+                continue
             if status >= 300:
                 error_note = format_http_error("GET", get_url, status, body)
-                if is_auth_error(status, body):
+                auth_error = is_auth_error(status, body)
+                if auth_error:
                     print(f"[AUTH] {uuid}: {error_note}")
                     totals["auth_errors"] += 1
                     totals["errors"] += 1
@@ -1920,24 +1919,23 @@ def main(argv):
                         }
                     )
                     stop_reason = "auth_error"
-                else:
-                    print(f"[ERROR] {uuid}: {error_note}")
-                    totals["errors"] += 1
-                    progress_writer, _ = ensure_writer(
-                        args.progress_csv, PROGRESS_FIELDS, progress_holder
-                    )
-                    progress_writer.writerow(
-                        {
-                            "uuid": uuid,
-                            "status": "error",
-                            "note": error_note,
-                            "source": source_label,
-                            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                        }
-                    )
-                    stop_reason = "error"
-                stop_uuid = uuid
-                break
+                    stop_uuid = uuid
+                    break
+                print(f"[ERROR] {uuid}: {error_note}")
+                totals["errors"] += 1
+                progress_writer, _ = ensure_writer(
+                    args.progress_csv, PROGRESS_FIELDS, progress_holder
+                )
+                progress_writer.writerow(
+                    {
+                        "uuid": uuid,
+                        "status": "error",
+                        "note": error_note,
+                        "source": source_label,
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    }
+                )
+                continue
             try:
                 data = json.loads(body)
             except json.JSONDecodeError:
@@ -1956,9 +1954,7 @@ def main(argv):
                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     }
                 )
-                stop_reason = "error"
-                stop_uuid = uuid
-                break
+                continue
             address_data = extract_address(data)
             api_street = normalize_whitespace(address_data.get("street", ""))
             api_city = normalize_whitespace(address_data.get("city", ""))

@@ -92,8 +92,49 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
   // 👇 helper to detect "done by <letters>" at end of note
+  function normalizeReminderNote(note) {
+    if (note == null) return "";
+    if (typeof note === "string") return note;
+    if (typeof note === "object") {
+      const candidate = note.note || note.text || note.summary;
+      if (typeof candidate === "string") return candidate;
+    }
+    return String(note);
+  }
   function isDoneBy(note = "") {
-    return /\bDone by [a-zA-Z]+$/.test(note.trim());
+    const text = normalizeReminderNote(note);
+    return /\bDone by [a-zA-Z]+$/.test(text.trim());
+  }
+  function getLocalDateKey(date = new Date()) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  function coerceReminderDateTs(value) {
+    if (value == null) return null;
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value < 1e12 ? value * 1000 : value;
+    }
+    const raw = String(value).trim();
+    if (!raw) return null;
+    const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+      const year = Number(isoMatch[1]);
+      const month = Number(isoMatch[2]) - 1;
+      const day = Number(isoMatch[3]);
+      return new Date(year, month, day).getTime();
+    }
+    const slashMatch = raw.match(/^(\d{1,2})[\\/\\-](\d{1,2})[\\/\\-](\d{2,4})$/);
+    if (slashMatch) {
+      let year = Number(slashMatch[3]);
+      if (year < 100) year += 2000;
+      const month = Number(slashMatch[1]) - 1;
+      const day = Number(slashMatch[2]);
+      return new Date(year, month, day).getTime();
+    }
+    const parsed = Date.parse(raw);
+    return Number.isNaN(parsed) ? null : parsed;
   }
   function buildRemindersUrl(extraParams = {}) {
     const url = new URL(REMINDERS_URL);
@@ -153,13 +194,22 @@ document.addEventListener("DOMContentLoaded", async () => {
       const locationData = data[uuid];
       if (locationData && typeof locationData === "object" && locationData.reminder) {
         for (const date in locationData.reminder) {
-          const note = locationData.reminder[date];
-          if (isDoneBy(note)) continue;
-          reminders.push({ uuid, date, note });
+          const rawNote = locationData.reminder[date];
+          const note = normalizeReminderNote(rawNote);
+          const done = isDoneBy(note);
+          const dateTs = coerceReminderDateTs(date);
+          reminders.push({ uuid, date, note, done, dateTs });
         }
       }
     }
-    reminders.sort((a, b) => a.date.localeCompare(b.date));
+    reminders.sort((a, b) => {
+      const aTs = typeof a.dateTs === "number" ? a.dateTs : coerceReminderDateTs(a.date);
+      const bTs = typeof b.dateTs === "number" ? b.dateTs : coerceReminderDateTs(b.date);
+      if (typeof aTs === "number" && typeof bTs === "number") {
+        return aTs - bTs;
+      }
+      return String(a.date).localeCompare(String(b.date));
+    });
     return reminders;
   }
   function applyReminderList(reminders, { shouldCache = false } = {}) {
@@ -231,37 +281,61 @@ function renderReminderList(remindersToShow, filtered = false) {
   const list = document.getElementById("reminderList");
   const clearBtn = document.getElementById("clearReminderFilter");
   list.innerHTML = "";
-  const today = new Date().toISOString().split("T")[0];
-  const upcoming = remindersToShow.filter(r => r.date >= today);
-  const past = remindersToShow.filter(r => r.date < today).reverse();
+  const todayKey = getLocalDateKey();
+  const todayTs = coerceReminderDateTs(todayKey) ?? Date.now();
+  const normalized = remindersToShow.map((r) => {
+    const note = normalizeReminderNote(r.note);
+    const done = typeof r.done === "boolean" ? r.done : isDoneBy(note);
+    const dateTs = typeof r.dateTs === "number" ? r.dateTs : coerceReminderDateTs(r.date);
+    return { ...r, note, done, dateTs };
+  });
+  const isPast = (r) => {
+    if (typeof r.dateTs === "number") {
+      return r.dateTs < todayTs;
+    }
+    const raw = String(r.date || "");
+    return raw && raw < todayKey;
+  };
+  const upcoming = normalized.filter((r) => !r.done && !isPast(r));
+  const past = normalized.filter((r) => r.done || isPast(r)).reverse();
   let firstUpcomingItem = null;
   // --- 🕒 Past Reminder Fold Section ---
   if (past.length) {
-    const pastContainer = document.createElement("div");
-    pastContainer.style = `
-      opacity: 0.6;
-      margin-bottom: 10px;
-    `;
+    const pastHeader = document.createElement("li");
+    pastHeader.textContent = "Past reminders";
+    pastHeader.style.listStyle = "none";
+    pastHeader.style.opacity = "0.6";
+    pastHeader.style.fontSize = "12px";
+    pastHeader.style.marginBottom = "4px";
+    list.appendChild(pastHeader);
     for (const r of past) {
       const li = document.createElement("li");
       li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${r.date}</a>: ${r.note}`;
-      pastContainer.appendChild(li);
+      if (r.done) {
+        li.style.opacity = "0.6";
+        li.style.textDecoration = "line-through";
+      } else {
+        li.style.opacity = "0.7";
+      }
+      list.appendChild(li);
     }
-    const foldNotice = document.createElement("div");
-    foldNotice.style = `
-      text-align: center;
-      font-size: 12px;
-      color: #888;
-      padding: 4px 0;
-      border-top: 1px dashed #ccc;
-      margin-bottom: 10px;
-    `;
-    list.appendChild(pastContainer); // past on top
+    const foldNotice = document.createElement("li");
+    foldNotice.style.listStyle = "none";
+    foldNotice.style.textAlign = "center";
+    foldNotice.style.fontSize = "12px";
+    foldNotice.style.color = "#888";
+    foldNotice.style.padding = "4px 0";
+    foldNotice.style.borderTop = "1px dashed #ccc";
+    foldNotice.style.marginBottom = "10px";
+    foldNotice.textContent = "Upcoming";
     list.appendChild(foldNotice);   // visual divider
   }
   // --- 📅 Upcoming Reminders ---
   for (const r of upcoming) {
-    const dateText = r.date === today ? "Today" : r.date;
+    const isToday = typeof r.dateTs === "number"
+      ? r.dateTs >= todayTs && r.dateTs < (todayTs + 24 * 60 * 60 * 1000)
+      : String(r.date) === todayKey;
+    const dateText = isToday ? "Today" : r.date;
     const li = document.createElement("li");
     li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${dateText}</a>: ${r.note}`;
     list.appendChild(li);
@@ -288,8 +362,19 @@ document.getElementById("clearReminderFilter").addEventListener("click", () => {
   renderReminderList(allReminders);
 });
 function updateExtensionBadge(reminders) {
-  const today = new Date().toISOString().split("T")[0];
-  const upcoming = reminders.filter(r => r.date >= today);
+  const todayKey = getLocalDateKey();
+  const todayTs = coerceReminderDateTs(todayKey) ?? Date.now();
+  const upcoming = reminders.filter((r) => {
+    const note = normalizeReminderNote(r.note);
+    const done = typeof r.done === "boolean" ? r.done : isDoneBy(note);
+    if (done) return false;
+    const dateTs = typeof r.dateTs === "number" ? r.dateTs : coerceReminderDateTs(r.date);
+    if (typeof dateTs === "number") {
+      return dateTs >= todayTs;
+    }
+    const raw = String(r.date || "");
+    return raw >= todayKey;
+  });
   const count = upcoming.length;
   chrome.runtime.sendMessage({ type: "setBadge", count });
 }

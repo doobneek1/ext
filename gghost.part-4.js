@@ -1440,51 +1440,208 @@ function buildLocationContactData(locationData, locationId) {
   generalEmails.forEach(email => addEmail(email, 'Detected email'));
   return { linkItems, emailItems, phoneItems };
 }
-async function patchLocationOrganizationEmail(locationId, orgId, email) {
-  if (!locationId) throw new Error('Missing location id.');
-  const url = `${LOCATION_API_BASE}/${locationId}`;
-  const payload = { Organization: { email: email || null } };
-  if (orgId) payload.Organization.id = orgId;
+const ORGANIZATION_API_BASE = 'https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/prod/organizations';
+
+function stringifyEmailDebug(value) {
+  try {
+    return JSON.stringify(value);
+  } catch (_err) {
+    return String(value);
+  }
+}
+
+function expandAuthTokens(tokens) {
+  const expanded = [];
+  const seen = new Set();
+  tokens.forEach((token) => {
+    if (!token) return;
+    const trimmed = String(token).trim();
+    if (!trimmed) return;
+    const candidates = /^Bearer\s+/i.test(trimmed)
+      ? [trimmed, trimmed.replace(/^Bearer\s+/i, '')]
+      : [`Bearer ${trimmed}`, trimmed];
+    candidates.forEach((candidate) => {
+      if (!candidate || seen.has(candidate)) return;
+      seen.add(candidate);
+      expanded.push(candidate);
+    });
+  });
+  return expanded;
+}
+
+function getEmailAuthTokens() {
   const { accessToken, idToken } = getCognitoTokens();
-  const tokens = [idToken, accessToken].filter(Boolean);
-  if (!tokens.length) tokens.push(null);
+  const list = [];
+  if (idToken) list.push(idToken);
+  if (accessToken && accessToken !== idToken) list.push(accessToken);
+  const expanded = expandAuthTokens(list);
+  if (!expanded.length) expanded.push(null);
+  return expanded;
+}
+
+async function patchApiRecord(url, payload, errorPrefix) {
+  const tokens = getEmailAuthTokens();
   const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
-  const attempt = async (token, useBearer) => {
+  let res = null;
+  let lastError = '';
+  for (const token of tokens) {
     const headers = {
-      'Content-Type': 'application/json',
-      accept: 'application/json, text/plain, */*'
+      accept: 'application/json, text/plain, */*',
+      'Content-Type': 'application/json'
     };
-    if (token) headers.Authorization = useBearer ? `Bearer ${token}` : token;
-    return fetcher(url, {
+    if (token) headers.Authorization = token;
+    res = await fetcher(url, {
       method: 'PATCH',
       headers,
       body: JSON.stringify(payload),
       mode: 'cors',
-      credentials: 'include'
+      credentials: 'omit'
     });
-  };
-  let res = null;
-  for (const token of tokens) {
-    if (token) {
-      res = await attempt(token, false);
-      if (res.ok) break;
-      if (res.status !== 401 && res.status !== 403) break;
-      res = await attempt(token, true);
-      if (res.ok) break;
-      if (res.status !== 401 && res.status !== 403) break;
-    } else {
-      res = await attempt(null, false);
-      if (res.ok) break;
-    }
+    if (res.ok) break;
+    lastError = await res.text().catch(() => res.statusText);
+    if (res.status !== 401 && res.status !== 403) break;
   }
   if (!res) {
-    throw new Error('Email update failed: no response');
+    throw new Error(`${errorPrefix}: no response`);
   }
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Email update failed (${res.status}): ${text || 'unknown error'}`);
+    throw new Error(`${errorPrefix} (${res.status}): ${lastError || 'unknown error'}`);
   }
-  return res.json().catch(() => null);
+  const text = await res.text().catch(() => '');
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (_err) {
+    data = text ? { raw: text } : null;
+  }
+  return { status: res.status, data };
+}
+
+async function fetchApiRecord(url, errorPrefix) {
+  const tokens = getEmailAuthTokens();
+  const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+  let res = null;
+  let lastError = '';
+  for (const token of tokens) {
+    const headers = {
+      accept: 'application/json, text/plain, */*'
+    };
+    if (token) headers.Authorization = token;
+    res = await fetcher(url, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+      credentials: 'omit',
+      mode: 'cors'
+    });
+    if (res.ok) break;
+    lastError = await res.text().catch(() => res.statusText);
+    if (res.status !== 401 && res.status !== 403) break;
+  }
+  if (!res) {
+    throw new Error(`${errorPrefix}: no response`);
+  }
+  if (!res.ok) {
+    throw new Error(`${errorPrefix} (${res.status}): ${lastError || 'unknown error'}`);
+  }
+  const text = await res.text().catch(() => '');
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (_err) {
+    data = text ? { raw: text } : null;
+  }
+  return { status: res.status, data };
+}
+
+function buildOrganizationPatchPayload(orgRecord, email, orgId) {
+  const normalizedEmail = email ?? null;
+  const payload = {};
+  if (orgRecord && typeof orgRecord === 'object') {
+    Object.keys(orgRecord).forEach((key) => {
+      if (key === 'Phones' || key === 'phones') return;
+      const value = orgRecord[key];
+      if (Array.isArray(value)) return;
+      payload[key] = value;
+    });
+  }
+  if (orgId && !payload.id) payload.id = orgId;
+  payload.email = normalizedEmail;
+  return payload;
+}
+
+function buildOrganizationEndpointPayload(orgRecord, email, orgId) {
+  const base = buildOrganizationPatchPayload(orgRecord, email, orgId);
+  return {
+    ...base,
+    organization_email: base.email ?? null,
+    organizationEmail: base.email ?? null,
+    Organization: { ...base },
+    organization: { ...base }
+  };
+}
+
+async function patchLocationOrganizationEmail(locationId, orgId, email, orgRecord = null) {
+  if (!locationId) throw new Error('Missing location id.');
+  const url = `${LOCATION_API_BASE}/${locationId}`;
+  const normalizedEmail = email || null;
+  const orgPayload = buildOrganizationPatchPayload(orgRecord, normalizedEmail, orgId);
+  const payload = {
+    Organization: orgPayload,
+    organization: { ...orgPayload },
+    email: normalizedEmail,
+    organization_email: normalizedEmail,
+    organizationEmail: normalizedEmail
+  };
+  if (orgId) {
+    payload.organization_id = orgId;
+    payload.organizationId = orgId;
+  }
+  const debugEmail = (() => {
+    try {
+      return Boolean(window?.gghost?.DEBUG_EMAIL_PERSIST || localStorage.getItem('gghostEmailDebug') === 'true');
+    } catch (_err) {
+      return Boolean(window?.gghost?.DEBUG_EMAIL_PERSIST);
+    }
+  })();
+  const result = await patchApiRecord(url, payload, 'Email update failed');
+  if (debugEmail) {
+    console.warn('[Email Debug] PATCH response', {
+      status: result.status,
+      url,
+      payload,
+      response: result.data
+    });
+    console.warn('[Email Debug] PATCH payload JSON', stringifyEmailDebug(payload));
+    console.warn('[Email Debug] PATCH response JSON', stringifyEmailDebug(result));
+  }
+  return result.data;
+}
+
+async function patchOrganizationEmail(orgId, email, orgRecord = null) {
+  if (!orgId) throw new Error('Missing organization id.');
+  const url = `${ORGANIZATION_API_BASE}/${orgId}`;
+  const normalizedEmail = email || null;
+  const payload = buildOrganizationEndpointPayload(orgRecord, normalizedEmail, orgId);
+  const debugEmail = (() => {
+    try {
+      return Boolean(window?.gghost?.DEBUG_EMAIL_PERSIST || localStorage.getItem('gghostEmailDebug') === 'true');
+    } catch (_err) {
+      return Boolean(window?.gghost?.DEBUG_EMAIL_PERSIST);
+    }
+  })();
+  const result = await patchApiRecord(url, payload, 'Organization email update failed');
+  if (debugEmail) {
+    console.warn('[Email Debug] ORG PATCH response', {
+      status: result.status,
+      url,
+      payload,
+      response: result.data
+    });
+    console.warn('[Email Debug] ORG PATCH payload JSON', stringifyEmailDebug(payload));
+    console.warn('[Email Debug] ORG PATCH response JSON', stringifyEmailDebug(result));
+  }
+  return result.data;
 }
 function updateCachedLocationOrganizationEmail(locationId, email) {
   if (!locationId) return false;
@@ -1674,6 +1831,22 @@ function renderLocationContactOverlay(locationId, locationData) {
     });
     return btn;
   };
+  const orgEmailEditor = {
+    input: null,
+    setEditing: null,
+    setStatus: null
+  };
+  const emailEditDisabled = (() => {
+    if (window?.gghost?.DISABLE_EMAIL_EDIT === false) return false;
+    if (window?.gghost?.DISABLE_EMAIL_EDIT === true) return true;
+    try {
+      const flag = localStorage.getItem('gghostDisableEmailEdit');
+      if (flag === null) return true;
+      return flag === 'true' || flag === '1';
+    } catch (_err) {
+      return true;
+    }
+  })();
   const createLinkEntry = (item) => {
     const entry = document.createElement('div');
     entry.style.marginBottom = '8px';
@@ -1753,6 +1926,18 @@ function renderLocationContactOverlay(locationId, locationData) {
         }
       }
     });
+    actionBtn.addEventListener('dblclick', (e) => {
+      if (emailEditDisabled) return;
+      if (!orgEmailEditor.input || !orgEmailEditor.setEditing) return;
+      e.stopPropagation();
+      orgEmailEditor.setEditing(true);
+      orgEmailEditor.input.value = item.display || '';
+      orgEmailEditor.input.focus();
+      orgEmailEditor.input.select();
+      if (orgEmailEditor.setStatus) {
+        orgEmailEditor.setStatus('Editing enabled. Press Update to save.', '#666');
+      }
+    });
     row.appendChild(actionBtn);
     row.appendChild(createCopyButton(item.display));
     entry.appendChild(row);
@@ -1793,6 +1978,7 @@ function renderLocationContactOverlay(locationId, locationData) {
     input.type = 'email';
     input.placeholder = 'Add organization email';
     input.value = String(locationData?.Organization?.email || '').trim();
+    const initialHasEmail = Boolean(input.value);
     input.style.cssText = `
       flex: 1;
       min-width: 0;
@@ -1816,6 +2002,14 @@ function renderLocationContactOverlay(locationId, locationData) {
     const status = createMeta('');
     let saving = false;
     let currentEmail = input.value;
+    let editingEnabled = !initialHasEmail;
+    const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const setEditingState = (enabled) => {
+      editingEnabled = enabled;
+      input.readOnly = !enabled;
+      input.style.background = enabled ? '#fff' : '#f5f5f5';
+      input.style.cursor = enabled ? 'text' : 'default';
+    };
     const setSaveState = () => {
       const nextValue = input.value.trim();
       const dirty = nextValue !== currentEmail;
@@ -1827,39 +2021,135 @@ function renderLocationContactOverlay(locationId, locationData) {
       status.textContent = text;
       status.style.color = color || '#666';
     };
-    const verifyPersistedEmail = async (expectedEmail) => {
-      const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
-      const headers = typeof getAuthHeaders === 'function' ? getAuthHeaders() : { 'Content-Type': 'application/json' };
-      if (!headers.accept) headers.accept = 'application/json';
+    const debugEmail = (() => {
+      try {
+        return Boolean(window?.gghost?.DEBUG_EMAIL_PERSIST || localStorage.getItem('gghostEmailDebug') === 'true');
+      } catch (_err) {
+        return Boolean(window?.gghost?.DEBUG_EMAIL_PERSIST);
+      }
+    })();
+    orgEmailEditor.input = input;
+    orgEmailEditor.setEditing = setEditingState;
+    orgEmailEditor.setStatus = setStatus;
+    if (emailEditDisabled) {
+      setEditingState(false);
+      saveBtn.disabled = true;
+      saveBtn.style.display = 'none';
+      input.readOnly = true;
+      input.style.background = '#f5f5f5';
+      input.style.cursor = 'default';
+      row.appendChild(input);
+      row.appendChild(saveBtn);
+      section.appendChild(header);
+      section.appendChild(row);
+      section.appendChild(status);
+      return section;
+    }
+    const fetchOrganizationEmail = async (orgId) => {
+      if (!orgId) return { ok: false, error: 'Missing organization id.' };
+      const url = `${ORGANIZATION_API_BASE}/${orgId}?_=${Date.now()}`;
+      try {
+        const result = await fetchApiRecord(url, 'Organization fetch failed');
+        const data = result?.data ?? null;
+        const orgEmail = data?.email ?? data?.Organization?.email ?? null;
+        if (debugEmail) {
+          console.warn('[Email Debug] VERIFY org response', {
+            status: result.status,
+            url,
+            orgEmail,
+            data
+          });
+          console.warn('[Email Debug] VERIFY org response JSON', stringifyEmailDebug({
+            status: result.status,
+            url,
+            orgEmail
+          }));
+        }
+        return { ok: true, orgEmail };
+      } catch (err) {
+        if (debugEmail) {
+          console.warn('[Email Debug] VERIFY org error', {
+            url,
+            error: err?.message || String(err)
+          });
+          console.warn('[Email Debug] VERIFY org error JSON', stringifyEmailDebug({
+            url,
+            error: err?.message || String(err)
+          }));
+        }
+        return { ok: false, error: err?.message || String(err) };
+      }
+    };
+    const verifyPersistedEmail = async (expectedEmail, orgId) => {
       const url = `${LOCATION_API_BASE}/${locationId}?_=${Date.now()}`;
       try {
-        const res = await fetcher(url, {
-          method: 'GET',
-          headers,
-          cache: 'no-store',
-          credentials: 'include',
-          mode: 'cors'
-        });
-        if (!res.ok) {
-          return { ok: false, status: res.status };
-        }
-        const data = await res.json().catch(() => null);
-        const orgEmail = data?.Organization?.email ?? data?.organization?.email ?? null;
+        const result = await fetchApiRecord(url, 'Location fetch failed');
+        const data = result?.data ?? null;
+        let orgEmail = data?.Organization?.email ?? data?.organization?.email ?? null;
         const locEmail = data?.email ?? null;
+        if (debugEmail) {
+          console.warn('[Email Debug] VERIFY response', {
+            status: result.status,
+            url,
+            orgEmail,
+            locEmail,
+            data
+          });
+          console.warn('[Email Debug] VERIFY response JSON', stringifyEmailDebug({
+            status: result.status,
+            url,
+            orgEmail,
+            locEmail
+          }));
+        }
         const expected = String(expectedEmail || '').trim();
-        const orgMatch = String(orgEmail || '').trim() === expected;
+        let orgMatch = String(orgEmail || '').trim() === expected;
         const locMatch = String(locEmail || '').trim() === expected;
+        let orgCheck = null;
+        if (orgId) {
+          orgCheck = await fetchOrganizationEmail(orgId);
+          if (orgCheck?.ok) {
+            orgEmail = orgCheck.orgEmail ?? orgEmail;
+            orgMatch = String(orgEmail || '').trim() === expected;
+          }
+          if (debugEmail && !orgCheck?.ok) {
+            console.warn('[Email Debug] VERIFY org fetch failed', {
+              url,
+              error: orgCheck?.error || 'unknown error'
+            });
+            console.warn('[Email Debug] VERIFY org fetch failed JSON', stringifyEmailDebug({
+              url,
+              error: orgCheck?.error || 'unknown error'
+            }));
+          }
+        }
         return {
           ok: true,
           orgEmail,
           locEmail,
           orgMatch,
-          locMatch
+          locMatch,
+          orgCheck
         };
       } catch (err) {
         return { ok: false, error: err?.message || String(err) };
       }
     };
+    input.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      if (!editingEnabled) {
+        setEditingState(true);
+        input.focus();
+        input.select();
+        setStatus('Editing enabled. Press Update to save.', '#666');
+        return;
+      }
+      if (input.value.trim()) {
+        input.value = '';
+        setStatus('Cleared. Press Update to save.', '#b26a00');
+        setSaveState();
+      }
+    });
     input.addEventListener('input', () => {
       setStatus('', '#666');
       setSaveState();
@@ -1875,7 +2165,14 @@ function renderLocationContactOverlay(locationId, locationData) {
       setSaveState();
       setStatus('Saving...', '#666');
       try {
-        await patchLocationOrganizationEmail(locationId, locationData?.Organization?.id, nextValue || null);
+        let keepEditing = !nextValue;
+        const orgRecord = locationData?.Organization || locationData?.organization || null;
+        const resolvedOrgId =
+          orgRecord?.id
+          || locationData?.organization_id
+          || locationData?.organizationId
+          || null;
+        await patchLocationOrganizationEmail(locationId, resolvedOrgId, nextValue || null, orgRecord);
         currentEmail = nextValue;
         if (!locationData.Organization || typeof locationData.Organization !== 'object') {
           locationData.Organization = {};
@@ -1883,29 +2180,52 @@ function renderLocationContactOverlay(locationId, locationData) {
         locationData.Organization.email = nextValue || null;
         updateCachedLocationOrganizationEmail(locationId, nextValue || null);
         setStatus('Saved. Verifying...', '#666');
-        const verification = await verifyPersistedEmail(nextValue || null);
+        const expectedValue = nextValue || null;
+        let verification = await verifyPersistedEmail(expectedValue, resolvedOrgId);
         if (verification?.ok) {
           if (verification.orgMatch || verification.locMatch) {
             setStatus('Saved (verified).', '#2e7d32');
           } else {
-            const serverValue = verification.orgEmail ?? verification.locEmail;
-            const serverText = serverValue ? `"${serverValue}"` : '(empty)';
-            setStatus(`Saved, but server still has ${serverText}.`, '#b26a00');
-            console.warn('[Email Debug] Persist check mismatch', {
-              expected: nextValue || null,
-              serverOrganizationEmail: verification.orgEmail ?? null,
-              serverLocationEmail: verification.locEmail ?? null
-            });
+            let orgPatchError = null;
+            if (resolvedOrgId) {
+              setStatus('Saved. Updating organization...', '#666');
+              try {
+                await patchOrganizationEmail(resolvedOrgId, expectedValue, orgRecord);
+              } catch (err) {
+                orgPatchError = err?.message || String(err);
+                console.warn('[Email Debug] Organization PATCH failed', orgPatchError);
+              }
+            }
+            await wait(1200);
+            const retryVerification = await verifyPersistedEmail(expectedValue, resolvedOrgId);
+            if (retryVerification?.ok && (retryVerification.orgMatch || retryVerification.locMatch)) {
+              setStatus('Saved (verified).', '#2e7d32');
+            } else {
+              const serverValue = (retryVerification?.ok
+                ? (retryVerification.orgEmail ?? retryVerification.locEmail)
+                : (verification.orgEmail ?? verification.locEmail));
+              const serverText = serverValue ? `"${serverValue}"` : '(empty)';
+              const extra = orgPatchError ? ` Org update failed (${orgPatchError}).` : '';
+              setStatus(`Saved, but server still has ${serverText}.${extra}`, '#b26a00');
+              console.warn('[Email Debug] Persist check mismatch', {
+                expected: expectedValue,
+                serverOrganizationEmail: (retryVerification?.ok ? retryVerification.orgEmail : verification.orgEmail) ?? null,
+                serverLocationEmail: (retryVerification?.ok ? retryVerification.locEmail : verification.locEmail) ?? null
+              });
+              keepEditing = true;
+            }
           }
         } else {
           const reason = verification?.status ? `status ${verification.status}` : (verification?.error || 'unknown error');
           setStatus(`Saved, but verify failed (${reason}).`, '#b26a00');
           console.warn('[Email Debug] Persist check failed', verification);
+          keepEditing = true;
         }
         setTimeout(() => {
           if (!document.getElementById(LOCATION_CONTACT_CONTAINER_ID)) return;
           renderLocationContactOverlay(locationId, locationData);
         }, 200);
+        setEditingState(keepEditing);
       } catch (err) {
         setStatus(err?.message || 'Failed to update email.', '#c62828');
       } finally {
@@ -1918,6 +2238,7 @@ function renderLocationContactOverlay(locationId, locationData) {
     section.appendChild(header);
     section.appendChild(row);
     section.appendChild(status);
+    setEditingState(editingEnabled);
     setSaveState();
     return section;
   };
@@ -2076,9 +2397,11 @@ function buildGmailUrl(email){
    ======================================================= */
 function linkifyPhonesAndEmails(rootDoc){
   const root = rootDoc || document;
+  const editingSkipSelector = '[contenteditable="true"],[contenteditable=""],[contenteditable],[role="textbox"]';
   // 1) Rewrite existing <a href="tel:"> and <a href="mailto:">
   root.querySelectorAll('a[href^="tel:"], a[href^="mailto:"]').forEach(a => {
     if (a.closest(`#${LOCATION_CONTACT_CONTAINER_ID},#${RELATED_LOCATIONS_OVERLAY_ID}`)) return;
+    if (a.closest(editingSkipSelector)) return;
     const href = a.getAttribute('href') || "";
     if (href.startsWith("tel:")) {
       const url = buildGVUrl(href.slice(4));
@@ -2098,7 +2421,7 @@ function linkifyPhonesAndEmails(rootDoc){
       acceptNode(node){
         if (!node.nodeValue || !/[A-Za-z0-9@]/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
         // skip inside these
-        if (node.parentElement?.closest(`a,script,style,textarea,select,code,pre,svg,#yp-embed-wrapper,#${LOCATION_CONTACT_CONTAINER_ID},#${RELATED_LOCATIONS_OVERLAY_ID}`)) {
+        if (node.parentElement?.closest(`a,script,style,textarea,select,input,code,pre,svg,${editingSkipSelector},#yp-embed-wrapper,#${LOCATION_CONTACT_CONTAINER_ID},#${RELATED_LOCATIONS_OVERLAY_ID}`)) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;

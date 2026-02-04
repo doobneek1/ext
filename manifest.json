@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "doobneek feat YourPeer",
-  "version": "5.9.135",
+  "version": "5.9.137",
   "description": "Injects text formatting buttons and redirect logic.",
   "permissions": [
     "storage",
@@ -18,13 +18,13 @@
     "https://yourpeer.nyc/*",
     "https://mail.google.com/*",
     "https://voice.google.com/*",
-    "http://localhost:3210/*",
+    "https://doobneek.org/*",
     "http://localhost:3000/*",
     "https://maps.googleapis.com/",
     "https://streetli-default-rtdb.firebaseio.com/*",
     "https://us-central1-streetli.cloudfunctions.net/*",
     "https://us-central1-streetli.cloudfunctions.net/locationNote1/*",
-    "http://localhost:3210/*",
+    "https://doobneek.org/*",
     "https://*.doobneek.org/*",
     "https://w6pkliozjh.execute-api.us-east-1.amazonaws.com/*",
     "<all_urls>"

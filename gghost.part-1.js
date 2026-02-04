@@ -353,8 +353,20 @@ function shouldSkipNoteApi() {
   return NOTE_API_SKIP_HOST_RE.test(host);
 }
 function fetchViaBackground(url, options = {}) {
-  if (!chrome?.runtime?.sendMessage) {
+  const fetchWithCorsFix = () => {
+    try {
+      const targetOrigin = new URL(url, window.location.href).origin;
+      const pageOrigin = window.location.origin;
+      if (options?.credentials === 'include' && targetOrigin !== pageOrigin) {
+        return fetch(url, { ...options, credentials: 'omit' });
+      }
+    } catch (_err) {
+      // fall back to default fetch
+    }
     return fetch(url, options);
+  };
+  if (window.__gghostBackgroundFetchUnavailable || !chrome?.runtime?.sendMessage) {
+    return fetchWithCorsFix();
   }
   return new Promise((resolve, reject) => {
     try {
@@ -367,6 +379,9 @@ function fetchViaBackground(url, options = {}) {
           return;
         }
         if (lastError) {
+          if (String(lastError.message || '').toLowerCase().includes('extension context invalidated')) {
+            window.__gghostBackgroundFetchUnavailable = true;
+          }
           reject(new Error(lastError.message || 'Background fetch failed'));
           return;
         }
@@ -388,7 +403,7 @@ function fetchViaBackground(url, options = {}) {
     }
   }).catch((err) => {
     console.warn('[BackgroundFetch] Falling back to window.fetch:', err);
-    return fetch(url, options);
+    return fetchWithCorsFix();
   });
 }
 async function fetchLocationsByRadiusViaExtension(query) {
@@ -538,8 +553,9 @@ function normalizeOrgName(name) {
   const label = document.createElementNS(ns, "text");
         const today = new Date().toISOString().slice(0, 10); 
 async function fetchValidationStats(uuid) {
-  const url = `${baseURL}locationNotes/${uuid}/stats.json`;
-  const r = await fetch(url);
+  const url = withFirebaseAuth(`${baseURL}locationNotes/${uuid}/stats.json`);
+  const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+  const r = await fetcher(url);
   if (!r.ok) return [];
   const data = (await r.json()) || {};
   // Allow either validatedAt or lastValidated
@@ -940,9 +956,10 @@ async function fetchSiteVisitRecord(uuid) {
     console.warn("[SiteVisit] fetchSiteVisitRecord called without a UUID");
     return null;
   }
-  const url = `${baseURL}/siteVisits/${uuid}.json`;
+  const url = withFirebaseAuth(`${baseURL}siteVisits/${uuid}.json`);
+  const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
   try {
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await fetcher(url, { cache: "no-store" });
     if (!r.ok) {
       console.warn(`[SiteVisit] Record fetch failed (${r.status}) for ${uuid}`);
       return null;
@@ -984,7 +1001,7 @@ function showSiteVisitEmbed({ uuid, onClose = () => {} }) {
   const nonce = crypto?.getRandomValues
     ? Array.from(crypto.getRandomValues(new Uint32Array(2))).map(n => n.toString(36)).join('')
     : String(Date.now());
-  const src = `http://localhost:3210/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
+  const src = `https://doobneek.org/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
   const iframe = document.createElement('iframe');
   Object.assign(iframe, { src, allow: "clipboard-read; clipboard-write" });
   Object.assign(iframe.style, {
@@ -1221,7 +1238,7 @@ async function injectSiteVisitUI({
           try {
             // --- 1) Flip the done flag directly in RTDB ---
             async function flipDone(uuid) {
-              const url = withFirebaseAuth(`${baseURL}/siteVisits/${uuid}/meta/done.json`);
+              const url = withFirebaseAuth(`${baseURL}siteVisits/${uuid}/meta/done.json`);
               const res = await fetch(url, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -1249,7 +1266,7 @@ async function injectSiteVisitUI({
         const nonce = crypto?.getRandomValues
           ? crypto.getRandomValues(new Uint32Array(1))[0].toString(36)
           : String(Date.now());
-        const src = `http://localhost:3210/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
+        const src = `https://doobneek.org/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
         const iframe = document.createElement('iframe');
         Object.assign(iframe.style, { width: '100%', height: '30px', display: 'block' });
         iframe.src = src;
@@ -1825,7 +1842,8 @@ function decodeCompositeKey(key) {
 async function loadExisting() {
   existingDiv.innerHTML = "Loading...";
   try {
-    const r = await fetch(`${baseURL}locationNotes.json`);
+    const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    const r = await fetcher(withFirebaseAuth(`${baseURL}locationNotes.json`));
     if (!r.ok) throw new Error(`Fetch failed: ${r.status}`);
     const all = await r.json() || {};
     const cards = [];
@@ -2374,8 +2392,9 @@ async function hasLinkedLocations() {
   const uuid = (fullServiceMatch || teamMatch || findMatch)?.[1];
   if (!uuid) return false;
   try {
-    const firebaseURL = `${baseURL}locationNotes/connections.json`;
-    const res = await fetch(firebaseURL);
+    const firebaseURL = withFirebaseAuth(`${baseURL}locationNotes/connections.json`);
+    const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    const res = await fetcher(firebaseURL);
     if (!res.ok) return false;
     const allData = await res.json();
     const allGroups = allData || {};
@@ -2490,12 +2509,13 @@ async function addConnectionModeButton() {
   document.body.appendChild(connectionButton);
 }
 async function doesSanitizedGroupNameExist(userInput) {
-  const firebaseURL = `${baseURL}locationNotes/connections.json`;
+  const firebaseURL = withFirebaseAuth(`${baseURL}locationNotes/connections.json`);
   if (!userInput || typeof userInput !== 'string') return false;
   const sanitize = str => str.replace(/\s+/g, '').toLowerCase(); 
   const sanitizedInput = sanitize(userInput);
   try {
-    const res = await fetch(firebaseURL);
+    const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    const res = await fetcher(firebaseURL);
     if (!res.ok) {
       console.error(`[checkIfGroupExists] Firebase fetch failed: ${res.status}`, await res.text());
       return false;
@@ -2522,11 +2542,12 @@ async function showConnectedLocations(NOTE_API) {
   const currentPageLocationDetails = await fetchLocationDetails(uuid);
   const currentPageOrgName = currentPageLocationDetails.org;
   console.log("[gghost.js] showConnectedLocations: Current page org name:", currentPageOrgName);
-  const firebaseURL = `${baseURL}locationNotes/connections.json`;
+  const firebaseURL = withFirebaseAuth(`${baseURL}locationNotes/connections.json`);
   console.log("[gghost.js] showConnectedLocations: Fetching connections from:", firebaseURL);
   let allData;
   try {
-    const res = await fetch(firebaseURL);
+    const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    const res = await fetcher(firebaseURL);
     if (!res.ok) {
       console.error("[gghost.js] showConnectedLocations: Firebase fetch failed!", res.status, await res.text());
       return;
@@ -2769,6 +2790,10 @@ locationDisplayElement.style.paddingLeft = "6px";
 locationDisplayElement.innerText = connectedUuid === uuid ? "This location" : "Loading...";
 fetchLocationDetails(connectedUuid).then(data => {
   const { org: connectedOrgName, name: connectedLocName, lastValidated } = data;
+  if (connectedUuid !== uuid && !connectedOrgName && !connectedLocName) {
+    locationWrapper.remove();
+    return;
+  }
   const trafficColor = getTrafficLightColor(lastValidated);
   locationDisplayElement.style.borderLeft = `8px solid ${trafficColor}`;
   if (connectedUuid === uuid) {
@@ -2780,11 +2805,15 @@ fetchLocationDetails(connectedUuid).then(data => {
   ) {
     locationDisplayElement.innerText = `${connectedOrgName} - ${connectedLocName}`;
   } else {
-    locationDisplayElement.innerText = connectedLocName;
+    locationDisplayElement.innerText = connectedLocName || connectedOrgName || "(Unavailable)";
   }
 }).catch(err => {
   console.error(`[Traffic Light] Failed to fetch details for ${connectedUuid}:`, err);
-  locationDisplayElement.innerText = "(Unavailable)";
+  if (connectedUuid !== uuid) {
+    locationWrapper.remove();
+  } else {
+    locationDisplayElement.innerText = "This location";
+  }
 });
 }
     const addLinkToGroupDiv = document.createElement("div");
@@ -2906,9 +2935,10 @@ if (!allowBecauseLinkIsBlank && !allowBecauseValidUuid && !allowBecauseGroupExis
   alert("Please enter a valid GoGetta location link or an existing group name.");
   return;
 }
-  const locationNotesURL = `${baseURL}locationNotes/${currentPageUuid}.json`;
+  const locationNotesURL = withFirebaseAuth(`${baseURL}locationNotes/${currentPageUuid}.json`);
   try {
-    const res = await fetch(locationNotesURL);
+    const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    const res = await fetcher(locationNotesURL);
     const existingLocationNotes = await res.json();
     if (existingLocationNotes && existingLocationNotes[groupNameFromInput]) {
       alert(`A group named "${groupNameFromInput}" already exists for this location. Please choose a different name or add the link to the existing group.`);

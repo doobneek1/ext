@@ -264,7 +264,7 @@ async function ensureAppOverlay(urlPath = "/embed") {
 // Example usage from your existing button code:
 // ensureAppOverlay(`/embed?uuid=${encodeURIComponent(uuid)}&mode=sitevisit`);
 // ⛔ Remove the extra poster below; not needed for the handshake flow
-// (async () => { ... window.postMessage({type:"CREDENTIALS", ...}, "http://localhost:3210"); })();
+// (async () => { ... window.postMessage({type:"CREDENTIALS", ...}, "https://doobneek.org"); })();
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "SHOW_TABLE_OVERLAY") {
     ensureAppOverlay(message.urlPath || "/embed?mode=table");

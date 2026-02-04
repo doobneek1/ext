@@ -88,6 +88,13 @@ function normalizeNotesBaseUrl(baseURL) {
   if (!baseURL) return "";
   return baseURL.endsWith("/") ? baseURL : `${baseURL}/`;
 }
+function withFirebaseAuthSafe(url) {
+  const auth = typeof window !== "undefined" ? window.gghost?.withFirebaseAuth : null;
+  if (typeof auth === "function") {
+    return auth(url);
+  }
+  return url;
+}
 function resolveNoteText(raw) {
   if (raw == null) return "";
   if (typeof raw === "string") return raw;
@@ -102,7 +109,7 @@ function startTodayNoteListener({ baseURL, uuid, userName, dateKey, onUpdate }) 
   }
   const safeBase = normalizeNotesBaseUrl(baseURL);
   const encodedUser = encodeURIComponent(userName);
-  const url = `${safeBase}locationNotes/${uuid}/${encodedUser}/${dateKey}.json`;
+  const url = withFirebaseAuthSafe(`${safeBase}locationNotes/${uuid}/${encodedUser}/${dateKey}.json`);
   let closed = false;
   let source = null;
   try {
@@ -1239,16 +1246,26 @@ function parseWhen(dateKey, noteVal) {
   if (!isNaN(d)) return { date: d, dateOnly: false };
   return null;
 }
-const EDIT_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
-const EDIT_HISTORY_CACHE_KEY = 'gghost-edit-history-cache';
+  const EDIT_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
+  const EDIT_HISTORY_CACHE_KEY = 'gghost-edit-history-user-cache-v2';
+  const EDIT_HISTORY_USER_API_DEFAULT = 'https://us-central1-streetli.cloudfunctions.net/locationNotesUserHistory';
+  const EDIT_HISTORY_MAX_EDITS = Number(window.gghost?.EDIT_HISTORY_MAX_EDITS) || 600;
+  const EDIT_HISTORY_MAX_DATES = Number(window.gghost?.EDIT_HISTORY_MAX_DATES) || 20;
+  const EDIT_HISTORY_MAX_LOCATION_DETAILS = Number(window.gghost?.EDIT_HISTORY_MAX_LOCATION_DETAILS) || 150;
 let editHistoryCache = null;
 let editHistoryCacheAt = 0;
 let editHistoryCacheInFlight = null;
-function readEditHistoryCache({ allowStale = false } = {}) {
+function readEditHistoryCache({ allowStale = false, userKey = '', userName = '' } = {}) {
   const now = Date.now();
-  if (editHistoryCache) {
+  const isMatch = (entry) => {
+    if (!entry || typeof entry !== 'object') return false;
+    if (userKey && entry.userKey && entry.userKey !== userKey) return false;
+    if (userName && entry.userName && entry.userName !== userName) return false;
+    return true;
+  };
+  if (editHistoryCache && isMatch(editHistoryCache)) {
     if (allowStale || now - editHistoryCacheAt < EDIT_HISTORY_CACHE_TTL_MS) {
-      return editHistoryCache;
+      return editHistoryCache.data;
     }
   }
   try {
@@ -1257,53 +1274,118 @@ function readEditHistoryCache({ allowStale = false } = {}) {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
     if (!parsed.data || typeof parsed.data !== 'object') return null;
+    if (!isMatch(parsed)) return null;
     const age = now - (Number(parsed.ts) || 0);
     if (allowStale || age < EDIT_HISTORY_CACHE_TTL_MS) {
-      editHistoryCache = parsed.data;
+      editHistoryCache = parsed;
       editHistoryCacheAt = Number(parsed.ts) || now;
       return parsed.data;
     }
   } catch {}
   return null;
 }
-function writeEditHistoryCache(data) {
+function writeEditHistoryCache({ userKey = '', userName = '', data } = {}) {
   if (!data || typeof data !== 'object') return;
-  editHistoryCache = data;
+  editHistoryCache = { userKey, userName, data };
   editHistoryCacheAt = Date.now();
   try {
     sessionStorage.setItem(EDIT_HISTORY_CACHE_KEY, JSON.stringify({
       ts: editHistoryCacheAt,
+      userKey,
+      userName,
       data
     }));
   } catch {}
 }
-async function fetchLocationNotesWithCache(baseURL) {
-  if (!baseURL) throw new Error('Base URL not available');
-  const cached = readEditHistoryCache();
+async function fetchUserHistoryWithCache({ userName = '' } = {}) {
+  const cached = readEditHistoryCache({ userName });
   if (cached) return { data: cached, fromCache: true };
   if (editHistoryCacheInFlight) return editHistoryCacheInFlight;
   editHistoryCacheInFlight = (async () => {
-    const jsonUrl = `${baseURL}locationNotes.json`;
-    const res = await fetch(jsonUrl, { cache: 'no-store' });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch: ${res.status}`);
+    const apiBase = window.gghost?.EDIT_HISTORY_USER_API || EDIT_HISTORY_USER_API_DEFAULT;
+    if (!apiBase) {
+      throw new Error('Edit history API not available');
     }
-    const allData = await res.json();
-    if (!allData || typeof allData !== 'object') {
-      throw new Error('Invalid data format');
-    }
-    writeEditHistoryCache(allData);
-    return { data: allData, fromCache: false };
+    const headers = typeof getAuthHeaders === 'function' ? getAuthHeaders() : { 'Content-Type': 'application/json' };
+    if (!headers.accept) headers.accept = 'application/json';
+    const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    const url = `${apiBase}?_=${Date.now()}`;
+    const res = await fetcher(url, {
+      method: 'GET',
+      headers,
+      credentials: 'include',
+      mode: 'cors'
+    });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        const error = new Error(`Failed to fetch user history: ${res.status} ${text || 'unknown error'}`);
+        error.status = res.status;
+        if (res.status === 401 || res.status === 403) error.code = 'auth';
+        error.body = text;
+        throw error;
+      }
+    const payload = await res.json().catch(() => null);
+    const data = payload?.data && typeof payload.data === 'object' ? payload.data : {};
+    const userKey = payload?.user?.key || '';
+    const normalizedUserName = payload?.user?.normalized || payload?.user?.name || userName || '';
+    writeEditHistoryCache({ userKey, userName: normalizedUserName, data });
+    return { data, fromCache: false, user: payload?.user || null };
   })();
   try {
     return await editHistoryCacheInFlight;
   } catch (err) {
-    const stale = readEditHistoryCache({ allowStale: true });
+    const stale = readEditHistoryCache({ allowStale: true, userName });
     if (stale) return { data: stale, fromCache: true, error: err };
     throw err;
   } finally {
     editHistoryCacheInFlight = null;
   }
+}
+async function fetchLocationNotesLegacy(baseURL) {
+  if (!baseURL) throw new Error('Base URL not available');
+  const jsonUrl = withFirebaseAuthSafe(`${baseURL}locationNotes.json`);
+  const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+  const res = await fetcher(jsonUrl, { cache: 'no-store' });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch: ${res.status}`);
+  }
+  const allData = await res.json();
+  if (!allData || typeof allData !== 'object') {
+    throw new Error('Invalid data format');
+  }
+  return { data: allData };
+}
+async function fetchLocationNotesForLocation(baseURL, locationId) {
+  if (!baseURL || !locationId) return {};
+  const safeBase = normalizeNotesBaseUrl(baseURL);
+  const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+  const result = {};
+  const encodedLocationId = encodeURIComponent(locationId);
+  const directUrl = withFirebaseAuthSafe(`${safeBase}locationNotes/${encodedLocationId}.json`);
+  const teamPrefix = encodeURIComponent(`/team/location/${locationId}`);
+  const teamQueryUrl = withFirebaseAuthSafe(`${safeBase}locationNotes.json?orderBy=\"%24key\"&startAt=\"${teamPrefix}\"&endAt=\"${teamPrefix}\\uf8ff\"`);
+  const findPrefix = encodeURIComponent(`/find/location/${locationId}`);
+  const findQueryUrl = withFirebaseAuthSafe(`${safeBase}locationNotes.json?orderBy=\"%24key\"&startAt=\"${findPrefix}\"&endAt=\"${findPrefix}\\uf8ff\"`);
+  const requests = [
+    fetcher(directUrl, { cache: 'no-store' }).then((res) => res.ok ? res.json() : null),
+    fetcher(teamQueryUrl, { cache: 'no-store' }).then((res) => res.ok ? res.json() : null),
+    fetcher(findQueryUrl, { cache: 'no-store' }).then((res) => res.ok ? res.json() : null)
+  ];
+  try {
+    const [directData, teamData, findData] = await Promise.all(requests);
+    if (directData && typeof directData === 'object') {
+      result[encodedLocationId] = directData;
+    }
+    if (teamData && typeof teamData === 'object') {
+      Object.assign(result, teamData);
+    }
+    if (findData && typeof findData === 'object') {
+      Object.assign(result, findData);
+    }
+  } catch (err) {
+    console.warn('[Edit History] Failed to fetch location notes subset', err);
+  }
+  return result;
 }
 const EDIT_TIMELINE_CACHE_PREFIX = 'gghost-edit-timeline-cache-';
 const EDIT_TIMELINE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -2729,101 +2811,197 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
     if (!baseURL) {
       throw new Error('Base URL not available');
     }
-    const { data: allData, fromCache } = await fetchLocationNotesWithCache(baseURL);
-    console.log('[Edit History] Data received:', allData);
-    if (fromCache) {
-      console.log('[Edit History] Using cached locationNotes data');
-    }
     const locationEdits = [];
     const visitHistory = readVisitHistory();
     const visitUuids = new Set();
     visitHistory.forEach((visit) => {
       if (visit && visit.uuid) visitUuids.add(visit.uuid);
     });
+    const normalizedCurrentUser = normalizeEditUserName(currentUser || '') || currentUser || '';
+    console.log('[Edit History] Current user:', normalizedCurrentUser || currentUser);
+    progress.textContent = 'Loading your edits...';
+    let allData = null;
+    let userNotes = null;
+    let usingLegacy = false;
+    try {
+      const userHistory = await fetchUserHistoryWithCache({ userName: normalizedCurrentUser });
+      userNotes = userHistory?.data || {};
+      if (userHistory?.fromCache) {
+        console.log('[Edit History] Using cached user history');
+      }
+      } catch (err) {
+        if (err && (err.code === 'auth' || err.status === 401 || err.status === 403)) {
+          console.warn('[Edit History] User history auth failed; not falling back to legacy scan', err);
+          modal.removeChild(loading);
+          modal.removeChild(progress);
+          const authNotice = document.createElement('div');
+          authNotice.textContent = 'Edit history is not available right now. Please log in again and retry.';
+          authNotice.style.textAlign = 'center';
+          authNotice.style.padding = '16px';
+          authNotice.style.color = '#b00020';
+          modal.appendChild(authNotice);
+          return;
+        }
+        console.warn('[Edit History] User history fetch failed, falling back to legacy scan', err);
+        const legacy = await fetchLocationNotesLegacy(baseURL);
+        allData = legacy?.data || {};
+        usingLegacy = true;
+      }
+
     if (currentLocationId) {
-      for (const [locationKey, userMap] of Object.entries(allData)) {
-        if (!userMap || typeof userMap !== 'object') continue;
-        if (!keyMatchesLocation(locationKey, currentLocationId)) continue;
-        for (const [userKey, dateMap] of Object.entries(userMap)) {
-          if (isInvocationKey(userKey)) continue;
-          if (!dateMap || typeof dateMap !== 'object') continue;
-          for (const [dateKey, noteVal] of Object.entries(dateMap)) {
-            const info = parseWhen(dateKey, noteVal);
-            if (!info) continue;
-            const meta = parseNoteValue(noteVal);
-            if (meta && meta.type && meta.type !== 'edit') continue;
-            const copyedit = isCopyeditMeta(meta);
-            const summary = withCopyeditPrefix(
-              meta?.summary || meta?.note || (typeof noteVal === 'string' ? noteVal : (noteVal?.note || 'Edit')),
-              copyedit
-            );
-            locationEdits.push({
-              userName: userKey.replace(/-futurenote$/i, ''),
-              date: info.date,
-              dateOnly: info.dateOnly,
-              summary,
-              copyedit,
-              field: meta?.label || meta?.field || '',
-              before: meta?.before,
-              after: meta?.after
-            });
+      if (usingLegacy && allData && typeof allData === 'object') {
+        for (const [locationKey, userMap] of Object.entries(allData)) {
+          if (!userMap || typeof userMap !== 'object') continue;
+          if (!keyMatchesLocation(locationKey, currentLocationId)) continue;
+          for (const [userKey, dateMap] of Object.entries(userMap)) {
+            if (isInvocationKey(userKey)) continue;
+            if (!dateMap || typeof dateMap !== 'object') continue;
+            for (const [dateKey, noteVal] of Object.entries(dateMap)) {
+              const info = parseWhen(dateKey, noteVal);
+              if (!info) continue;
+              const meta = parseNoteValue(noteVal);
+              if (meta && meta.type && meta.type !== 'edit') continue;
+              const copyedit = isCopyeditMeta(meta);
+              const summary = withCopyeditPrefix(
+                meta?.summary || meta?.note || (typeof noteVal === 'string' ? noteVal : (noteVal?.note || 'Edit')),
+                copyedit
+              );
+              locationEdits.push({
+                userName: userKey.replace(/-futurenote$/i, ''),
+                date: info.date,
+                dateOnly: info.dateOnly,
+                summary,
+                copyedit,
+                field: meta?.label || meta?.field || '',
+                before: meta?.before,
+                after: meta?.after
+              });
+            }
+          }
+        }
+      } else {
+        const locationData = await fetchLocationNotesForLocation(baseURL, currentLocationId);
+        for (const [locationKey, userMap] of Object.entries(locationData)) {
+          if (!userMap || typeof userMap !== 'object') continue;
+          if (!keyMatchesLocation(locationKey, currentLocationId)) continue;
+          for (const [userKey, dateMap] of Object.entries(userMap)) {
+            if (isInvocationKey(userKey)) continue;
+            if (!dateMap || typeof dateMap !== 'object') continue;
+            for (const [dateKey, noteVal] of Object.entries(dateMap)) {
+              const info = parseWhen(dateKey, noteVal);
+              if (!info) continue;
+              const meta = parseNoteValue(noteVal);
+              if (meta && meta.type && meta.type !== 'edit') continue;
+              const copyedit = isCopyeditMeta(meta);
+              const summary = withCopyeditPrefix(
+                meta?.summary || meta?.note || (typeof noteVal === 'string' ? noteVal : (noteVal?.note || 'Edit')),
+                copyedit
+              );
+              locationEdits.push({
+                userName: userKey.replace(/-futurenote$/i, ''),
+                date: info.date,
+                dateOnly: info.dateOnly,
+                summary,
+                copyedit,
+                field: meta?.label || meta?.field || '',
+                before: meta?.before,
+                after: meta?.after
+              });
+            }
           }
         }
       }
     }
     locationEdits.sort((a, b) => b.date - a.date);
     // Filter user's edits and collect location UUIDs
-    const userEdits = [];
-    const locationUuids = new Set();
-    const normalizedCurrentUser = normalizeEditUserName(currentUser || '');
-    console.log('[Edit History] Current user:', normalizedCurrentUser || currentUser);
-    console.log('[Edit History] All data keys:', Object.keys(allData));
+      let userEdits = [];
+      let locationUuids = new Set();
     progress.textContent = 'Analyzing your edits...';
-    for (const [locationKey, userMap] of Object.entries(allData)) {
-      if (!userMap || typeof userMap !== 'object') continue;
-      // Check if current user has edits for this location
-      const userKey = `${normalizedCurrentUser || currentUser}-futurenote`;
-      console.log('[Edit History] Checking location:', locationKey, 'for users:', Object.keys(userMap));
-      if (userMap[userKey] || userMap[normalizedCurrentUser] || userMap[currentUser]) {
-        const dateMap = userMap[userKey] || userMap[normalizedCurrentUser] || userMap[currentUser];
-        if (dateMap && typeof dateMap === 'object') {
-          // Extract UUID from location key (decode if needed)
-          const normalizedPath = normalizeKeyPath(locationKey);
-          const locationUuid = extractLocationUuidFromKey(locationKey);
-          if (locationUuid && locationUuid.match(/^[a-f0-9-]+$/)) {
-            locationUuids.add(locationUuid);
-            // Determine the page type from the path
-            let pageType = 'Location';
-            if (normalizedPath.includes('/services/')) {
-              pageType = 'Service';
-            } else if (normalizedPath.includes('/other-info')) {
-              pageType = 'Other Info';
-            }
-            const isBareUuid = /^[a-f0-9-]{12,36}$/i.test(normalizedPath);
-            const fullPath = normalizedPath && !isBareUuid
-              ? (normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`)
-              : `/team/location/${locationUuid}`;
-            // Process each edit date
-            for (const [dateKey, noteVal] of Object.entries(dateMap)) {
-              const info = parseWhen(dateKey, noteVal);
-              if (info) {
-                const meta = parseNoteValue(noteVal);
-                if (meta && meta.type && meta.type !== 'edit') continue;
-                const copyedit = isCopyeditMeta(meta);
-                const noteSummary = withCopyeditPrefix(
-                  meta?.summary || meta?.note || (typeof noteVal === 'string' ? noteVal : (noteVal?.note || 'Edit')),
-                  copyedit
-                );
-                userEdits.push({
-                  locationUuid,
-                  fullPath,
-                  pageType,
-                  date: info.date,
-                  dateOnly: info.dateOnly,
-                  note: noteSummary,
-                  copyedit
-                });
+    if (usingLegacy && allData && typeof allData === 'object') {
+      console.log('[Edit History] Legacy data keys:', Object.keys(allData));
+      for (const [locationKey, userMap] of Object.entries(allData)) {
+        if (!userMap || typeof userMap !== 'object') continue;
+        // Check if current user has edits for this location
+        const userKey = `${normalizedCurrentUser || currentUser}-futurenote`;
+        if (userMap[userKey] || userMap[normalizedCurrentUser] || userMap[currentUser]) {
+          const dateMap = userMap[userKey] || userMap[normalizedCurrentUser] || userMap[currentUser];
+          if (dateMap && typeof dateMap === 'object') {
+            const normalizedPath = normalizeKeyPath(locationKey);
+            const locationUuid = extractLocationUuidFromKey(locationKey);
+            if (locationUuid && locationUuid.match(/^[a-f0-9-]+$/)) {
+              locationUuids.add(locationUuid);
+              let pageType = 'Location';
+              if (normalizedPath.includes('/services/')) {
+                pageType = 'Service';
+              } else if (normalizedPath.includes('/other-info')) {
+                pageType = 'Other Info';
               }
+              const isBareUuid = /^[a-f0-9-]{12,36}$/i.test(normalizedPath);
+              const fullPath = normalizedPath && !isBareUuid
+                ? (normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`)
+                : `/team/location/${locationUuid}`;
+              for (const [dateKey, noteVal] of Object.entries(dateMap)) {
+                const info = parseWhen(dateKey, noteVal);
+                if (info) {
+                  const meta = parseNoteValue(noteVal);
+                  if (meta && meta.type && meta.type !== 'edit') continue;
+                  const copyedit = isCopyeditMeta(meta);
+                  const noteSummary = withCopyeditPrefix(
+                    meta?.summary || meta?.note || (typeof noteVal === 'string' ? noteVal : (noteVal?.note || 'Edit')),
+                    copyedit
+                  );
+                  userEdits.push({
+                    locationUuid,
+                    fullPath,
+                    pageType,
+                    date: info.date,
+                    dateOnly: info.dateOnly,
+                    note: noteSummary,
+                    copyedit
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    } else if (userNotes && typeof userNotes === 'object') {
+      console.log('[Edit History] User history locations:', Object.keys(userNotes));
+      for (const [locationKey, dateMap] of Object.entries(userNotes)) {
+        if (!dateMap || typeof dateMap !== 'object') continue;
+        const normalizedPath = normalizeKeyPath(locationKey);
+        const locationUuid = extractLocationUuidFromKey(locationKey);
+        if (locationUuid && locationUuid.match(/^[a-f0-9-]+$/)) {
+          locationUuids.add(locationUuid);
+          let pageType = 'Location';
+          if (normalizedPath.includes('/services/')) {
+            pageType = 'Service';
+          } else if (normalizedPath.includes('/other-info')) {
+            pageType = 'Other Info';
+          }
+          const isBareUuid = /^[a-f0-9-]{12,36}$/i.test(normalizedPath);
+          const fullPath = normalizedPath && !isBareUuid
+            ? (normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`)
+            : `/team/location/${locationUuid}`;
+          for (const [dateKey, noteVal] of Object.entries(dateMap)) {
+            const info = parseWhen(dateKey, noteVal);
+            if (info) {
+              const meta = parseNoteValue(noteVal);
+              if (meta && meta.type && meta.type !== 'edit') continue;
+              const copyedit = isCopyeditMeta(meta);
+              const noteSummary = withCopyeditPrefix(
+                meta?.summary || meta?.note || (typeof noteVal === 'string' ? noteVal : (noteVal?.note || 'Edit')),
+                copyedit
+              );
+              userEdits.push({
+                locationUuid,
+                fullPath,
+                pageType,
+                date: info.date,
+                dateOnly: info.dateOnly,
+                note: noteSummary,
+                copyedit
+              });
             }
           }
         }
@@ -2851,15 +3029,37 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
     modal.removeChild(loading);
     modal.removeChild(progress);
     // Group edits first with placeholder data
-    const editsByDate = groupEditsByDate(userEdits, locationDetails);
-    // Render initial content
-    renderEditHistory(editsByDate, locationDetails, modal, currentPageUuid, locationEdits, visitsByDate);
-    // Now fetch details progressively and update UI
-    Array.from(locationUuids).forEach(async (uuid) => {
-      console.log(`[Edit History] 🔄 Fetching details for UUID: ${uuid}`);
-      const data = await fetchLocationDetails(uuid);
-      console.log(`[Edit History] 📦 Raw data for ${uuid}:`, data);
-      console.log(`[Edit History] 🏢 Org: "${data.org}", Name: "${data.name}"`);
+      let editsCapped = false;
+      if (userEdits.length > EDIT_HISTORY_MAX_EDITS) {
+        userEdits.sort((a, b) => b.date - a.date);
+        userEdits = userEdits.slice(0, EDIT_HISTORY_MAX_EDITS);
+        editsCapped = true;
+        const cappedLocations = new Set();
+        userEdits.forEach((edit) => {
+          if (edit?.locationUuid) cappedLocations.add(edit.locationUuid);
+        });
+        locationUuids = cappedLocations;
+      }
+      const editHistoryMeta = { capped: editsCapped, maxEdits: EDIT_HISTORY_MAX_EDITS };
+      const editsByDate = groupEditsByDate(userEdits, locationDetails);
+      // Render initial content
+      renderEditHistory(editsByDate, locationDetails, modal, currentPageUuid, locationEdits, visitsByDate, editHistoryMeta);
+      // Now fetch details progressively and update UI
+      const uuidsToLoad = Array.from(locationUuids).slice(0, EDIT_HISTORY_MAX_LOCATION_DETAILS);
+      let rerenderTimer = null;
+      const scheduleRerender = () => {
+        if (rerenderTimer) return;
+        rerenderTimer = setTimeout(() => {
+          rerenderTimer = null;
+          const nextEditsByDate = groupEditsByDate(userEdits, locationDetails);
+          renderEditHistory(nextEditsByDate, locationDetails, modal, currentPageUuid, locationEdits, visitsByDate, editHistoryMeta);
+        }, 120);
+      };
+      uuidsToLoad.forEach(async (uuid) => {
+        console.log(`[Edit History] 🔄 Fetching details for UUID: ${uuid}`);
+        const data = await fetchLocationDetails(uuid);
+        console.log(`[Edit History] 📦 Raw data for ${uuid}:`, data);
+        console.log(`[Edit History] 🏢 Org: "${data.org}", Name: "${data.name}"`);
       const hasAnyData = !!(data.org || data.name);
       // Update the location details
       locationDetails[uuid] = {
@@ -2869,11 +3069,11 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
         isLoading: false,
         hasData: hasAnyData
       };
-      addLocationToUI(uuid, locationDetails[uuid]);
-      if (hasAnyData) {
-        console.log(`[Edit History] Got data for ${uuid}: "${data.org}" - "${data.name}"`);
-        loadedUuids.add(uuid);
-      } else {
+        addLocationToUI(uuid, locationDetails[uuid]);
+        if (hasAnyData) {
+          console.log(`[Edit History] Got data for ${uuid}: "${data.org}" - "${data.name}"`);
+          loadedUuids.add(uuid);
+        } else {
         console.warn(`[Edit History] No valid data for ${uuid} - org:"${data.org}" name:"${data.name}"`);
         console.warn('[Edit History] This could be due to:');
         console.warn('[Edit History]   - API timeout (504)');
@@ -2883,11 +3083,10 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
       }
     });
     // Function to add a location to the UI when it's successfully loaded
-    function addLocationToUI(uuid, details) {
-      // Re-render the entire edit history with updated data
-      const editsByDate = groupEditsByDate(userEdits, locationDetails);
-      renderEditHistory(editsByDate, locationDetails, modal, currentPageUuid, locationEdits, visitsByDate);
-    }
+      function addLocationToUI(uuid, details) {
+        // Re-render the entire edit history with updated data (debounced)
+        scheduleRerender();
+      }
     // Helper function to group edits by date
     function groupEditsByDate(userEdits, locationDetails) {
       const editsByDate = {};
@@ -2958,11 +3157,19 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
       return visitsByDate;
     }
     // Helper function to render the complete edit history
-    function renderEditHistory(editsByDate, locationDetails, modal, currentPageUuid, locationEdits = [], visitsByDate = {}) {
-      // Clear any existing content (except header)
-      while (modal.children.length > 1) {
-        modal.removeChild(modal.lastChild);
-      }
+      function renderEditHistory(editsByDate, locationDetails, modal, currentPageUuid, locationEdits = [], visitsByDate = {}, meta = {}) {
+        // Clear any existing content (except header)
+        while (modal.children.length > 1) {
+          modal.removeChild(modal.lastChild);
+        }
+        if (meta?.capped) {
+          const capNotice = document.createElement('div');
+          capNotice.textContent = `Showing the most recent ${meta.maxEdits} edits to keep things fast.`;
+          capNotice.style.fontSize = '12px';
+          capNotice.style.color = '#666';
+          capNotice.style.marginBottom = '10px';
+          modal.appendChild(capNotice);
+        }
       if (locationEdits && locationEdits.length) {
         const sectionTitle = document.createElement('h2');
         sectionTitle.textContent = 'Edit Details for This Location';
@@ -3201,9 +3408,9 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
       });
     });
     // Function to render edits section
-    function renderEditsSection(editsData, title, isHighlighted = false, activityLabel = 'edit', showDeepLinks = true) {
-      if (Object.keys(editsData).length === 0) return;
-      if (title) {
+      function renderEditsSection(editsData, title, isHighlighted = false, activityLabel = 'edit', showDeepLinks = true) {
+        if (Object.keys(editsData).length === 0) return;
+        if (title) {
         const sectionTitle = document.createElement('h2');
         sectionTitle.textContent = title;
         sectionTitle.style.fontSize = '18px';
@@ -3212,12 +3419,34 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
         sectionTitle.style.borderBottom = '2px solid ' + (isHighlighted ? '#0066cc' : '#eee');
         sectionTitle.style.paddingBottom = '5px';
         modal.appendChild(sectionTitle);
-      }
-      const sortedDates = Object.keys(editsData).sort((a, b) => new Date(b) - new Date(a));
-      sortedDates.forEach(dateStr => {
-        const dateGroup = document.createElement('div');
-        dateGroup.style.marginBottom = '20px';
-        const dateHeader = document.createElement('h3');
+        }
+        const sortedDates = Object.keys(editsData).sort((a, b) => new Date(b) - new Date(a));
+        const maxDates = Math.max(5, EDIT_HISTORY_MAX_DATES || 20);
+        let visibleDates = Math.min(sortedDates.length, maxDates);
+        const datesWrap = document.createElement('div');
+        modal.appendChild(datesWrap);
+        const loadMoreBtn = document.createElement('button');
+        loadMoreBtn.type = 'button';
+        loadMoreBtn.textContent = 'Load more days';
+        Object.assign(loadMoreBtn.style, {
+          border: '1px solid #d0d0d0',
+          background: '#fff',
+          borderRadius: '6px',
+          padding: '6px 10px',
+          fontSize: '12px',
+          cursor: 'pointer',
+          marginBottom: '12px'
+        });
+        loadMoreBtn.addEventListener('click', () => {
+          visibleDates = Math.min(sortedDates.length, visibleDates + maxDates);
+          renderDates();
+        });
+        const renderDates = () => {
+          datesWrap.innerHTML = '';
+          sortedDates.slice(0, visibleDates).forEach(dateStr => {
+          const dateGroup = document.createElement('div');
+          dateGroup.style.marginBottom = '20px';
+          const dateHeader = document.createElement('h3');
         dateHeader.textContent = dateStr;
         dateHeader.style.fontSize = '16px';
         dateHeader.style.margin = '0 0 10px 0';
@@ -3226,7 +3455,7 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
         dateHeader.style.paddingBottom = '5px';
         dateGroup.appendChild(dateHeader);
         const locations = editsData[dateStr];
-        Object.entries(locations).forEach(([uuid, data]) => {
+          Object.entries(locations).forEach(([uuid, data]) => {
           const locationContainer = document.createElement('div');
           locationContainer.style.marginBottom = '8px';
           locationContainer.style.border = '1px solid #e0e0e0';
@@ -3299,9 +3528,14 @@ async function showEditHistoryOverlay(currentLocationUuid, currentUser) {
         }
           dateGroup.appendChild(locationContainer);
         });
-        modal.appendChild(dateGroup);
-      });
-    }
+          datesWrap.appendChild(dateGroup);
+        });
+          if (visibleDates < sortedDates.length) {
+            datesWrap.appendChild(loadMoreBtn);
+          }
+        };
+        renderDates();
+      }
       if (hasVisits) {
         renderEditsSection(visitsByDate, 'Recent Visits', false, 'visit', false);
       }
@@ -3412,10 +3646,11 @@ function hexToRgba(hex, alpha = 0.35) {
 async function fetchPageEditNotes(pagePath) {
   if (!baseURL || !pagePath) return [];
   const encodedKey = encodeURIComponent(pagePath);
-  const primaryUrl = `${baseURL}locationNotes/${encodedKey}.json`;
-  const fallbackUrl = `${baseURL}locationNotes/${pagePath.replace(/^\/+/, '')}.json`;
+  const primaryUrl = withFirebaseAuthSafe(`${baseURL}locationNotes/${encodedKey}.json`);
+  const fallbackUrl = withFirebaseAuthSafe(`${baseURL}locationNotes/${pagePath.replace(/^\/+/, '')}.json`);
+  const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
   const fetchData = async (url) => {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetcher(url, { cache: 'no-store' });
     if (!res.ok) return null;
     return res.json();
   };
@@ -4052,7 +4287,7 @@ if (cacheEntry?.data) {
 let fetched = false;
 if (!cacheEntry || cacheEntry.stale) {
   try {
-    const res = await fetch(`${baseURL}locationNotes/${uuid}.json`);
+    const res = await fetch(withFirebaseAuthSafe(`${baseURL}locationNotes/${uuid}.json`));
     if (res.ok) {
       data = (await res.json()) || {};
       fetched = true;
@@ -4262,7 +4497,7 @@ const renderReadOnlyNotes = (notesToRender) => {
     const container = document.createElement("div");
     container.style.marginBottom = "10px";
     const safeUser = n.user === 'doobneek'
-      ? `<a href="http://localhost:3210" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
+      ? `<a href="https://doobneek.org" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
       : `<strong>${escapeHtml(n.user)}</strong>`;
     const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"
       ? "Revalidated"
@@ -4482,11 +4717,22 @@ noteWrapper.appendChild(checkboxWrapper);
 // Function to refresh readonly notes
 async function refreshReadOnlyNotes() {
   try {
-    const res = await fetch(`${baseURL}locationNotes/${uuid}.json`);
+    const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    const res = await fetcher(withFirebaseAuthSafe(`${baseURL}locationNotes/${uuid}.json`), { cache: 'no-store' });
     const data = (await res.json()) || {};
     const notesArray = buildNotesArray(data);
     renderReadOnlyNotes(notesArray);
     void writeNotesCache(uuid, data, notesArray);
+    Promise.resolve()
+      .then(() => injectSiteVisitUI({
+        parentEl: readOnlyDiv,
+        uuid,
+        userName,
+        NOTE_API,
+        today,
+        done: false
+      }))
+      .catch((err) => console.warn("[Notes] Site visit UI failed:", err));
     console.log("[Notes] Refreshed readonly notes");
   } catch (err) {
     console.error("[Notes] Failed to refresh:", err);
@@ -4577,7 +4823,8 @@ noteWrapper.appendChild(utilityButtonsWrapper);
 // Function to check if user has revalidated today
 async function checkIfRevalidatedToday() {
   try {
-    const res = await fetch(`${baseURL}locationNotes/${uuid}.json`);
+    const fetcher = typeof fetchViaBackground === 'function' ? fetchViaBackground : fetch;
+    const res = await fetcher(withFirebaseAuthSafe(`${baseURL}locationNotes/${uuid}.json`), { cache: 'no-store' });
     const data = (await res.json()) || {};
     const today = new Date().toISOString().slice(0, 10);
     const userNoteForToday = data?.[userName]?.[today] || null;

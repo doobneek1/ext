@@ -151,8 +151,49 @@ const TEAM_LOCATION_URL_RE = /^https:\/\/(?:www\.)?(?:test\.)?gogetta\.nyc\/team
 const notesPrefetchInFlight = new Map();
 const notesPrefetchLast = new Map();
 let remindersRefreshInFlight = null;
+function normalizeReminderNote(note) {
+  if (note == null) return "";
+  if (typeof note === "string") return note;
+  if (typeof note === "object") {
+    const candidate = note.note || note.text || note.summary;
+    if (typeof candidate === "string") return candidate;
+  }
+  return String(note);
+}
 function isDoneBy(note = "") {
-  return /\bDone by [a-zA-Z]+$/.test(note.trim());
+  const text = normalizeReminderNote(note);
+  return /\bDone by [a-zA-Z]+$/.test(text.trim());
+}
+function getLocalDateKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+function coerceReminderDateTs(value) {
+  if (value == null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value < 1e12 ? value * 1000 : value;
+  }
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]) - 1;
+    const day = Number(isoMatch[3]);
+    return new Date(year, month, day).getTime();
+  }
+  const slashMatch = raw.match(/^(\d{1,2})[\\/\\-](\d{1,2})[\\/\\-](\d{2,4})$/);
+  if (slashMatch) {
+    let year = Number(slashMatch[3]);
+    if (year < 100) year += 2000;
+    const month = Number(slashMatch[1]) - 1;
+    const day = Number(slashMatch[2]);
+    return new Date(year, month, day).getTime();
+  }
+  const parsed = Date.parse(raw);
+  return Number.isNaN(parsed) ? null : parsed;
 }
 function buildRemindersUrl(extraParams = {}) {
   const url = new URL(REMINDERS_URL);
@@ -269,13 +310,22 @@ function buildReminderList(data) {
     const locationData = data[uuid];
     if (locationData && typeof locationData === "object" && locationData.reminder) {
       for (const date in locationData.reminder) {
-        const note = locationData.reminder[date];
-        if (isDoneBy(note)) continue;
-        reminders.push({ uuid, date, note });
+        const rawNote = locationData.reminder[date];
+        const note = normalizeReminderNote(rawNote);
+        const done = isDoneBy(note);
+        const dateTs = coerceReminderDateTs(date);
+        reminders.push({ uuid, date, note, done, dateTs });
       }
     }
   }
-  reminders.sort((a, b) => a.date.localeCompare(b.date));
+  reminders.sort((a, b) => {
+    const aTs = typeof a.dateTs === "number" ? a.dateTs : coerceReminderDateTs(a.date);
+    const bTs = typeof b.dateTs === "number" ? b.dateTs : coerceReminderDateTs(b.date);
+    if (typeof aTs === "number" && typeof bTs === "number") {
+      return aTs - bTs;
+    }
+    return String(a.date).localeCompare(String(b.date));
+  });
   return reminders;
 }
 async function readRemindersCache() {
@@ -301,8 +351,19 @@ async function writeRemindersCache(reminders) {
 }
 function updateReminderBadge(reminders) {
   const list = Array.isArray(reminders) ? reminders : [];
-  const today = new Date().toISOString().split("T")[0];
-  const upcoming = list.filter((r) => r.date >= today);
+  const todayKey = getLocalDateKey();
+  const todayTs = coerceReminderDateTs(todayKey) ?? Date.now();
+  const upcoming = list.filter((r) => {
+    const note = normalizeReminderNote(r.note);
+    const done = typeof r.done === "boolean" ? r.done : isDoneBy(note);
+    if (done) return false;
+    const dateTs = typeof r.dateTs === "number" ? r.dateTs : coerceReminderDateTs(r.date);
+    if (typeof dateTs === "number") {
+      return dateTs >= todayTs;
+    }
+    const raw = String(r.date || "");
+    return raw >= todayKey;
+  });
   const count = upcoming.length;
   const text = count > 0 ? String(count) : "";
   chrome.action.setBadgeText({ text });
