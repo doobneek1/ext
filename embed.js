@@ -2,7 +2,7 @@
 (async function () {
   const params = new URLSearchParams(location.search);
   const nonce  = params.get("nonce") || String(Date.now());
-  const HOST   = "https://doobneek.org";
+  const HOST   = "http://localhost:3210";
   // 🔧 Read both old and new keys; prefer the new ones
   const got = await chrome.storage.local.get([
     "userName", "userPassword",

@@ -4497,7 +4497,7 @@ const renderReadOnlyNotes = (notesToRender) => {
     const container = document.createElement("div");
     container.style.marginBottom = "10px";
     const safeUser = n.user === 'doobneek'
-      ? `<a href="https://doobneek.org" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
+      ? `<a href="http://localhost:3210" target="_blank" rel="noopener noreferrer"><strong>doobneek</strong></a>`
       : `<strong>${escapeHtml(n.user)}</strong>`;
     const displayNote = n.note.trim().toLowerCase() === "revalidated123435355342"
       ? "Revalidated"

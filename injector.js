@@ -91,7 +91,7 @@
   Example:
  <strong>
         yourpeer.nyc/<span class="rainbow-word">doobneek</span>/
-        |(Visit <a href="https://doobneek.org" target="_blank" rel="noopener noreferrer" class="rainbow-word">doobneek.org</a>)
+        |(Visit <a href="http://localhost:3210" target="_blank" rel="noopener noreferrer" class="rainbow-word">doobneek.org</a>)
       </strong>
   will convert to
   <code>

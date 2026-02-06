@@ -1001,7 +1001,7 @@ function showSiteVisitEmbed({ uuid, onClose = () => {} }) {
   const nonce = crypto?.getRandomValues
     ? Array.from(crypto.getRandomValues(new Uint32Array(2))).map(n => n.toString(36)).join('')
     : String(Date.now());
-  const src = `https://doobneek.org/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
+  const src = `http://localhost:3210/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
   const iframe = document.createElement('iframe');
   Object.assign(iframe, { src, allow: "clipboard-read; clipboard-write" });
   Object.assign(iframe.style, {
@@ -1266,7 +1266,7 @@ async function injectSiteVisitUI({
         const nonce = crypto?.getRandomValues
           ? crypto.getRandomValues(new Uint32Array(1))[0].toString(36)
           : String(Date.now());
-        const src = `https://doobneek.org/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
+        const src = `http://localhost:3210/embed?uuid=${encodeURIComponent(uuid)}&mode=siteVisit&nonce=${encodeURIComponent(nonce)}`;
         const iframe = document.createElement('iframe');
         Object.assign(iframe.style, { width: '100%', height: '30px', display: 'block' });
         iframe.src = src;

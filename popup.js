@@ -33,9 +33,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const REMINDERS_CACHE_KEY = "remindersCache";
   const REMINDERS_FETCH_TIMEOUT_MS = 8000;
   const REMINDERS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+  const REMINDERS_STREAM_MAX_ERRORS = 2;
   const allReminders = [];
   let remindersEventSource = null;
   let remindersStreamLastEtag = null;
+  let remindersStreamErrorCount = 0;
+  let remindersStreamDisabled = false;
   const pauseBtn = document.getElementById("pauseExtensionBtn");
   const TABLE_EMBED_ORIGIN_KEY = "sheetsEmbedOrigin";
   const TABLE_DEFAULT_ORIGIN = "http://sheets.localhost:3210";
@@ -251,14 +254,22 @@ document.addEventListener("DOMContentLoaded", async () => {
       applyReminderData(data, { shouldCache: true });
     }
   }
+  function getEventSourceStateLabel(source) {
+    const state = source?.readyState;
+    if (state === 0 || state === EventSource.CONNECTING) return "connecting";
+    if (state === 1 || state === EventSource.OPEN) return "open";
+    if (state === 2 || state === EventSource.CLOSED) return "closed";
+    return "unknown";
+  }
   function subscribeToReminderStream() {
-    if (remindersEventSource || typeof EventSource === "undefined") return;
+    if (remindersEventSource || remindersStreamDisabled || typeof EventSource === "undefined") return;
     const streamUrl = buildRemindersUrl({ stream: "true" });
     const source = new EventSource(streamUrl);
     remindersEventSource = source;
     source.addEventListener("reminders", (event) => {
       if (!event?.data) return;
       try {
+        remindersStreamErrorCount = 0;
         const payload = JSON.parse(event.data);
         const etag = payload?.etag || event.lastEventId;
         if (etag && etag === remindersStreamLastEtag) return;
@@ -270,10 +281,23 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
     source.onerror = (err) => {
-      if (source.readyState === EventSource.CLOSED) {
+      const stateLabel = getEventSourceStateLabel(source);
+      const readyState = source.readyState;
+      if (readyState === 2 || readyState === EventSource.CLOSED) {
         remindersEventSource = null;
-      } else {
-        console.warn("[popup] Reminders stream error:", err);
+        return;
+      }
+      remindersStreamErrorCount += 1;
+      const disableStream = remindersStreamErrorCount >= REMINDERS_STREAM_MAX_ERRORS;
+      const eventType = err?.type || "error";
+      console.warn(
+        `[popup] Reminders stream error (${eventType}, ${stateLabel}, readyState=${readyState}${disableStream ? ", disabling stream" : ""}).`
+      );
+      if (disableStream) {
+        remindersStreamDisabled = true;
+        source.close();
+        remindersEventSource = null;
+        void fetchAndRenderReminders();
       }
     };
   }
@@ -298,7 +322,6 @@ function renderReminderList(remindersToShow, filtered = false) {
   };
   const upcoming = normalized.filter((r) => !r.done && !isPast(r));
   const past = normalized.filter((r) => r.done || isPast(r)).reverse();
-  let firstUpcomingItem = null;
   // --- 🕒 Past Reminder Fold Section ---
   if (past.length) {
     const pastHeader = document.createElement("li");
@@ -339,23 +362,12 @@ function renderReminderList(remindersToShow, filtered = false) {
     const li = document.createElement("li");
     li.innerHTML = `<a href="https://gogetta.nyc/team/location/${r.uuid}" target="_blank">${dateText}</a>: ${r.note}`;
     list.appendChild(li);
-    if (!firstUpcomingItem) {
-      firstUpcomingItem = li;
-    }
   }
   // Toggle "Show All" button
   clearBtn.style.display = filtered ? "block" : "none";
   const section = document.getElementById("reminderSection");
   if (section) {
-    if (past.length && firstUpcomingItem) {
-      const sectionRect = section.getBoundingClientRect();
-      const itemRect = firstUpcomingItem.getBoundingClientRect();
-      const maxScroll = section.scrollHeight - section.clientHeight;
-      const targetScrollTop = section.scrollTop + (itemRect.top - sectionRect.top);
-      section.scrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
-    } else {
-      section.scrollTop = 0;
-    }
+    section.scrollTop = 0;
   }
 }
 document.getElementById("clearReminderFilter").addEventListener("click", () => {
